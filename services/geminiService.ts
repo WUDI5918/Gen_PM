@@ -555,11 +555,10 @@ export const chatStreamProject = async function* (
 
 // --- Wiki Content Generation ---
 export const generateWikiContent = async (prompt: string, context: string, config?: AIConfig): Promise<string> => {
+    const isDeepSeek = config?.provider === 'deepseek';
     const apiKey = config?.apiKey || process.env.API_KEY;
-    if (!apiKey) throw new Error("API Key is missing");
 
-    const client = getGeminiClient(apiKey);
-    if (!client) throw new Error("Failed to initialize Gemini");
+    if (!apiKey) throw new Error("API Key is missing");
 
     const fullPrompt = `
         You are an AI writing assistant for a project wiki.
@@ -572,11 +571,19 @@ export const generateWikiContent = async (prompt: string, context: string, confi
     `;
 
     try {
-        const response = await client.models.generateContent({
-            model: config?.model || 'gemini-2.5-flash',
-            contents: fullPrompt,
-        });
-        return response.text || "";
+        if (isDeepSeek && config) {
+            const rawText = await generateWithDeepSeek(fullPrompt, config);
+            return rawText || "";
+        } else {
+            const client = getGeminiClient(apiKey);
+            if (!client) throw new Error("Failed to initialize Gemini");
+
+            const response = await client.models.generateContent({
+                model: config?.model || 'gemini-2.5-flash',
+                contents: fullPrompt,
+            });
+            return response.text || "";
+        }
     } catch (error) {
         console.error("Wiki Generation Error:", error);
         throw new Error("Failed to generate wiki content.");
