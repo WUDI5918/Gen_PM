@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { generateProjectPlan, AIConfig, GenerationOptions } from '../services/geminiService';
 import { ProjectPhase, Project, TeamMember } from '../types';
-import { Sparkles, X, Loader2, ArrowRight, CheckCircle, Settings, Save, Sliders, Clock, Layers, Briefcase, Folder, Layout, CalendarClock } from 'lucide-react';
+import { Sparkles, X, Loader2, ArrowRight, CheckCircle, Sliders, Clock, Layers, Folder, Layout, CalendarClock } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useToast } from '../contexts/ToastContext';
 
@@ -22,8 +22,6 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({ isOpen, onClose, onPla
     const [generatedPhases, setGeneratedPhases] = useState<ProjectPhase[] | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    // Settings State
-    const [showSettings, setShowSettings] = useState(false);
     const [config, setConfig] = useState<AIConfig>({
         provider: 'gemini',
         apiKey: '',
@@ -63,11 +61,7 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({ isOpen, onClose, onPla
         setGenOptions(prev => ({ ...prev, language }));
     }, [language]);
 
-    const saveConfig = () => {
-        localStorage.setItem('project_ai_config', JSON.stringify(config));
-        setShowSettings(false);
-        addToast("AI Configuration Saved", 'success');
-    };
+
 
     if (!isOpen) return null;
 
@@ -82,7 +76,7 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({ isOpen, onClose, onPla
             // If user hasn't set an API key for the selected provider, we might rely on env for Gemini
             // For DeepSeek, it's mandatory.
             if (config.provider === 'deepseek' && !config.apiKey) {
-                throw new Error("Please enter your DeepSeek API Key in Settings.");
+                throw new Error("Please configure your DeepSeek API Key in System Settings.");
             }
 
             const result = await generateProjectPlan(prompt, config, genOptions, teamMembers);
@@ -112,7 +106,7 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({ isOpen, onClose, onPla
         setPrompt('');
         setGeneratedPhases(null);
         setError(null);
-        setShowSettings(false);
+        setError(null);
         // Keep some options sticky, reset simple ones
         setGenOptions(prev => ({ ...prev, duration: '', detailLevel: 'Standard', domain: 'General' }));
         onClose();
@@ -130,17 +124,10 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({ isOpen, onClose, onPla
                             {t('ai.title')}
                         </h2>
                         <p className="text-indigo-100 text-sm mt-1 opacity-90">
-                            {showSettings ? t('ai.subtitle.settings') : t('ai.subtitle')}
+                            {t('ai.subtitle')}
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setShowSettings(!showSettings)}
-                            className={`p-2 rounded-full transition-colors ${showSettings ? 'bg-white text-indigo-600' : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white'}`}
-                            title={t('ai.settings')}
-                        >
-                            <Settings size={20} />
-                        </button>
                         <button onClick={handleClose} className="text-white/70 hover:text-white p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors">
                             <X size={20} />
                         </button>
@@ -148,61 +135,7 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({ isOpen, onClose, onPla
                 </div>
 
                 <div className="flex-1 overflow-y-auto flex flex-col bg-gray-50/50">
-                    {showSettings ? (
-                        <div className="p-6 animate-in slide-in-from-right-4 duration-300 flex flex-col gap-6 max-w-xl mx-auto w-full mt-4">
-                            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-5">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">{t('ai.provider')}</label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button
-                                            onClick={() => setConfig({ ...config, provider: 'gemini' })}
-                                            className={`py-3 px-4 rounded-lg border text-sm font-bold flex items-center justify-center gap-2 transition-all ${config.provider === 'gemini' ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-1 ring-indigo-500' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                        >
-                                            Google Gemini
-                                        </button>
-                                        <button
-                                            onClick={() => setConfig({ ...config, provider: 'deepseek' })}
-                                            className={`py-3 px-4 rounded-lg border text-sm font-bold flex items-center justify-center gap-2 transition-all ${config.provider === 'deepseek' ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-1 ring-indigo-500' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                        >
-                                            DeepSeek (OpenAI)
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">{t('ai.api_key')}</label>
-                                    <input
-                                        type="password"
-                                        placeholder={config.provider === 'gemini' ? "Default (Env) or Custom Key" : "sk-..."}
-                                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                                        value={config.apiKey}
-                                        onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        {config.provider === 'gemini'
-                                            ? "Leave empty to use the demo default key (if available)."
-                                            : "Required for DeepSeek."}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="flex justify-end gap-3">
-                                <button
-                                    onClick={() => setShowSettings(false)}
-                                    className="px-5 py-2.5 rounded-lg font-bold text-gray-600 hover:bg-gray-200 transition-colors"
-                                >
-                                    {t('ai.cancel')}
-                                </button>
-                                <button
-                                    onClick={saveConfig}
-                                    className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-indigo-700 shadow-lg flex items-center gap-2"
-                                >
-                                    <Save size={18} /> {t('ai.save_config')}
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        /* Main Generator UI */
+                    {/* Main Generator UI */
                         !generatedPhases ? (
                             <div className="flex-1 flex flex-col p-6 md:p-8 animate-in slide-in-from-left-4 duration-300">
                                 <div className="w-full max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-8 h-full">
@@ -417,7 +350,7 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({ isOpen, onClose, onPla
                                 </div>
                             </div>
                         )
-                    )}
+                    }
                 </div>
             </div>
         </div >
