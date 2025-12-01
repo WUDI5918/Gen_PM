@@ -548,44 +548,111 @@ export const chatStreamProject = async function* (
         // Handle the chunk correctly as GenerateContentResponse
         const c = chunk as GenerateContentResponse;
         if (c.text) {
+
             yield c.text;
         }
     }
 };
 
-// --- Wiki Content Generation ---
-export const generateWikiContent = async (prompt: string, context: string, config?: AIConfig): Promise<string> => {
+// --- Wiki AI System (Comprehensive) ---
+export type WikiAIIntent =
+    | 'continue' | 'polish' | 'tone_pro' | 'tone_casual' | 'shorten' | 'expand'
+    | 'translate' | 'summary' | 'action_items' | 'critique' | 'explain_code'
+    | 'diagram' | 'table' | 'chat' | 'custom';
+
+export const performWikiAI = async (
+    intent: WikiAIIntent,
+    data: {
+        selection?: string;
+        context?: string;
+        userPrompt?: string;
+        language?: string;
+    },
+    config?: AIConfig
+): Promise<string> => {
     const isDeepSeek = config?.provider === 'deepseek';
     const apiKey = config?.apiKey || process.env.API_KEY;
-
     if (!apiKey) throw new Error("API Key is missing");
 
-    const fullPrompt = `
-        You are an AI writing assistant for a project wiki.
-        Context (Current Document Content):
-        ${context.slice(0, 2000)}... (truncated)
+    const client = getGeminiClient(apiKey);
+    if (!client && !isDeepSeek) throw new Error("Failed to initialize Gemini");
 
-        User Request: ${prompt}
+    const lang = data.language || 'English';
+    const contextSnippet = data.context ? data.context.slice(0, 5000) : ''; // Limit context
+    const selection = data.selection || '';
 
-        Return only the requested content in Markdown format. Do not include conversational filler.
-    `;
+    let systemPrompt = `You are an expert AI Wiki Assistant.Language: ${lang}.`;
+    let userPrompt = "";
+
+    switch (intent) {
+        // --- Writing & Refinement ---
+        case 'continue':
+            userPrompt = `Context: \n${contextSnippet} \n\nTask: Continue writing logically from the end.Keep the style consistent.`;
+            break;
+        case 'polish':
+            userPrompt = `Text: \n${selection} \n\nTask: Fix grammar, improve clarity, and make it professional.Maintain Markdown formatting.`;
+            break;
+        case 'tone_pro':
+            userPrompt = `Text: \n${selection} \n\nTask: Rewrite in a formal, professional tone.`;
+            break;
+        case 'tone_casual':
+            userPrompt = `Text: \n${selection} \n\nTask: Rewrite in a casual, easy - to - understand tone.`;
+            break;
+        case 'expand':
+            userPrompt = `Text: \n${selection} \n\nTask: Expand this into a detailed paragraph or section.Add examples if relevant.`;
+            break;
+        case 'shorten':
+            userPrompt = `Text: \n${selection} \n\nTask: Condense this into a concise summary or bullet points.`;
+            break;
+        case 'translate':
+            userPrompt = `Text: \n${selection} \n\nTask: Translate to ${lang}. Preserve Markdown formatting exactly.`;
+            break;
+
+        // --- Analysis ---
+        case 'summary':
+            userPrompt = `Context: \n${contextSnippet} \n\nTask: Provide a concise summary of this document.`;
+            break;
+        case 'action_items':
+            userPrompt = `Context: \n${contextSnippet} \n\nTask: Extract all action items and tasks.Return as a Markdown checklist.`;
+            break;
+        case 'critique':
+            userPrompt = `Context: \n${contextSnippet} \n\nTask: Act as a reviewer.Identify logical gaps, inconsistencies, or missing information.Be constructive.`;
+            break;
+        case 'explain_code':
+            userPrompt = `Code: \n${selection} \n\nTask: Explain what this code does in simple terms.`;
+            break;
+
+        // --- Visuals & Structure ---
+        case 'diagram':
+            userPrompt = `Description: \n${data.userPrompt || selection} \n\nTask: Generate a Mermaid.js diagram code block(e.g., sequence, flowchart, gantt) that represents this.Return ONLY the markdown code block.`;
+            break;
+        case 'table':
+            userPrompt = `Description: \n${data.userPrompt || selection} \n\nTask: Generate a Markdown table based on this request.`;
+            break;
+
+        // --- Chat & Custom ---
+        case 'chat':
+            userPrompt = `Context: \n${contextSnippet} \n\nUser Question: ${data.userPrompt} \n\nAnswer based on the context provided.`;
+            break;
+        case 'custom':
+        default:
+            userPrompt = `Context: \n${contextSnippet} \n\nTask: ${data.userPrompt} `;
+            break;
+    }
 
     try {
         if (isDeepSeek && config) {
-            const rawText = await generateWithDeepSeek(fullPrompt, config);
-            return rawText || "";
+            return await generateWithDeepSeek(systemPrompt + "\n" + userPrompt, config) || "";
         } else {
-            const client = getGeminiClient(apiKey);
-            if (!client) throw new Error("Failed to initialize Gemini");
-
-            const response = await client.models.generateContent({
+            const response = await client!.models.generateContent({
                 model: config?.model || 'gemini-2.5-flash',
-                contents: fullPrompt,
+                contents: systemPrompt + "\n" + userPrompt,
             });
             return response.text || "";
         }
     } catch (error) {
-        console.error("Wiki Generation Error:", error);
-        throw new Error("Failed to generate wiki content.");
+        console.error("Wiki AI Error:", error);
+        throw new Error("AI Request Failed.");
     }
 };
+
