@@ -552,3 +552,33 @@ export const chatStreamProject = async function* (
         }
     }
 };
+
+// --- Wiki Content Generation ---
+export const generateWikiContent = async (prompt: string, context: string, config?: AIConfig): Promise<string> => {
+    const apiKey = config?.apiKey || process.env.API_KEY;
+    if (!apiKey) throw new Error("API Key is missing");
+
+    const client = getGeminiClient(apiKey);
+    if (!client) throw new Error("Failed to initialize Gemini");
+
+    const fullPrompt = `
+        You are an AI writing assistant for a project wiki.
+        Context (Current Document Content):
+        ${context.slice(0, 2000)}... (truncated)
+
+        User Request: ${prompt}
+
+        Return only the requested content in Markdown format. Do not include conversational filler.
+    `;
+
+    try {
+        const response = await client.models.generateContent({
+            model: config?.model || 'gemini-2.5-flash',
+            contents: fullPrompt,
+        });
+        return response.text || "";
+    } catch (error) {
+        console.error("Wiki Generation Error:", error);
+        throw new Error("Failed to generate wiki content.");
+    }
+};

@@ -12,8 +12,13 @@ import {
     GripVertical,
     CheckSquare,
     Image as ImageIcon,
-    Layout
+    Layout,
+    Sparkles,
+    Wand2,
+    X,
+    Loader2
 } from 'lucide-react';
+import { generateWikiContent } from '../services/geminiService';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useToast } from '../contexts/ToastContext';
@@ -82,6 +87,11 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
     const [iconMenuOpen, setIconMenuOpen] = useState<string | null>(null);
     const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
 
+    // AI State
+    const [showAiDialog, setShowAiDialog] = useState(false);
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [isAiLoading, setIsAiLoading] = useState(false);
+
     const activeDoc = docs.find(d => d.id === activeDocId);
     const linkedTasks = activeDoc ? tasks.filter(t => t.linkedDocIds?.includes(activeDoc.id)) : [];
 
@@ -139,6 +149,37 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
         const updatedDocs = docs.map(d => d.id === docId ? { ...d, icon, lastModified: Date.now() } : d);
         onUpdateDocs(updatedDocs);
         setIconMenuOpen(null);
+    };
+
+    const handleAiGenerate = async () => {
+        if (!activeDoc || !aiPrompt.trim()) return;
+
+        setIsAiLoading(true);
+        try {
+            // Get current text content for context
+            const currentText = JSON.stringify(activeDoc.content);
+
+            // Load config
+            const savedConfig = localStorage.getItem('project_ai_config');
+            const config = savedConfig ? JSON.parse(savedConfig) : undefined;
+
+            const generatedText = await generateWikiContent(aiPrompt, currentText, config);
+
+            // Append generated text as a new paragraph block
+            // Note: In a real implementation, we might want to insert at cursor or parse markdown to blocks
+            // For now, we append a paragraph block
+            const newBlock = { type: "paragraph", content: generatedText };
+            const newContent = [...activeDoc.content, newBlock];
+
+            handleContentChange(newContent);
+            addToast("AI Content Generated", 'success');
+            setShowAiDialog(false);
+            setAiPrompt('');
+        } catch (error: any) {
+            addToast(error.message || "AI Generation Failed", 'error');
+        } finally {
+            setIsAiLoading(false);
+        }
     };
 
     const filteredDocs = docs.filter(d => d.title.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -288,8 +329,44 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
                                 <div className="flex items-center gap-4 text-xs text-gray-400 mt-2">
                                     <span>Updated {new Date(activeDoc.lastModified).toLocaleDateString()}</span>
                                     {linkedTasks.length > 0 && <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded font-medium">{linkedTasks.length} Linked Tasks</span>}
+
+                                    <button
+                                        onClick={() => setShowAiDialog(true)}
+                                        className="ml-auto flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors text-xs font-bold"
+                                    >
+                                        <Sparkles size={14} /> AI Assist
+                                    </button>
                                 </div>
                             </div>
+
+                            {/* AI Dialog */}
+                            {showAiDialog && (
+                                <div className="absolute top-20 right-8 z-50 w-80 bg-white rounded-xl shadow-2xl border border-indigo-100 p-4 animate-in slide-in-from-top-2 fade-in duration-200">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                                            <Wand2 size={14} className="text-indigo-500" /> AI Assistant
+                                        </h3>
+                                        <button onClick={() => setShowAiDialog(false)} className="text-gray-400 hover:text-gray-600">
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+                                    <textarea
+                                        className="w-full text-sm border border-gray-200 rounded-lg p-3 min-h-[100px] mb-3 focus:ring-2 focus:ring-indigo-500/20 outline-none resize-none"
+                                        placeholder="e.g., Summarize this page, Write a conclusion, Fix grammar..."
+                                        value={aiPrompt}
+                                        onChange={(e) => setAiPrompt(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiGenerate(); } }}
+                                    />
+                                    <button
+                                        onClick={handleAiGenerate}
+                                        disabled={isAiLoading || !aiPrompt.trim()}
+                                        className="w-full bg-indigo-600 text-white text-xs font-bold py-2.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        {isAiLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                                        {isAiLoading ? 'Generating...' : 'Generate'}
+                                    </button>
+                                </div>
+                            )}
 
                             {/* BlockNote Editor */}
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
