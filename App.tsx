@@ -826,6 +826,7 @@ const AppContent: React.FC = () => {
                         <div className="flex-1 overflow-hidden p-6 bg-gray-50/30">
                             <CalendarView
                                 phases={projects.flatMap(p => p.phases.map(ph => ({ ...ph, name: `[${p.info.code}] ${ph.name}` })))}
+                                teamMembers={teamMembers}
                             />
                         </div>
                     </div>

@@ -81,17 +81,17 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, r
     );
 };
 
-export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ 
-    isOpen, 
-    onClose, 
-    task, 
+export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
+    isOpen,
+    onClose,
+    task,
     phaseName,
     phases,
-    onUpdateTask, 
+    onUpdateTask,
     onMoveTask,
-    teamMembers, 
-    projectDocs = [], 
-    onOpenDoc 
+    teamMembers,
+    projectDocs = [],
+    onOpenDoc
 }) => {
     const { t } = useLanguage();
     const { addToast } = useToast();
@@ -248,7 +248,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     const getOverdueDays = (endDate: string) => {
         if (!endDate || endDate === '-') return 0;
         // Assuming YYYY/MM/DD from utils.toInputDate/fromInputDate logic or standard date
-        const endDateObj = new Date(endDate.replace(/\//g, '-')); 
+        const endDateObj = new Date(endDate.replace(/\//g, '-'));
         if (isNaN(endDateObj.getTime())) return 0;
 
         const today = new Date();
@@ -291,7 +291,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             onChange={(e) => updateField({ subTaskName: e.target.value })}
                         />
                     </div>
-                    
+
                     {/* Action Buttons */}
                     <div className="flex items-center gap-3">
                         <button
@@ -317,7 +317,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
                     {/* Left Column: Description, Attachments, Checklist */}
                     <div className="flex-1 p-6 overflow-y-auto border-r border-gray-200 custom-scrollbar bg-white">
-                        
+
                         {/* Description */}
                         <div className="mb-8">
                             <label className="block text-xs font-bold text-gray-400 uppercase mb-2">{t('table.description')}</label>
@@ -459,7 +459,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     {/* Right Column: Meta Data, Comments */}
                     <div className="w-full md:w-96 flex flex-col bg-gray-50/50 shrink-0">
                         <div className="p-6 border-b border-gray-200 space-y-6 bg-white">
-                            
+
                             {/* Phase Selector (Added back) */}
                             {phases && (
                                 <div>
