@@ -94,6 +94,8 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
     // Form State
     const [projectName, setProjectName] = useState('');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [discoveryDate, setDiscoveryDate] = useState('');
+    const [resolutionDate, setResolutionDate] = useState('');
     const [deviceCategory, setDeviceCategory] = useState('');
     const [deviceType, setDeviceType] = useState('');
     const [category, setCategory] = useState('');
@@ -118,6 +120,8 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
             if (issueToEdit) {
                 setProjectName(issueToEdit.projectName);
                 setDate(issueToEdit.date);
+                setDiscoveryDate(issueToEdit.discoveryDate || '');
+                setResolutionDate(issueToEdit.resolutionDate || '');
                 setDeviceCategory(issueToEdit.deviceCategory);
                 setDeviceType(issueToEdit.deviceType);
                 setCategory(issueToEdit.category);
@@ -135,6 +139,8 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                 // Default to first project if available
                 setProjectName(projects[0]?.info.name || '');
                 setDate(new Date().toISOString().split('T')[0]);
+                setDiscoveryDate('');
+                setResolutionDate('');
                 setDeviceCategory('');
                 setDeviceType('');
                 setCategory('');
@@ -194,6 +200,8 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
         const issue: Issue = {
             id: issueToEdit?.id || '',
             date,
+            discoveryDate,
+            resolutionDate,
             projectName,
             deviceCategory,
             deviceType,
@@ -387,6 +395,24 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                         type="date"
                                         value={date}
                                         onChange={e => setDate(e.target.value)}
+                                        className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Discovery Date</label>
+                                    <input
+                                        type="date"
+                                        value={discoveryDate}
+                                        onChange={e => setDiscoveryDate(e.target.value)}
+                                        className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Resolution Date</label>
+                                    <input
+                                        type="date"
+                                        value={resolutionDate}
+                                        onChange={e => setResolutionDate(e.target.value)}
                                         className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                     />
                                 </div>

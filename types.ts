@@ -225,7 +225,9 @@ export interface CalendarEvent {
 
 export interface Issue {
   id: string; // 序号
-  date: string; // 异常反馈发起时间
+  date: string; // 异常反馈发起时间 (Report Date)
+  discoveryDate?: string; // 问题发现时间
+  resolutionDate?: string; // 问题解决时间
   projectName: string; // 项目
   deviceCategory: string; // 设备大类
   deviceType: string; // 设备类别
