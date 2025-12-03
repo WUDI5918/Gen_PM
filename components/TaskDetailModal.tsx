@@ -39,12 +39,41 @@ interface CustomSelectProps {
 const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, renderTrigger }) => {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
 
     const selectedOption = options.find(o => o.value === value);
 
     useEffect(() => {
+        if (isOpen && containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            // Check if dropdown would go off screen bottom
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const spaceAbove = rect.top;
+            const dropdownHeight = Math.min(options.length * 36 + 10, 240); // Estimate height
+
+            let top = rect.bottom + 4;
+            if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+                // Show above
+                top = rect.top - dropdownHeight - 4;
+            }
+
+            setCoords({
+                top,
+                left: rect.left,
+                width: rect.width
+            });
+        }
+    }, [isOpen, options.length]);
+
+    useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+            if (
+                containerRef.current &&
+                !containerRef.current.contains(event.target as Node) &&
+                dropdownRef.current &&
+                !dropdownRef.current.contains(event.target as Node)
+            ) {
                 setIsOpen(false);
             }
         };
@@ -62,20 +91,33 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, r
                     </div>
                 )}
             </div>
-            {isOpen && (
-                <div className="absolute top-full left-0 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto p-1">
+            {isOpen && createPortal(
+                <div
+                    ref={dropdownRef}
+                    className="fixed bg-white border border-gray-200 rounded-lg shadow-xl z-[9999] max-h-60 overflow-y-auto p-1 flex flex-col gap-0.5"
+                    style={{
+                        top: coords.top,
+                        left: coords.left,
+                        width: coords.width
+                    }}
+                >
                     {options.map(opt => (
                         <div
                             key={opt.value}
-                            onClick={() => { onChange(opt.value); setIsOpen(false); }}
-                            className={`flex items-center gap-2 px-3 py-2 text-sm rounded cursor-pointer hover:bg-gray-50 ${opt.value === value ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700'}`}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onChange(opt.value);
+                                setIsOpen(false);
+                            }}
+                            className={`flex items-center gap-2 px-3 py-2 text-sm rounded cursor-pointer hover:bg-gray-50 shrink-0 ${opt.value === value ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700'}`}
                         >
                             {opt.icon && <span className={opt.color}>{opt.icon}</span>}
                             <span>{opt.label}</span>
                             {opt.value === value && <CheckCircle2 size={14} className="ml-auto text-indigo-600" />}
                         </div>
                     ))}
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

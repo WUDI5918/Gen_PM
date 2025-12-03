@@ -203,4 +203,21 @@ export interface Project {
   risks?: ProjectRisk[];
   goals?: Goal[];
   files?: ProjectFile[]; // Direct uploads not attached to tasks
+  events?: CalendarEvent[]; // Calendar Events
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  startDate: string; // ISO Date YYYY-MM-DD
+  endDate: string;   // ISO Date YYYY-MM-DD
+  startTime?: string; // HH:mm
+  endTime?: string;   // HH:mm
+  isAllDay: boolean;
+  participants: string[]; // IDs of TeamMembers
+  location?: string;
+  hasVideoMeeting: boolean;
+  description?: string;
+  projectId?: string; // Link to project
+  color?: string; // Visual color preference
 }

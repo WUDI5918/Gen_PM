@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import { DialogProvider, useDialog } from './contexts/DialogContext';
-import { Project, TeamMember, ProjectPhase, ProjectTask, TaskStatus, Meeting, AppNotification } from './types';
+import { Project, TeamMember, ProjectPhase, ProjectTask, TaskStatus, Meeting, AppNotification, CalendarEvent } from './types';
 import { createDefaultProject, INITIAL_TEAM } from './constants';
 import { ProjectWorkspace } from './components/ProjectWorkspace';
 import { ProjectLibrary } from './components/ProjectLibrary';
@@ -40,6 +40,7 @@ import {
     Loader2,
     LogOut
 } from 'lucide-react';
+import { EventData } from './components/EventModal';
 
 type AppView = 'projects' | 'wiki' | 'meetings' | 'calendar' | 'team';
 
@@ -460,6 +461,71 @@ const AppContent: React.FC = () => {
         );
     }
 
+    const handleCreateEvent = (eventData: EventData) => {
+        // Determine target project
+        let targetProject = projects.find(p => p.info.name === eventData.belongTo);
+        if (!targetProject) targetProject = projects[0]; // Fallback
+        if (!targetProject) return; // Should not happen if projects exist
+
+        const newEvent: CalendarEvent = {
+            id: `ev-${Date.now()}`,
+            title: eventData.title,
+            startDate: eventData.startDate,
+            endDate: eventData.endDate,
+            startTime: eventData.startTime,
+            endTime: eventData.endTime,
+            isAllDay: eventData.isAllDay,
+            participants: eventData.participants,
+            location: eventData.location,
+            hasVideoMeeting: eventData.hasVideoMeeting,
+            projectId: targetProject.id,
+            color: 'bg-blue-100 text-blue-700' // Default color
+        };
+
+        const updatedProject = {
+            ...targetProject,
+            events: [...(targetProject.events || []), newEvent],
+            lastModified: Date.now()
+        };
+
+        handleUpdateProject(updatedProject);
+        addToast('Event created successfully', 'success');
+    };
+
+    const handleUpdateTask = (updatedTask: ProjectTask) => {
+        // Find the project containing this task
+        const project = projects.find(p => p.phases.some(ph => ph.tasks.some(t => t.id === updatedTask.id)));
+        if (!project) return;
+
+        const updatedProject = {
+            ...project,
+            phases: project.phases.map(p => ({
+                ...p,
+                tasks: p.tasks.map(t => t.id === updatedTask.id ? updatedTask : t)
+            })),
+            lastModified: Date.now()
+        };
+
+        handleUpdateProject(updatedProject);
+    };
+
+    const handleDeleteEvent = (eventData: EventData) => {
+        if (!eventData.id) return;
+
+        // Find project containing the event
+        const project = projects.find(p => (p.events || []).some(e => e.id === eventData.id));
+        if (!project) return;
+
+        const updatedProject = {
+            ...project,
+            events: (project.events || []).filter(e => e.id !== eventData.id),
+            lastModified: Date.now()
+        };
+
+        handleUpdateProject(updatedProject);
+        addToast('Event deleted', 'info');
+    };
+
     const handleQuickSync = async () => {
         setIsSyncing(true);
         try {
@@ -826,7 +892,12 @@ const AppContent: React.FC = () => {
                         <div className="flex-1 overflow-hidden p-6 bg-gray-50/30">
                             <CalendarView
                                 phases={projects.flatMap(p => p.phases.map(ph => ({ ...ph, name: `[${p.info.code}] ${ph.name}` })))}
+                                events={projects.flatMap(p => (p.events || []).map(e => ({ ...e, projectCode: p.info.code })))}
                                 teamMembers={teamMembers}
+                                onAddEvent={handleCreateEvent}
+                                onUpdateTask={handleUpdateTask}
+                                onDeleteEvent={handleDeleteEvent}
+                                projects={projects}
                             />
                         </div>
                     </div>
