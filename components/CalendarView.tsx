@@ -443,7 +443,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ phases, events = [],
 
       {/* Modals */}
       <EventModal isOpen={isEventModalOpen} onClose={() => { setIsEventModalOpen(false); setSelectedEvent(undefined); }} onSave={(data) => { if (onAddEvent) onAddEvent(data); }} teamMembers={teamMembers} projects={projects} initialDate={currentDate} eventToEdit={selectedEvent} onDelete={onDeleteEvent} />
-      {selectedTask && <TaskDetailModal isOpen={isTaskDetailOpen} onClose={() => { setIsTaskDetailOpen(false); setSelectedTask(null); }} task={selectedTask} onUpdateTask={(t) => { if (onUpdateTask) onUpdateTask(t); }} teamMembers={teamMembers} phases={phases} />}
+      {selectedTask && (
+        <TaskDetailModal
+          isOpen={isTaskDetailOpen}
+          onClose={() => { setIsTaskDetailOpen(false); setSelectedTask(null); }}
+          task={selectedTask}
+          phaseName={phases.find(p => p.tasks.some(t => t.id === selectedTask.id))?.name}
+          onUpdateTask={(t) => { if (onUpdateTask) onUpdateTask(t); }}
+          teamMembers={teamMembers}
+          phases={phases}
+        />
+      )}
     </div>
   );
 };

@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { ProjectPhase, ProjectTask, TaskStatus, TeamMember } from '../types';
-import { Calendar, AlertCircle, ListChecks, Clock, Flag, Paperclip, MessageSquare, User, GripHorizontal } from 'lucide-react';
+import { Calendar, AlertCircle, ListChecks, Clock, Flag, Paperclip, MessageSquare, User, GripHorizontal, Circle } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { parseDate } from '../utils';
 
@@ -164,6 +164,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ phases = [], isEditing
           {/* Column Header */}
           <div className={`p-4 font-bold text-gray-700 bg-white rounded-t-xl border-b border-gray-100 flex justify-between items-center shadow-sm ${col.headerColor}`}>
             <span className="flex items-center gap-2 text-sm">
+              {col.id === TaskStatus.Pending && <Circle size={16} className="text-gray-400" />}
               {col.id === TaskStatus.Delayed && <AlertCircle size={16} className="text-rose-500" />}
               {col.id === TaskStatus.Completed && <ListChecks size={16} className="text-emerald-500" />}
               {col.id === TaskStatus.InProgress && <Clock size={16} className="text-blue-500" />}
