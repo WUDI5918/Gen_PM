@@ -1088,6 +1088,7 @@ const AppContent: React.FC = () => {
                 {currentView === 'issues' && (
                     <IssueTracker
                         projects={projects}
+                        teamMembers={teamMembers}
                         onAddIssue={handleCreateIssue}
                         onUpdateIssue={handleUpdateIssue}
                         onDeleteIssue={handleDeleteIssue}

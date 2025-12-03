@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, Calendar, User, Tag, AlertTriangle, FileText, Link as LinkIcon, Image as ImageIcon, Upload, Trash2, Plus, File } from 'lucide-react';
-import { Issue, Project } from '../types';
+import { Issue, Project, TeamMember } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface IssueModalProps {
@@ -9,9 +9,86 @@ interface IssueModalProps {
     onSave: (issue: Issue) => void;
     issueToEdit?: Issue;
     projects: Project[];
+    teamMembers: TeamMember[];
 }
 
-export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave, issueToEdit, projects }) => {
+interface MemberSelectProps {
+    value: string;
+    onChange: (value: string) => void;
+    teamMembers: TeamMember[];
+    placeholder?: string;
+}
+
+const MemberSelect: React.FC<MemberSelectProps> = ({ value, onChange, teamMembers, placeholder }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [inputValue, setInputValue] = useState(value);
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        setInputValue(value);
+    }, [value]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const filteredMembers = teamMembers.filter(m =>
+        m.name.toLowerCase().includes(inputValue.toLowerCase()) ||
+        m.role.toLowerCase().includes(inputValue.toLowerCase())
+    );
+
+    return (
+        <div className="relative" ref={wrapperRef}>
+            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-2 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
+                <User size={14} className="text-gray-400" />
+                <input
+                    type="text"
+                    value={inputValue}
+                    onChange={e => {
+                        setInputValue(e.target.value);
+                        onChange(e.target.value);
+                        setIsOpen(true);
+                    }}
+                    onFocus={() => setIsOpen(true)}
+                    className="bg-transparent w-full text-sm outline-none"
+                    placeholder={placeholder || "Name"}
+                />
+            </div>
+
+            {isOpen && filteredMembers.length > 0 && (
+                <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-100 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                    {filteredMembers.map(member => (
+                        <button
+                            key={member.id}
+                            onClick={() => {
+                                onChange(member.name);
+                                setInputValue(member.name);
+                                setIsOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center gap-2 transition-colors"
+                        >
+                            <div className={`w-6 h-6 rounded-full ${member.color} flex items-center justify-center text-[10px] text-white font-bold`}>
+                                {member.avatar}
+                            </div>
+                            <div>
+                                <div className="text-sm font-medium text-gray-700">{member.name}</div>
+                                <div className="text-xs text-gray-400">{member.role}</div>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave, issueToEdit, projects, teamMembers }) => {
     const { t } = useLanguage();
 
     // Form State
@@ -322,42 +399,30 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                 <div className="space-y-3">
                                     <div>
                                         <label className="block text-xs font-medium text-gray-500 mb-1">Reporter</label>
-                                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-2">
-                                            <User size={14} className="text-gray-400" />
-                                            <input
-                                                type="text"
-                                                value={reporter}
-                                                onChange={e => setReporter(e.target.value)}
-                                                className="bg-transparent w-full text-sm outline-none"
-                                                placeholder="Name"
-                                            />
-                                        </div>
+                                        <MemberSelect
+                                            value={reporter}
+                                            onChange={setReporter}
+                                            teamMembers={teamMembers}
+                                            placeholder="Reporter Name"
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-gray-500 mb-1">Responsible</label>
-                                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-2">
-                                            <User size={14} className="text-gray-400" />
-                                            <input
-                                                type="text"
-                                                value={responsiblePerson}
-                                                onChange={e => setResponsiblePerson(e.target.value)}
-                                                className="bg-transparent w-full text-sm outline-none"
-                                                placeholder="Name"
-                                            />
-                                        </div>
+                                        <MemberSelect
+                                            value={responsiblePerson}
+                                            onChange={setResponsiblePerson}
+                                            teamMembers={teamMembers}
+                                            placeholder="Responsible Person"
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-gray-500 mb-1">Tracker</label>
-                                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-2">
-                                            <User size={14} className="text-gray-400" />
-                                            <input
-                                                type="text"
-                                                value={tracker}
-                                                onChange={e => setTracker(e.target.value)}
-                                                className="bg-transparent w-full text-sm outline-none"
-                                                placeholder="Name"
-                                            />
-                                        </div>
+                                        <MemberSelect
+                                            value={tracker}
+                                            onChange={setTracker}
+                                            teamMembers={teamMembers}
+                                            placeholder="Tracker Name"
+                                        />
                                     </div>
                                 </div>
                             </div>

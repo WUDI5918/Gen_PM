@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { Issue, Project } from '../types';
+import { Issue, Project, TeamMember } from '../types';
 import { IssueModal } from './IssueModal';
 import { Search, Filter, Plus, AlertCircle, CheckCircle, Clock, FileText, Edit2, Trash2, Upload, X, Image as ImageIcon, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface IssueTrackerProps {
     projects: Project[];
+    teamMembers: TeamMember[];
     onAddIssue: (issue: Issue) => void;
     onUpdateIssue: (issue: Issue) => void;
     onDeleteIssue: (issueId: string) => void;
@@ -13,7 +14,7 @@ interface IssueTrackerProps {
     onNavigateToDoc?: (projectId: string, docId: string) => void;
 }
 
-export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, onAddIssue, onUpdateIssue, onDeleteIssue, onImportIssues, onNavigateToDoc }) => {
+export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMembers, onAddIssue, onUpdateIssue, onDeleteIssue, onImportIssues, onNavigateToDoc }) => {
     const { t } = useLanguage();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingIssue, setEditingIssue] = useState<Issue | undefined>(undefined);
@@ -329,6 +330,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, onAddIssue
                 }}
                 issueToEdit={editingIssue}
                 projects={projects}
+                teamMembers={teamMembers}
             />
 
             {/* Import Modal */}
