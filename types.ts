@@ -204,6 +204,7 @@ export interface Project {
   goals?: Goal[];
   files?: ProjectFile[]; // Direct uploads not attached to tasks
   events?: CalendarEvent[]; // Calendar Events
+  issues?: Issue[]; // Issue Tracking
 }
 
 export interface CalendarEvent {
@@ -220,4 +221,23 @@ export interface CalendarEvent {
   description?: string;
   projectId?: string; // Link to project
   color?: string; // Visual color preference
+}
+
+export interface Issue {
+  id: string; // 序号
+  date: string; // 异常反馈发起时间
+  projectName: string; // 项目
+  deviceCategory: string; // 设备大类
+  deviceType: string; // 设备类别
+  category: string; // 异常分类
+  source: string; // 异常问题来源
+  reporter: string; // 反馈人
+  tracker: string; // 追踪人
+  description: string; // 问题描述
+  attachments?: string[]; // 图片/视频/备注 (Base64 or URL)
+  linkedDocIds?: string[]; // 关联的知识库文档 ID
+  rootCause?: string; // 原因分析
+  responsiblePerson?: string; // 责任人
+  temporarySolution?: string; // 临时解决措施
+  status: 'Open' | 'In Progress' | 'Closed' | 'Planning'; // 问题处理状态
 }

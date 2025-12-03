@@ -41,8 +41,11 @@ import {
     LogOut
 } from 'lucide-react';
 import { EventData } from './components/EventModal';
+import { IssueTracker } from './components/IssueTracker';
+import { Issue } from './types';
+import { AlertCircle } from 'lucide-react';
 
-type AppView = 'projects' | 'wiki' | 'meetings' | 'calendar' | 'team';
+type AppView = 'projects' | 'wiki' | 'meetings' | 'calendar' | 'team' | 'issues';
 
 const AppContent: React.FC = () => {
     const { t } = useLanguage();
@@ -210,6 +213,103 @@ const AppContent: React.FC = () => {
 
     // --- Handlers (Updated for DB) ---
 
+    // Issue Handlers
+    const handleCreateIssue = (issue: Issue) => {
+        const targetProject = projects.find(p => p.info.name === issue.projectName) || projects[0];
+        if (!targetProject) return;
+
+        const newIssue = { ...issue, id: issue.id || `ISSUE-${Date.now()}` };
+        const updatedProject = {
+            ...targetProject,
+            issues: [...(targetProject.issues || []), newIssue],
+            lastModified: Date.now()
+        };
+        handleUpdateProject(updatedProject);
+        addToast('Issue reported successfully', 'success');
+    };
+
+    const handleUpdateIssue = (issue: Issue) => {
+        const oldProject = projects.find(p => p.issues?.some(i => i.id === issue.id));
+        const newProject = projects.find(p => p.info.name === issue.projectName);
+
+        if (oldProject && newProject && oldProject.id !== newProject.id) {
+            const updatedOld = {
+                ...oldProject,
+                issues: oldProject.issues?.filter(i => i.id !== issue.id),
+                lastModified: Date.now()
+            };
+            const updatedNew = {
+                ...newProject,
+                issues: [...(newProject.issues || []), issue],
+                lastModified: Date.now()
+            };
+            setProjects(prev => prev.map(p => {
+                if (p.id === oldProject.id) return updatedOld;
+                if (p.id === newProject.id) return updatedNew;
+                return p;
+            }));
+            db.saveProject(updatedOld);
+            db.saveProject(updatedNew);
+        } else if (newProject) {
+            const updatedProject = {
+                ...newProject,
+                issues: (newProject.issues || []).map(i => i.id === issue.id ? issue : i),
+                lastModified: Date.now()
+            };
+            handleUpdateProject(updatedProject);
+        }
+        addToast('Issue updated', 'success');
+    };
+
+    const handleDeleteIssue = (issueId: string) => {
+        const project = projects.find(p => p.issues?.some(i => i.id === issueId));
+        if (project) {
+            const updatedProject = {
+                ...project,
+                issues: project.issues?.filter(i => i.id !== issueId),
+                lastModified: Date.now()
+            };
+            handleUpdateProject(updatedProject);
+            addToast('Issue deleted', 'info');
+        }
+    };
+
+    const handleImportIssues = (newIssues: Issue[]) => {
+        const issuesByProject: Record<string, Issue[]> = {};
+        newIssues.forEach(issue => {
+            const pName = issue.projectName;
+            if (!issuesByProject[pName]) issuesByProject[pName] = [];
+            issuesByProject[pName].push(issue);
+        });
+
+        setProjects(prev => {
+            const updatedProjects = prev.map(p => {
+                const pName = p.info.name;
+                if (issuesByProject[pName]) {
+                    const issuesToAdd = issuesByProject[pName].map((i, idx) => ({
+                        ...i,
+                        id: i.id || `ISSUE-${Date.now()}-${idx}`
+                    }));
+                    return {
+                        ...p,
+                        issues: [...(p.issues || []), ...issuesToAdd],
+                        lastModified: Date.now()
+                    };
+                }
+                return p;
+            });
+
+            updatedProjects.forEach(p => {
+                if (issuesByProject[p.info.name]) {
+                    db.saveProject(p);
+                }
+            });
+
+            return updatedProjects;
+        });
+        addToast(`Imported ${newIssues.length} issues`, 'success');
+    };
+
     const handleCreateProject = async () => {
         const newProject = createDefaultProject(false, teamMembers);
         setProjects(prev => [...prev, newProject]);
@@ -258,6 +358,13 @@ const AppContent: React.FC = () => {
             setActiveProjectId(null);
             setGlobalActiveTask(null);
         }
+    };
+
+    const handleNavigateToDoc = (projectId: string, docId: string) => {
+        setGlobalSelectedProjectId(projectId);
+        setGlobalWikiDocId(docId);
+        setCurrentView('wiki');
+        setActiveProjectId(null);
     };
 
     // Notification Navigation
@@ -462,34 +569,107 @@ const AppContent: React.FC = () => {
     }
 
     const handleCreateEvent = (eventData: EventData) => {
-        // Determine target project
-        let targetProject = projects.find(p => p.info.name === eventData.belongTo);
-        if (!targetProject) targetProject = projects[0]; // Fallback
-        if (!targetProject) return; // Should not happen if projects exist
+        const targetProjectName = eventData.belongTo;
+        let targetProject = projects.find(p => p.info.name === targetProjectName) || projects[0];
+        if (!targetProject) return;
 
-        const newEvent: CalendarEvent = {
-            id: `ev-${Date.now()}`,
-            title: eventData.title,
-            startDate: eventData.startDate,
-            endDate: eventData.endDate,
-            startTime: eventData.startTime,
-            endTime: eventData.endTime,
-            isAllDay: eventData.isAllDay,
-            participants: eventData.participants,
-            location: eventData.location,
-            hasVideoMeeting: eventData.hasVideoMeeting,
-            projectId: targetProject.id,
-            color: 'bg-blue-100 text-blue-700' // Default color
-        };
+        if (eventData.id) {
+            // UPDATE existing event
+            const sourceProject = projects.find(p => (p.events || []).some(e => e.id === eventData.id));
 
-        const updatedProject = {
-            ...targetProject,
-            events: [...(targetProject.events || []), newEvent],
-            lastModified: Date.now()
-        };
+            if (sourceProject && sourceProject.id !== targetProject.id) {
+                // MOVE: Delete from source, Add to target
 
-        handleUpdateProject(updatedProject);
-        addToast('Event created successfully', 'success');
+                // 1. Remove from source
+                const updatedSource = {
+                    ...sourceProject,
+                    events: sourceProject.events.filter(e => e.id !== eventData.id),
+                    lastModified: Date.now()
+                };
+                handleUpdateProject(updatedSource);
+
+                // 2. Add to target
+                const newEvent: CalendarEvent = {
+                    id: eventData.id,
+                    title: eventData.title,
+                    startDate: eventData.startDate,
+                    endDate: eventData.endDate,
+                    startTime: eventData.startTime,
+                    endTime: eventData.endTime,
+                    isAllDay: eventData.isAllDay,
+                    participants: eventData.participants,
+                    location: eventData.location,
+                    hasVideoMeeting: eventData.hasVideoMeeting,
+                    projectId: targetProject.id,
+                    color: 'bg-blue-100 text-blue-700'
+                };
+                const updatedTarget = {
+                    ...targetProject,
+                    events: [...(targetProject.events || []), newEvent],
+                    lastModified: Date.now()
+                };
+                // Small delay to ensure state updates don't conflict if batching is an issue (though functional update handles it)
+                setTimeout(() => handleUpdateProject(updatedTarget), 50);
+            } else {
+                // UPDATE in place
+                const projectToUpdate = sourceProject || targetProject;
+                const events = [...(projectToUpdate.events || [])];
+                const index = events.findIndex(e => e.id === eventData.id);
+
+                const updatedEvent: CalendarEvent = {
+                    id: eventData.id,
+                    title: eventData.title,
+                    startDate: eventData.startDate,
+                    endDate: eventData.endDate,
+                    startTime: eventData.startTime,
+                    endTime: eventData.endTime,
+                    isAllDay: eventData.isAllDay,
+                    participants: eventData.participants,
+                    location: eventData.location,
+                    hasVideoMeeting: eventData.hasVideoMeeting,
+                    projectId: projectToUpdate.id,
+                    color: index !== -1 ? events[index].color : 'bg-blue-100 text-blue-700'
+                };
+
+                if (index !== -1) {
+                    events[index] = updatedEvent;
+                } else {
+                    events.push(updatedEvent);
+                }
+
+                handleUpdateProject({
+                    ...projectToUpdate,
+                    events,
+                    lastModified: Date.now()
+                });
+            }
+            addToast('Event updated successfully', 'success');
+        } else {
+            // CREATE new event
+            const newEvent: CalendarEvent = {
+                id: `ev-${Date.now()}`,
+                title: eventData.title,
+                startDate: eventData.startDate,
+                endDate: eventData.endDate,
+                startTime: eventData.startTime,
+                endTime: eventData.endTime,
+                isAllDay: eventData.isAllDay,
+                participants: eventData.participants,
+                location: eventData.location,
+                hasVideoMeeting: eventData.hasVideoMeeting,
+                projectId: targetProject.id,
+                color: 'bg-blue-100 text-blue-700'
+            };
+
+            const updatedProject = {
+                ...targetProject,
+                events: [...(targetProject.events || []), newEvent],
+                lastModified: Date.now()
+            };
+
+            handleUpdateProject(updatedProject);
+            addToast('Event created successfully', 'success');
+        }
     };
 
     const handleUpdateTask = (updatedTask: ProjectTask) => {
@@ -612,6 +792,7 @@ const AppContent: React.FC = () => {
                     <SidebarItem id="meetings" icon={MessageSquareQuote} label={t('app.view.meetings')} />
                     <SidebarItem id="calendar" icon={CalendarDays} label={t('app.view.calendar')} />
                     <SidebarItem id="team" icon={Users} label={t('app.team')} />
+                    <SidebarItem id="issues" icon={AlertCircle} label={t('app.view.issues')} />
                 </nav>
 
                 <div className="p-3 mt-auto border-t border-gray-100 bg-white flex flex-col gap-2">
@@ -901,6 +1082,18 @@ const AppContent: React.FC = () => {
                             />
                         </div>
                     </div>
+                )}
+
+                {/* ISSUES VIEW */}
+                {currentView === 'issues' && (
+                    <IssueTracker
+                        projects={projects}
+                        onAddIssue={handleCreateIssue}
+                        onUpdateIssue={handleUpdateIssue}
+                        onDeleteIssue={handleDeleteIssue}
+                        onImportIssues={handleImportIssues}
+                        onNavigateToDoc={handleNavigateToDoc}
+                    />
                 )}
 
                 {/* TEAM VIEW */}

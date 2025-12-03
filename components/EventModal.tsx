@@ -84,6 +84,7 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, onSave,
         }
 
         onSave({
+            id: eventToEdit?.id,
             title,
             startDate,
             startTime,
@@ -103,7 +104,7 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, onSave,
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
                 {/* Header */}
                 <div className="flex justify-between items-center p-4 border-b border-gray-100">
-                    <h2 className="text-lg font-semibold text-gray-800">New Event</h2>
+                    <h2 className="text-lg font-semibold text-gray-800">{eventToEdit ? 'Edit Event' : 'New Event'}</h2>
                     <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full text-gray-500">
                         <X size={20} />
                     </button>
