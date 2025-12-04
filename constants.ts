@@ -184,9 +184,9 @@ export const INITIAL_DOCS: ProjectDoc[] = [
   }
 ];
 
-export const createDefaultProject = (withSampleData: boolean = false, customTeam?: TeamMember[]): Project => {
+export const createDefaultProject = (withSampleData: boolean = false, customTeam?: TeamMember[], name?: string): Project => {
   const baseInfo: ProjectInfo = {
-    name: withSampleData ? 'Generic Project Plan' : 'New Project',
+    name: name || (withSampleData ? 'Generic Project Plan' : 'New Project'),
     code: withSampleData ? 'PROJ-2025-001' : `PROJ-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000)}`,
     manager: 'Project Manager',
     description: withSampleData ? 'General Purpose Project Schedule' : 'Description of the new project...',

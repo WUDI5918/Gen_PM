@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Calendar, User, Tag, AlertTriangle, FileText, Link as LinkIcon, Image as ImageIcon, Upload, Trash2, Plus, File, ChevronDown, ChevronUp, Check, Settings, Edit3, Trash } from 'lucide-react';
+import { X, Save, Calendar, User, Tag, AlertTriangle, FileText, Link as LinkIcon, Image as ImageIcon, Upload, Trash2, Plus, File, ChevronDown, ChevronUp, Check, Settings, Edit3, Trash, Sparkles } from 'lucide-react';
 import { Issue, Project, TeamMember } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { analyzeIssue } from '../services/geminiService';
 
 interface IssueModalProps {
     isOpen: boolean;
@@ -13,6 +14,7 @@ interface IssueModalProps {
     existingIssues?: Issue[];
     tags?: Record<string, string[]>;
     onUpdateTags?: (tags: Record<string, string[]>) => void;
+    onCreateProject?: (name?: string) => Promise<void>;
 }
 
 interface MemberSelectProps {
@@ -155,6 +157,90 @@ const StatusSelect = ({ value, onChange }: { value: Issue['status'], onChange: (
     );
 };
 
+const ProjectSelect = ({ value, onChange, options, placeholder, onCreateNew }: { value: string, onChange: (val: string) => void, options: string[], placeholder: string, onCreateNew?: (val: string) => void }) => {
+    const { t } = useLanguage();
+    const [isOpen, setIsOpen] = useState(false);
+    const [inputValue, setInputValue] = useState(value);
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => { setInputValue(value); }, [value]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const filteredOptions = options.filter(o => o.toLowerCase().includes(inputValue.toLowerCase()));
+    const isExactMatch = options.some(o => o.toLowerCase() === inputValue.toLowerCase());
+    const displayedOptions = isExactMatch ? options : filteredOptions;
+    const showCreate = inputValue && !options.some(o => o.toLowerCase() === inputValue.toLowerCase());
+
+    return (
+        <div className="relative" ref={wrapperRef}>
+            <div className="relative group">
+                <input
+                    type="text"
+                    value={inputValue}
+                    onChange={e => {
+                        setInputValue(e.target.value);
+                        onChange(e.target.value);
+                        setIsOpen(true);
+                    }}
+                    onFocus={() => setIsOpen(true)}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all group-hover:bg-white group-hover:shadow-sm"
+                    placeholder={placeholder}
+                />
+                <button
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1"
+                >
+                    <ChevronDown size={16} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+            </div>
+            {isOpen && (
+                <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+                    {displayedOptions.map(opt => (
+                        <button
+                            key={opt}
+                            onClick={() => {
+                                onChange(opt);
+                                setInputValue(opt);
+                                setIsOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-3 text-sm hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center justify-between group"
+                        >
+                            <span className="font-medium">{opt}</span>
+                            {value === opt && <Check size={14} className="text-blue-600" />}
+                        </button>
+                    ))}
+                    {showCreate && onCreateNew && (
+                        <button
+                            onClick={() => {
+                                onCreateNew(inputValue);
+                                setIsOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-3 text-sm text-blue-600 hover:bg-blue-50 transition-colors font-medium border-t border-gray-50 flex items-center gap-2"
+                        >
+                            <Plus size={14} />
+                            Create "{inputValue}"
+                        </button>
+                    )}
+                    {displayedOptions.length === 0 && !showCreate && (
+                        <div className="px-4 py-3 text-sm text-gray-400 italic text-center">
+                            {t('common.no_results')}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 const TagSelect = ({ value, onChange, options, placeholder, title, icon: Icon }: { value: string, onChange: (val: string) => void, options: string[], placeholder: string, title: string, icon?: any }) => {
     const { t } = useLanguage();
     const [isOpen, setIsOpen] = useState(false);
@@ -243,8 +329,8 @@ const TagSelect = ({ value, onChange, options, placeholder, title, icon: Icon }:
     );
 };
 
-export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave, issueToEdit, projects, teamMembers, existingIssues = [], tags = {}, onUpdateTags }) => {
-    const { t } = useLanguage();
+export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave, issueToEdit, projects, teamMembers, existingIssues = [], tags = {}, onUpdateTags, onCreateProject }) => {
+    const { t, language } = useLanguage();
 
     // Form State
     const [projectName, setProjectName] = useState('');
@@ -272,6 +358,32 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
     const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
     const [activeTagCategory, setActiveTagCategory] = useState<string>('categories');
     const [newTagInput, setNewTagInput] = useState('');
+
+    // AI Analysis State
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+    const handleAIAnalyze = async () => {
+        if (!description) return;
+
+        const savedConfig = localStorage.getItem('project_ai_config');
+        if (!savedConfig) {
+            alert(t('issue.modal.ai_config_missing') || "Please configure AI settings first.");
+            return;
+        }
+
+        setIsAnalyzing(true);
+        try {
+            const config = JSON.parse(savedConfig);
+            const { rootCause: aiRootCause, rootSolution: aiRootSolution } = await analyzeIssue(description, config, language === 'zh' ? 'zh' : 'en');
+            if (aiRootCause) setRootCause(aiRootCause);
+            if (aiRootSolution) setRootSolution(aiRootSolution);
+        } catch (error) {
+            console.error("AI Analysis failed", error);
+            alert(t('issue.modal.ai_error') || "AI Analysis failed. Please check your API key.");
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -683,16 +795,20 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('issue.modal.project')}</label>
-                                        <select
+                                        <ProjectSelect
                                             value={projectName}
-                                            onChange={e => setProjectName(e.target.value)}
-                                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                        >
-                                            <option value="" disabled>{t('issue.modal.select_project')}</option>
-                                            {projects.map(p => (
-                                                <option key={p.id} value={p.info.name}>{p.info.name}</option>
-                                            ))}
-                                        </select>
+                                            onChange={setProjectName}
+                                            options={projects.map(p => p.info.name)}
+                                            placeholder={t('issue.modal.select_project')}
+                                            onCreateNew={(name) => {
+                                                if (confirm(`Create new project "${name}"?`)) {
+                                                    if (onCreateProject) {
+                                                        onCreateProject(name);
+                                                    }
+                                                    setProjectName(name);
+                                                }
+                                            }}
+                                        />
                                     </div>
                                     <div>
                                         <TagSelect
@@ -706,95 +822,112 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('issue.modal.description')}</label>
-                                    <textarea
-                                        value={description}
-                                        onChange={e => setDescription(e.target.value)}
-                                        rows={6}
-                                        className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none leading-relaxed"
-                                        placeholder={t('issue.modal.description_placeholder')}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Attachments */}
-                            <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-4">
-                                <div className="flex justify-between items-center">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.attachments')}</label>
-                                    <button
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="text-xs flex items-center gap-1 text-blue-600 font-medium hover:text-blue-700"
-                                    >
-                                        <Plus size={14} /> {t('issue.modal.add_image')}
-                                    </button>
-                                    <input
-                                        type="file"
-                                        ref={fileInputRef}
-                                        className="hidden"
-                                        accept="image/*"
-                                        onChange={handleFileSelect}
-                                    />
+                                {/* Description */}
+                                <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.description')}</label>
+                                        <button
+                                            onClick={handleAIAnalyze}
+                                            disabled={isAnalyzing || !description}
+                                            className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg transition-colors
+                                            ${isAnalyzing ? 'bg-indigo-50 text-indigo-400' : 'text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700'}
+                                            ${!description ? 'opacity-50 cursor-not-allowed' : ''}
+                                        `}
+                                            title={t('issue.modal.ai_analyze')}
+                                        >
+                                            <Sparkles size={14} className={isAnalyzing ? "animate-spin" : ""} />
+                                            {isAnalyzing ? t('issue.modal.ai_analyzing') : t('issue.modal.ai_analyze')}
+                                        </button>
+                                    </div>
+                                    <div className="relative">
+                                        <textarea
+                                            value={description}
+                                            onChange={e => setDescription(e.target.value)}
+                                            rows={6}
+                                            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none leading-relaxed"
+                                            placeholder={t('issue.modal.description_placeholder')}
+                                        />
+                                    </div>
                                 </div>
 
-                                {attachments.length > 0 ? (
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        {attachments.map((src, idx) => (
-                                            <div key={idx} className="group relative aspect-video bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-                                                <img src={src} alt={`Attachment ${idx}`} className="w-full h-full object-cover" />
-                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                    <button
-                                                        onClick={() => removeAttachment(idx)}
-                                                        className="p-2 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
+                                {/* Attachments */}
+                                <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.attachments')}</label>
+                                        <button
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="text-xs flex items-center gap-1 text-blue-600 font-medium hover:text-blue-700"
+                                        >
+                                            <Plus size={14} /> {t('issue.modal.add_image')}
+                                        </button>
+                                        <input
+                                            type="file"
+                                            ref={fileInputRef}
+                                            className="hidden"
+                                            accept="image/*"
+                                            onChange={handleFileSelect}
+                                        />
+                                    </div>
+
+                                    {attachments.length > 0 ? (
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            {attachments.map((src, idx) => (
+                                                <div key={idx} className="group relative aspect-video bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                                                    <img src={src} alt={`Attachment ${idx}`} className="w-full h-full object-cover" />
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                        <button
+                                                            onClick={() => removeAttachment(idx)}
+                                                            className="p-2 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="border-2 border-dashed border-gray-200 rounded-xl p-8 flex flex-col items-center justify-center text-gray-400 hover:border-blue-300 hover:bg-blue-50/50 transition-all cursor-pointer"
-                                    >
-                                        <ImageIcon size={32} className="mb-2 opacity-50" />
-                                        <span className="text-sm font-medium">{t('issue.modal.upload_placeholder')}</span>
-                                    </div>
-                                )}
-                            </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="border-2 border-dashed border-gray-200 rounded-xl p-8 flex flex-col items-center justify-center text-gray-400 hover:border-blue-300 hover:bg-blue-50/50 transition-all cursor-pointer"
+                                        >
+                                            <ImageIcon size={32} className="mb-2 opacity-50" />
+                                            <span className="text-sm font-medium">{t('issue.modal.upload_placeholder')}</span>
+                                        </div>
+                                    )}
+                                </div>
 
-                            {/* Analysis */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-3">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.root_cause')}</label>
-                                    <textarea
-                                        value={rootCause}
-                                        onChange={e => setRootCause(e.target.value)}
-                                        rows={4}
-                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                                        placeholder={t('issue.modal.root_cause_placeholder')}
-                                    />
-                                </div>
-                                <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-3">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.temp_solution')}</label>
-                                    <textarea
-                                        value={temporarySolution}
-                                        onChange={e => setTemporarySolution(e.target.value)}
-                                        rows={4}
-                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                                        placeholder={t('issue.modal.temp_solution_placeholder')}
-                                    />
-                                </div>
-                                <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-3 md:col-span-2">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.root_solution')}</label>
-                                    <textarea
-                                        value={rootSolution}
-                                        onChange={e => setRootSolution(e.target.value)}
-                                        rows={4}
-                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                                        placeholder={t('issue.modal.root_solution_placeholder')}
-                                    />
+                                {/* Analysis */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-3">
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.root_cause')}</label>
+                                        <textarea
+                                            value={rootCause}
+                                            onChange={e => setRootCause(e.target.value)}
+                                            rows={4}
+                                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                            placeholder={t('issue.modal.root_cause_placeholder')}
+                                        />
+                                    </div>
+                                    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-3">
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.temp_solution')}</label>
+                                        <textarea
+                                            value={temporarySolution}
+                                            onChange={e => setTemporarySolution(e.target.value)}
+                                            rows={4}
+                                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                            placeholder={t('issue.modal.temp_solution_placeholder')}
+                                        />
+                                    </div>
+                                    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-3 md:col-span-2">
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.root_solution')}</label>
+                                        <textarea
+                                            value={rootSolution}
+                                            onChange={e => setRootSolution(e.target.value)}
+                                            rows={4}
+                                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                            placeholder={t('issue.modal.root_solution_placeholder')}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -14,9 +14,10 @@ interface IssueTrackerProps {
     onNavigateToDoc?: (projectId: string, docId: string) => void;
     tags?: Record<string, string[]>;
     onUpdateTags?: (tags: Record<string, string[]>) => void;
+    onCreateProject?: (name?: string) => Promise<void>;
 }
 
-export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMembers, onAddIssue, onUpdateIssue, onDeleteIssue, onImportIssues, onNavigateToDoc, tags, onUpdateTags }) => {
+export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMembers, onAddIssue, onUpdateIssue, onDeleteIssue, onImportIssues, onNavigateToDoc, tags, onUpdateTags, onCreateProject }) => {
     const { t } = useLanguage();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingIssue, setEditingIssue] = useState<Issue | undefined>(undefined);
@@ -344,6 +345,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                 existingIssues={allIssues}
                 tags={tags}
                 onUpdateTags={onUpdateTags}
+                onCreateProject={onCreateProject}
             />
 
             {/* Import Modal */}

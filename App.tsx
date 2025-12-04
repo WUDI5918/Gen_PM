@@ -313,8 +313,8 @@ const AppContent: React.FC = () => {
         addToast(`${t('app.issues_imported')}: ${newIssues.length}`, 'success');
     };
 
-    const handleCreateProject = async () => {
-        const newProject = createDefaultProject(false, teamMembers);
+    const handleCreateProject = async (name?: string) => {
+        const newProject = createDefaultProject(false, teamMembers, name);
         setProjects(prev => [...prev, newProject]);
         setActiveProjectId(newProject.id);
         await db.saveProject(newProject);
@@ -1102,6 +1102,7 @@ const AppContent: React.FC = () => {
                             await db.saveTags(newTags);
                             setTags(newTags);
                         }}
+                        onCreateProject={handleCreateProject}
                     />
                 )}
 

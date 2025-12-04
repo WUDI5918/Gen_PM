@@ -656,3 +656,53 @@ export const performWikiAI = async (
     }
 };
 
+// --- Issue Analysis ---
+export const analyzeIssue = async (description: string, config?: AIConfig, language: 'en' | 'zh' = 'en'): Promise<{ rootCause: string, rootSolution: string }> => {
+    const isDeepSeek = config?.provider === 'deepseek';
+    const apiKey = config?.apiKey || process.env.API_KEY;
+    if (!apiKey) throw new Error("API Key is missing");
+
+    const prompt = `
+        Analyze the following issue description and provide:
+        1. Root Cause Analysis (Why did this happen?)
+        2. Root Solution (How to prevent this from happening again?)
+        
+        Description: "${description}"
+        
+        Language: ${language === 'zh' ? 'Chinese' : 'English'}
+        
+        Return strictly a JSON object with keys: "rootCause" and "rootSolution".
+    `;
+
+    try {
+        if (isDeepSeek && config) {
+            const rawText = await generateWithDeepSeek(prompt + " JSON Object", config);
+            if (!rawText) return { rootCause: '', rootSolution: '' };
+            const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+            return JSON.parse(cleaned);
+        } else {
+            const client = getGeminiClient(apiKey);
+            if (!client) throw new Error("Failed to initialize Gemini");
+
+            const response = await client.models.generateContent({
+                model: config?.model || 'gemini-2.5-flash',
+                contents: prompt,
+                config: {
+                    responseMimeType: 'application/json',
+                    responseSchema: {
+                        type: Type.OBJECT,
+                        properties: {
+                            rootCause: { type: Type.STRING },
+                            rootSolution: { type: Type.STRING }
+                        }
+                    }
+                }
+            });
+            return JSON.parse(response.text || '{}');
+        }
+    } catch (error) {
+        console.error("Issue Analysis Error:", error);
+        return { rootCause: "Failed to analyze issue.", rootSolution: "Failed to generate solution." };
+    }
+};
+
