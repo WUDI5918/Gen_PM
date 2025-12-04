@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Calendar, User, Tag, AlertTriangle, FileText, Link as LinkIcon, Image as ImageIcon, Upload, Trash2, Plus, File, ChevronDown, ChevronUp, Check, Settings, Edit3, Trash, Sparkles } from 'lucide-react';
+import { X, Save, Calendar, User, Tag, AlertTriangle, FileText, Link as LinkIcon, Image as ImageIcon, Upload, Trash2, Plus, File, ChevronDown, ChevronUp, Check, Settings, Edit3, Trash, Sparkles, Briefcase, AlignLeft, Search, ShieldAlert, Wrench, CheckCircle, Users, Clock } from 'lucide-react';
 import { Issue, Project, TeamMember } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -794,17 +794,20 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                 )}
 
                 {/* Body */}
-                <div className="flex-1 overflow-y-auto bg-gray-50/50">
+                <div className="flex-1 overflow-y-auto bg-white">
                     <div className="flex flex-col lg:flex-row h-full">
 
                         {/* LEFT COLUMN: Main Content */}
                         <div className="flex-1 p-8 space-y-8 overflow-y-auto">
 
                             {/* Project & Description */}
-                            <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-6">
+                            <div className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('issue.modal.project')}</label>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                            <Briefcase size={14} />
+                                            {t('issue.modal.project')}
+                                        </label>
                                         <ProjectSelect
                                             value={projectName}
                                             onChange={setProjectName}
@@ -833,9 +836,12 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                 </div>
 
                                 {/* Description */}
-                                <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-3">
+                                <div className="space-y-3">
                                     <div className="flex justify-between items-center">
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.description')}</label>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                                            <AlignLeft size={14} />
+                                            {t('issue.modal.description')}
+                                        </label>
                                         <button
                                             onClick={handleAIAnalyze}
                                             disabled={isAnalyzing || !description}
@@ -861,7 +867,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                 </div>
 
                                 {/* Attachments */}
-                                <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-4">
+                                <div className="space-y-4 pt-4 border-t border-gray-100">
                                     <div className="flex justify-between items-center">
                                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.attachments')}</label>
                                         <button
@@ -907,29 +913,41 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                 </div>
 
                                 {/* Analysis */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-3">
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.root_cause')}</label>
-                                        <textarea
-                                            value={rootCause}
-                                            onChange={e => setRootCause(e.target.value)}
-                                            rows={4}
-                                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                                            placeholder={t('issue.modal.root_cause_placeholder')}
-                                        />
+                                <div className="space-y-6 pt-4 border-t border-gray-100">
+                                    <div className="space-y-6">
+                                        <div className="space-y-3">
+                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                                                <Search size={14} />
+                                                {t('issue.modal.root_cause')}
+                                            </label>
+                                            <textarea
+                                                value={rootCause}
+                                                onChange={e => setRootCause(e.target.value)}
+                                                rows={4}
+                                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                                placeholder={t('issue.modal.root_cause_placeholder')}
+                                            />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                                                <ShieldAlert size={14} />
+                                                {t('issue.modal.temp_solution')}
+                                            </label>
+                                            <textarea
+                                                value={temporarySolution}
+                                                onChange={e => setTemporarySolution(e.target.value)}
+                                                rows={4}
+                                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                                placeholder={t('issue.modal.temp_solution_placeholder')}
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-3">
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.temp_solution')}</label>
-                                        <textarea
-                                            value={temporarySolution}
-                                            onChange={e => setTemporarySolution(e.target.value)}
-                                            rows={4}
-                                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                                            placeholder={t('issue.modal.temp_solution_placeholder')}
-                                        />
-                                    </div>
-                                    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-3 md:col-span-2">
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.root_solution')}</label>
+
+                                    <div className="space-y-3">
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                                            <Wrench size={14} />
+                                            {t('issue.modal.root_solution')}
+                                        </label>
                                         <textarea
                                             value={rootSolution}
                                             onChange={e => setRootSolution(e.target.value)}
@@ -947,7 +965,10 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
 
                             {/* Status & Date */}
                             <div className="space-y-4">
-                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">{t('issue.modal.status')}</h3>
+                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                                    <CheckCircle size={14} />
+                                    {t('issue.modal.status')}
+                                </h3>
                                 <StatusSelect value={status} onChange={setStatus} />
 
                                 <div>
@@ -981,7 +1002,10 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
 
                             {/* People */}
                             <div className="space-y-4 pt-4 border-t border-gray-100">
-                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">{t('issue.modal.people')}</h3>
+                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                                    <Users size={14} />
+                                    {t('issue.modal.people')}
+                                </h3>
 
                                 <div className="space-y-3">
                                     <div>
@@ -1020,7 +1044,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                     <AlertTriangle size={14} />
                                     {t('issue.modal.device_info')}
                                 </h3>
-                                <div className="space-y-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
+                                <div className="space-y-4">
                                     <TagSelect
                                         title={t('issue.modal.device_category')}
                                         value={deviceCategory}
