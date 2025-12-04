@@ -640,7 +640,6 @@ Return ONLY clean markdown. No code fences, no explanations.`,
                                 onConfirm={() => executeDeleteDoc(doc.id)}
                                 title="Delete Document?"
                                 description="Are you sure you want to delete this document? This action cannot be undone."
-                                itemTitle={doc.title}
                             />
 
                             {/* Icon Menu */}
