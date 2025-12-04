@@ -85,6 +85,91 @@ const WikiEditor: React.FC<WikiEditorProps> = ({ initialContent, onContentChange
     );
 };
 
+const SimpleMarkdownRenderer = ({ content }: { content: string }) => {
+    // Basic Markdown Rendering (since we don't have a library)
+    // This is a very simplified renderer. In a real app, use react-markdown.
+    const renderLine = (line: string, index: number) => {
+        // Headers
+        if (line.startsWith('# ')) return <h1 id={`md-${index}`} key={index} className="text-3xl font-bold mb-4 text-gray-900">{line.slice(2)}</h1>;
+        if (line.startsWith('## ')) return <h2 id={`md-${index}`} key={index} className="text-2xl font-bold mb-3 mt-6 text-gray-800 border-b pb-1">{line.slice(3)}</h2>;
+        if (line.startsWith('### ')) return <h3 id={`md-${index}`} key={index} className="text-xl font-bold mb-2 mt-4 text-gray-800">{line.slice(4)}</h3>;
+
+        // Lists
+        if (line.trim().startsWith('- ')) return <li key={index} className="ml-5 list-disc text-gray-700 mb-1">{line.trim().slice(2)}</li>;
+        if (line.trim().match(/^\d+\./)) return <li key={index} className="ml-5 list-decimal text-gray-700 mb-1">{line.trim().replace(/^\d+\.\s*/, '')}</li>;
+
+        // Blockquotes
+        if (line.startsWith('> ')) return <blockquote key={index} className="border-l-4 border-gray-300 pl-4 italic text-gray-600 my-2">{line.slice(2)}</blockquote>;
+
+        // Code blocks (simple detection)
+        if (line.startsWith('```')) return <div key={index} className="bg-gray-100 p-2 rounded my-2 font-mono text-xs text-gray-600">Code Block</div>;
+
+        // Horizontal Rule
+        if (line.trim() === '---') return <hr key={index} className="my-4 border-gray-200" />;
+
+        // Paragraphs (empty lines are spacers)
+        if (line.trim() === '') return <div key={index} className="h-4"></div>;
+
+        // Basic formatting (Bold/Italic) - very naive regex
+        const processed = line
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded text-sm font-mono text-red-500">$1</code>');
+
+        return <p key={index} className="text-gray-700 leading-relaxed mb-2" dangerouslySetInnerHTML={{ __html: processed }} />;
+    };
+
+    return (
+        <div className="prose prose-indigo max-w-none p-8">
+            {content.split('\n').map((line, i) => renderLine(line, i))}
+        </div>
+    );
+};
+
+const MarkdownEditor = ({ content, onChange }: { content: string, onChange: (val: string) => void }) => {
+    const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+
+    return (
+        <div className="flex h-full flex-col">
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 flex justify-between items-center shrink-0">
+                <div className="flex bg-gray-200 rounded-lg p-1 gap-1">
+                    <button
+                        onClick={() => setMode('edit')}
+                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${mode === 'edit' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Edit
+                    </button>
+                    <button
+                        onClick={() => setMode('preview')}
+                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${mode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Preview
+                    </button>
+                </div>
+                <div className="text-xs text-gray-400 font-mono">Markdown</div>
+            </div>
+
+            <div className="flex-1 overflow-hidden relative">
+                {mode === 'edit' ? (
+                    <textarea
+                        className="w-full h-full p-8 resize-none outline-none font-mono text-sm bg-white text-gray-800 leading-relaxed custom-scrollbar"
+                        value={content}
+                        onChange={e => onChange(e.target.value)}
+                        placeholder="# Title\n\nStart writing your markdown here..."
+                        spellCheck={false}
+                    />
+                ) : (
+                    <div className="w-full h-full overflow-y-auto bg-white custom-scrollbar">
+                        <div className="max-w-3xl mx-auto">
+                            <SimpleMarkdownRenderer content={content} />
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId, onSelectDoc, onUpdateDocs, onOpenTask }) => {
     const { t, language } = useLanguage();
     const { addToast } = useToast();
@@ -93,6 +178,10 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
     const [activeTab, setActiveTab] = useState<'tasks' | 'outline'>('outline');
     const [iconMenuOpen, setIconMenuOpen] = useState<string | null>(null);
     const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
+    const [isNewDocMenuOpen, setIsNewDocMenuOpen] = useState(false);
+    const [showExternalLinkModal, setShowExternalLinkModal] = useState(false);
+    const [externalLinkUrl, setExternalLinkUrl] = useState('');
+    const [externalLinkTitle, setExternalLinkTitle] = useState('');
 
     // AI State
     const [showAiDialog, setShowAiDialog] = useState(false);
@@ -124,15 +213,41 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
     };
 
     const handleCreateExternalDoc = () => {
-        const url = prompt("Enter URL (Google Doc, Notion, etc.):");
-        if (!url) return;
+        setExternalLinkUrl('');
+        setExternalLinkTitle('');
+        setShowExternalLinkModal(true);
+    };
+
+    const confirmCreateExternalDoc = () => {
+        if (!externalLinkUrl) return;
+
+        // Ensure URL has protocol
+        let url = externalLinkUrl;
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'https://' + url;
+        }
 
         const newDoc: ProjectDoc = {
             id: `ext-${Date.now()}`,
-            title: 'External Resource',
+            title: externalLinkTitle || 'External Resource',
             icon: '🔗',
             content: [],
             externalUrl: url,
+            lastModified: Date.now()
+        };
+        onUpdateDocs([...docs, newDoc]);
+        onSelectDoc(newDoc.id);
+        setShowExternalLinkModal(false);
+    };
+
+    const handleCreateMarkdownDoc = () => {
+        const newDoc: ProjectDoc = {
+            id: `md-${Date.now()}`,
+            title: 'Untitled Markdown',
+            icon: '📝',
+            content: [],
+            markdownContent: '# Untitled Markdown\n\nStart writing...',
+            type: 'markdown',
             lastModified: Date.now()
         };
         onUpdateDocs([...docs, newDoc]);
@@ -199,7 +314,20 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
 
     // Generate Outline from Editor Blocks (simple approach)
     const outline = useMemo(() => {
-        if (!activeDoc || !Array.isArray(activeDoc.content)) return [];
+        if (!activeDoc) return [];
+
+        if (activeDoc.type === 'markdown' && activeDoc.markdownContent) {
+            const lines = activeDoc.markdownContent.split('\n');
+            const headings: any[] = [];
+            lines.forEach((line, index) => {
+                if (line.startsWith('# ')) headings.push({ id: `md-${index}`, text: line.slice(2), level: 1 });
+                else if (line.startsWith('## ')) headings.push({ id: `md-${index}`, text: line.slice(3), level: 2 });
+                else if (line.startsWith('### ')) headings.push({ id: `md-${index}`, text: line.slice(4), level: 3 });
+            });
+            return headings;
+        }
+
+        if (!Array.isArray(activeDoc.content)) return [];
         // Filter headings from content
         return activeDoc.content.filter((b: any) => b.type === 'heading').map((b: any) => ({
             id: b.id,
@@ -209,9 +337,8 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
     }, [activeDoc]);
 
     const scrollToBlock = (blockId: string) => {
-        // BlockNote doesn't expose easy scroll-to-block ID in the view directly without DOM manipulation
-        // But we can try to find the element
-        const el = document.querySelector(`[data-id="${blockId}"]`);
+        // Try to find by ID (Markdown) or data-id (BlockNote)
+        const el = document.getElementById(blockId) || document.querySelector(`[data-id="${blockId}"]`);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
@@ -230,19 +357,40 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
                             onChange={e => setSearchQuery(e.target.value)}
                         />
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 relative">
                         <button
-                            onClick={handleCreateDoc}
+                            onClick={() => setIsNewDocMenuOpen(!isNewDocMenuOpen)}
                             className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white text-xs font-bold py-2.5 rounded-lg hover:bg-indigo-700 transition-all shadow-sm hover:shadow-md"
                         >
                             <Plus size={16} strokeWidth={2.5} /> {t('wiki.new_page') || 'New Page'}
                         </button>
-                        <button
-                            onClick={handleCreateExternalDoc}
-                            className="w-full flex items-center justify-center gap-2 bg-white border-2 border-gray-300 text-gray-700 hover:border-indigo-300 hover:bg-gray-50 rounded-lg py-2 text-xs font-medium transition-all"
-                        >
-                            <ExternalLink size={14} /> External Link
-                        </button>
+
+                        {isNewDocMenuOpen && (
+                            <>
+                                <div className="fixed inset-0 z-10" onClick={() => setIsNewDocMenuOpen(false)}></div>
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 p-1 z-20 animate-in fade-in zoom-in-95 duration-100">
+                                    <button
+                                        onClick={() => { handleCreateDoc(); setIsNewDocMenuOpen(false); }}
+                                        className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2 transition-colors"
+                                    >
+                                        <span className="text-lg">📄</span> Standard Page
+                                    </button>
+                                    <button
+                                        onClick={() => { handleCreateMarkdownDoc(); setIsNewDocMenuOpen(false); }}
+                                        className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2 transition-colors"
+                                    >
+                                        <span className="text-lg">📝</span> Markdown Page
+                                    </button>
+                                    <div className="h-px bg-gray-100 my-1"></div>
+                                    <button
+                                        onClick={() => { handleCreateExternalDoc(); setIsNewDocMenuOpen(false); }}
+                                        className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2 transition-colors"
+                                    >
+                                        <span className="text-lg">🔗</span> External Link
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -311,23 +459,45 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
             <div className="flex-1 flex flex-col relative overflow-hidden">
                 {activeDoc ? (
                     activeDoc.externalUrl ? (
-                        <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 text-center p-10">
-                            <div className="w-20 h-20 bg-white rounded-2xl shadow-sm flex items-center justify-center text-4xl mb-4">
-                                {activeDoc.icon}
+                        <div className="flex-1 flex flex-col h-full overflow-hidden bg-gray-50">
+                            {/* Header with Title and Link */}
+                            <div className="p-4 border-b border-gray-200 bg-white flex items-center justify-between shrink-0">
+                                <div className="flex items-center gap-3 flex-1">
+                                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-xl shrink-0">
+                                        {activeDoc.icon}
+                                    </div>
+                                    <input
+                                        className="text-xl font-bold text-gray-900 placeholder-gray-300 outline-none bg-transparent w-full"
+                                        value={activeDoc.title}
+                                        onChange={(e) => updateDocTitle(e.target.value)}
+                                        placeholder="Document Title"
+                                    />
+                                </div>
+                                <a
+                                    href={activeDoc.externalUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors text-xs font-bold"
+                                >
+                                    Open in New Tab <ExternalLink size={14} />
+                                </a>
                             </div>
-                            <h2 className="text-2xl font-bold text-gray-800 mb-2">{activeDoc.title}</h2>
-                            <div className="flex items-center gap-2 text-gray-500 text-sm mb-8">
-                                <Cloud size={16} />
-                                External Resource
+
+                            {/* Iframe Content */}
+                            <div className="flex-1 relative w-full h-full">
+                                <iframe
+                                    src={activeDoc.externalUrl}
+                                    className="w-full h-full border-none"
+                                    title="External Content"
+                                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                                />
+                                {/* Overlay for when iframe fails to load or is blocked */}
+                                <div className="absolute inset-0 -z-10 flex flex-col items-center justify-center text-gray-400">
+                                    <Loader2 size={32} className="animate-spin mb-2" />
+                                    <p className="text-sm">Loading content...</p>
+                                    <p className="text-xs mt-2 max-w-md text-center">If content doesn't load, it might be blocked by the website. Use the "Open in New Tab" button.</p>
+                                </div>
                             </div>
-                            <a
-                                href={activeDoc.externalUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg hover:shadow-xl transition-all"
-                            >
-                                Open in Browser <ExternalLink size={16} />
-                            </a>
                         </div>
                     ) : (
                         <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -419,15 +589,25 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
                                 </div>
                             )}
 
-                            {/* BlockNote Editor */}
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
-                                <div className="max-w-3xl mx-auto pb-32">
-                                    <WikiEditor
-                                        key={activeDoc.id}
-                                        initialContent={activeDoc.content}
-                                        onContentChange={handleContentChange}
+                            {/* Editor Area */}
+                            <div className={`flex-1 overflow-y-auto custom-scrollbar ${activeDoc.type === 'markdown' ? 'p-0' : 'p-4'}`}>
+                                {activeDoc.type === 'markdown' ? (
+                                    <MarkdownEditor
+                                        content={activeDoc.markdownContent || ''}
+                                        onChange={(val) => {
+                                            const updated = { ...activeDoc, markdownContent: val, lastModified: Date.now() };
+                                            onUpdateDocs(docs.map(d => d.id === activeDoc.id ? updated : d));
+                                        }}
                                     />
-                                </div>
+                                ) : (
+                                    <div className="max-w-3xl mx-auto pb-32">
+                                        <WikiEditor
+                                            key={activeDoc.id}
+                                            initialContent={activeDoc.content}
+                                            onContentChange={handleContentChange}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )
@@ -497,6 +677,56 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
                                 ))}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+            {/* External Link Modal */}
+            {showExternalLinkModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+                        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <ExternalLink size={20} className="text-indigo-600" />
+                            Add External Resource
+                        </h3>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Title</label>
+                                <input
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                    placeholder="e.g., Product Requirements"
+                                    value={externalLinkTitle}
+                                    onChange={e => setExternalLinkTitle(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">URL</label>
+                                <input
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                    placeholder="https://example.com/doc"
+                                    value={externalLinkUrl}
+                                    onChange={e => setExternalLinkUrl(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && confirmCreateExternalDoc()}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button
+                                onClick={() => setShowExternalLinkModal(false)}
+                                className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmCreateExternalDoc}
+                                disabled={!externalLinkUrl}
+                                className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                            >
+                                Add Link
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

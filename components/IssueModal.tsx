@@ -665,8 +665,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">{t('issue.modal.group_basic')}</h4>
                                     <div className="space-y-1">
                                         {[
-                                            { id: 'categories', label: t('issue.modal.category'), icon: Tag },
-                                            { id: 'sources', label: t('issue.modal.source'), icon: LinkIcon }
+                                            { id: 'categories', label: t('issue.modal.category'), icon: Tag }
                                         ].map(cat => (
                                             <button
                                                 key={cat.id}
@@ -691,7 +690,8 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                     <div className="space-y-1">
                                         {[
                                             { id: 'deviceCategories', label: t('issue.modal.device_category'), icon: AlertTriangle },
-                                            { id: 'deviceTypes', label: t('issue.modal.device_type'), icon: Settings }
+                                            { id: 'deviceTypes', label: t('issue.modal.device_type'), icon: Settings },
+                                            { id: 'sources', label: t('issue.modal.source'), icon: LinkIcon }
                                         ].map(cat => (
                                             <button
                                                 key={cat.id}
