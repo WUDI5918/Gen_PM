@@ -146,7 +146,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ phases = [], isEditing
       );
     }
     return (
-      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-gray-100 text-gray-500 border border-white" title="Unassigned">
+      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-gray-100 text-gray-500 border border-white" title={t('kanban.unassigned')}>
         <User size={10} />
       </div>
     );

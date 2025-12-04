@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Calendar, User, Tag, AlertTriangle, FileText, Link as LinkIcon, Image as ImageIcon, Upload, Trash2, Plus, File } from 'lucide-react';
+import { X, Save, Calendar, User, Tag, AlertTriangle, FileText, Link as LinkIcon, Image as ImageIcon, Upload, Trash2, Plus, File, ChevronDown } from 'lucide-react';
 import { Issue, Project, TeamMember } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -20,6 +20,7 @@ interface MemberSelectProps {
 }
 
 const MemberSelect: React.FC<MemberSelectProps> = ({ value, onChange, teamMembers, placeholder }) => {
+    const { t } = useLanguage();
     const [isOpen, setIsOpen] = useState(false);
     const [inputValue, setInputValue] = useState(value);
     const wrapperRef = useRef<HTMLDivElement>(null);
@@ -57,7 +58,7 @@ const MemberSelect: React.FC<MemberSelectProps> = ({ value, onChange, teamMember
                     }}
                     onFocus={() => setIsOpen(true)}
                     className="bg-transparent w-full text-sm outline-none"
-                    placeholder={placeholder || "Name"}
+                    placeholder={placeholder || t('common.name')}
                 />
             </div>
 
@@ -80,6 +81,69 @@ const MemberSelect: React.FC<MemberSelectProps> = ({ value, onChange, teamMember
                                 <div className="text-sm font-medium text-gray-700">{member.name}</div>
                                 <div className="text-xs text-gray-400">{member.role}</div>
                             </div>
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const StatusSelect = ({ value, onChange }: { value: Issue['status'], onChange: (val: Issue['status']) => void }) => {
+    const { t } = useLanguage();
+    const [isOpen, setIsOpen] = useState(false);
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
+    const statuses: Issue['status'][] = ['Open', 'In Progress', 'Planning', 'Closed'];
+
+    const getStatusColor = (s: string) => {
+        switch (s) {
+            case 'Open': return 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100';
+            case 'In Progress': return 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100';
+            case 'Planning': return 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100';
+            case 'Closed': return 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100';
+            default: return 'bg-gray-50 text-gray-600 border-gray-200';
+        }
+    };
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+        <div className="relative" ref={wrapperRef}>
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className={`w-full p-3 rounded-xl text-sm font-bold border-2 transition-all flex justify-between items-center ${getStatusColor(value)}`}
+            >
+                <span>{t(`status.${value}`)}</span>
+                <ChevronDown size={16} />
+            </button>
+
+            {isOpen && (
+                <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden p-1">
+                    {statuses.map(s => (
+                        <button
+                            key={s}
+                            onClick={() => {
+                                onChange(s);
+                                setIsOpen(false);
+                            }}
+                            className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors mb-1 last:mb-0
+                                ${value === s ? 'bg-gray-100' : 'hover:bg-gray-50'}
+                                ${s === 'Open' ? 'text-red-600' :
+                                    s === 'In Progress' ? 'text-blue-600' :
+                                        s === 'Planning' ? 'text-amber-600' :
+                                            'text-green-600'}
+                            `}
+                        >
+                            {t(`status.${s}`)}
                         </button>
                     ))}
                 </div>
@@ -165,7 +229,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             if (file.size > 5 * 1024 * 1024) {
-                alert('File is too large (max 5MB)');
+                alert(t('issue.modal.file_too_large'));
                 return;
             }
 
@@ -193,7 +257,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
 
     const handleSave = () => {
         if (!description) {
-            alert('Description is required');
+            alert(t('issue.modal.desc_required'));
             return;
         }
 
@@ -236,10 +300,10 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                         </div>
                         <div>
                             <h2 className="text-2xl font-bold text-gray-900">
-                                {issueToEdit ? 'Edit Issue' : 'Report New Issue'}
+                                {issueToEdit ? t('issue.modal.edit_title') : t('issue.modal.new_title')}
                             </h2>
                             <p className="text-sm text-gray-500">
-                                {issueToEdit ? `ID: ${issueToEdit.id}` : 'Log a new anomaly or defect'}
+                                {issueToEdit ? `${t('issue.modal.id_prefix')}${issueToEdit.id}` : t('issue.modal.new_desc')}
                             </p>
                         </div>
                     </div>
@@ -261,38 +325,38 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                             <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Project</label>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('issue.modal.project')}</label>
                                         <select
                                             value={projectName}
                                             onChange={e => setProjectName(e.target.value)}
                                             className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                                         >
-                                            <option value="" disabled>Select Project</option>
+                                            <option value="" disabled>{t('issue.modal.select_project')}</option>
                                             {projects.map(p => (
                                                 <option key={p.id} value={p.info.name}>{p.info.name}</option>
                                             ))}
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Issue Category</label>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('issue.modal.category')}</label>
                                         <input
                                             type="text"
                                             value={category}
                                             onChange={e => setCategory(e.target.value)}
-                                            placeholder="e.g. Malfunction, UI Bug"
+                                            placeholder={t('issue.modal.category_placeholder')}
                                             className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                                         />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Description</label>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('issue.modal.description')}</label>
                                     <textarea
                                         value={description}
                                         onChange={e => setDescription(e.target.value)}
                                         rows={6}
                                         className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none leading-relaxed"
-                                        placeholder="Describe the issue in detail..."
+                                        placeholder={t('issue.modal.description_placeholder')}
                                     />
                                 </div>
                             </div>
@@ -300,12 +364,12 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                             {/* Attachments */}
                             <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-4">
                                 <div className="flex justify-between items-center">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Attachments</label>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.attachments')}</label>
                                     <button
                                         onClick={() => fileInputRef.current?.click()}
                                         className="text-xs flex items-center gap-1 text-blue-600 font-medium hover:text-blue-700"
                                     >
-                                        <Plus size={14} /> Add Image
+                                        <Plus size={14} /> {t('issue.modal.add_image')}
                                     </button>
                                     <input
                                         type="file"
@@ -338,7 +402,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                         className="border-2 border-dashed border-gray-200 rounded-xl p-8 flex flex-col items-center justify-center text-gray-400 hover:border-blue-300 hover:bg-blue-50/50 transition-all cursor-pointer"
                                     >
                                         <ImageIcon size={32} className="mb-2 opacity-50" />
-                                        <span className="text-sm font-medium">Click to upload images</span>
+                                        <span className="text-sm font-medium">{t('issue.modal.upload_placeholder')}</span>
                                     </div>
                                 )}
                             </div>
@@ -346,23 +410,23 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                             {/* Analysis */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-3">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Root Cause Analysis</label>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.root_cause')}</label>
                                     <textarea
                                         value={rootCause}
                                         onChange={e => setRootCause(e.target.value)}
                                         rows={4}
                                         className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                                        placeholder="Why did this happen?"
+                                        placeholder={t('issue.modal.root_cause_placeholder')}
                                     />
                                 </div>
                                 <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-3">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Temporary Solution</label>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.temp_solution')}</label>
                                     <textarea
                                         value={temporarySolution}
                                         onChange={e => setTemporarySolution(e.target.value)}
                                         rows={4}
                                         className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                                        placeholder="Immediate mitigation steps..."
+                                        placeholder={t('issue.modal.temp_solution_placeholder')}
                                     />
                                 </div>
                             </div>
@@ -373,24 +437,11 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
 
                             {/* Status & Date */}
                             <div className="space-y-4">
-                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Status</h3>
-                                <select
-                                    value={status}
-                                    onChange={e => setStatus(e.target.value as any)}
-                                    className={`w-full p-3 rounded-xl text-sm font-bold outline-none border-2 transition-colors appearance-none
-                                        ${status === 'Open' ? 'border-red-100 bg-red-50 text-red-600' :
-                                            status === 'In Progress' ? 'border-blue-100 bg-blue-50 text-blue-600' :
-                                                status === 'Planning' ? 'border-amber-100 bg-amber-50 text-amber-600' :
-                                                    'border-green-100 bg-green-50 text-green-600'}`}
-                                >
-                                    <option value="Open">Open (待处理)</option>
-                                    <option value="In Progress">In Progress (处理中)</option>
-                                    <option value="Planning">Planning (方案制定中)</option>
-                                    <option value="Closed">Closed (已关闭)</option>
-                                </select>
+                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">{t('issue.modal.status')}</h3>
+                                <StatusSelect value={status} onChange={setStatus} />
 
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Date Reported</label>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">{t('issue.modal.date_reported')}</label>
                                     <input
                                         type="date"
                                         value={date}
@@ -399,7 +450,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Discovery Date</label>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">{t('issue.modal.discovery_date')}</label>
                                     <input
                                         type="date"
                                         value={discoveryDate}
@@ -408,7 +459,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Resolution Date</label>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">{t('issue.modal.resolution_date')}</label>
                                     <input
                                         type="date"
                                         value={resolutionDate}
@@ -420,34 +471,34 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
 
                             {/* People */}
                             <div className="space-y-4 pt-4 border-t border-gray-100">
-                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">People</h3>
+                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">{t('issue.modal.people')}</h3>
 
                                 <div className="space-y-3">
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">Reporter</label>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">{t('issue.modal.reporter')}</label>
                                         <MemberSelect
                                             value={reporter}
                                             onChange={setReporter}
                                             teamMembers={teamMembers}
-                                            placeholder="Reporter Name"
+                                            placeholder={t('issue.modal.reporter_placeholder')}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">Responsible</label>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">{t('issue.modal.responsible')}</label>
                                         <MemberSelect
                                             value={responsiblePerson}
                                             onChange={setResponsiblePerson}
                                             teamMembers={teamMembers}
-                                            placeholder="Responsible Person"
+                                            placeholder={t('issue.modal.responsible_placeholder')}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">Tracker</label>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">{t('issue.modal.tracker')}</label>
                                         <MemberSelect
                                             value={tracker}
                                             onChange={setTracker}
                                             teamMembers={teamMembers}
-                                            placeholder="Tracker Name"
+                                            placeholder={t('issue.modal.tracker_placeholder')}
                                         />
                                     </div>
                                 </div>
@@ -455,36 +506,36 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
 
                             {/* Device Info */}
                             <div className="space-y-4 pt-4 border-t border-gray-100">
-                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Device Info</h3>
+                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">{t('issue.modal.device_info')}</h3>
                                 <div className="space-y-3">
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">{t('issue.modal.device_category')}</label>
                                         <input
                                             type="text"
                                             value={deviceCategory}
                                             onChange={e => setDeviceCategory(e.target.value)}
                                             className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none"
-                                            placeholder="Hardware/Software"
+                                            placeholder={t('issue.modal.device_category_placeholder')}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">{t('issue.modal.device_type')}</label>
                                         <input
                                             type="text"
                                             value={deviceType}
                                             onChange={e => setDeviceType(e.target.value)}
                                             className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none"
-                                            placeholder="Specific Model"
+                                            placeholder={t('issue.modal.device_type_placeholder')}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">Source</label>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">{t('issue.modal.source')}</label>
                                         <input
                                             type="text"
                                             value={source}
                                             onChange={e => setSource(e.target.value)}
                                             className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none"
-                                            placeholder="Origin"
+                                            placeholder={t('issue.modal.source_placeholder')}
                                         />
                                     </div>
                                 </div>
@@ -493,7 +544,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                             {/* Linked Docs */}
                             <div className="space-y-4 pt-4 border-t border-gray-100">
                                 <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                                    <LinkIcon size={14} /> Linked Docs
+                                    <LinkIcon size={14} /> {t('issue.modal.linked_docs')}
                                 </h3>
                                 {availableDocs.length > 0 ? (
                                     <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
@@ -515,7 +566,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="text-xs text-gray-400 italic">No docs in this project.</p>
+                                    <p className="text-xs text-gray-400 italic">{t('issue.modal.no_docs')}</p>
                                 )}
                             </div>
 
@@ -529,14 +580,14 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                         onClick={onClose}
                         className="px-6 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-xl transition-colors"
                     >
-                        Cancel
+                        {t('common.cancel')}
                     </button>
                     <button
                         onClick={handleSave}
                         className="px-8 py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all hover:-translate-y-0.5 flex items-center gap-2"
                     >
                         <Save size={18} />
-                        Save Issue
+                        {t('issue.modal.save')}
                     </button>
                 </div>
             </div>

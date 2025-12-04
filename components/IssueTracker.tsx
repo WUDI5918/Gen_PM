@@ -58,7 +58,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
     };
 
     const handleDelete = (id: string) => {
-        if (confirm('Are you sure you want to delete this issue?')) {
+        if (confirm(t('issue.delete_confirm'))) {
             onDeleteIssue(id);
         }
     };
@@ -126,7 +126,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
             setIsImportModalOpen(false);
             setImportText('');
         } else {
-            alert('No valid issues found to import. Please ensure data is tab-separated.');
+            alert(t('issue.import.error'));
         }
     };
 
@@ -144,8 +144,8 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
             {/* Header */}
             <div className="px-8 py-6 bg-white border-b border-gray-200 flex justify-between items-center sticky top-0 z-10">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Issue Tracker</h1>
-                    <p className="text-sm text-gray-500 mt-1">Track and manage project issues and anomalies</p>
+                    <h1 className="text-2xl font-bold text-gray-900">{t('issue.title')}</h1>
+                    <p className="text-sm text-gray-500 mt-1">{t('issue.subtitle')}</p>
                 </div>
                 <div className="flex gap-3">
                     {onImportIssues && (
@@ -154,7 +154,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                             className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors shadow-sm font-medium"
                         >
                             <Upload size={18} />
-                            Import Data
+                            {t('issue.import_data')}
                         </button>
                     )}
                     <button
@@ -162,7 +162,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                         className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium"
                     >
                         <Plus size={18} />
-                        Report Issue
+                        {t('issue.report')}
                     </button>
                 </div>
             </div>
@@ -173,7 +173,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <input
                         type="text"
-                        placeholder="Search issues..."
+                        placeholder={t('issue.search_placeholder')}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
@@ -185,7 +185,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none"
                 >
-                    <option value="All">All Status</option>
+                    <option value="All">{t('issue.filter.all_status')}</option>
                     <option value="Open">Open</option>
                     <option value="In Progress">In Progress</option>
                     <option value="Planning">Planning</option>
@@ -197,7 +197,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                     onChange={(e) => setProjectFilter(e.target.value)}
                     className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none"
                 >
-                    <option value="All">All Projects</option>
+                    <option value="All">{t('issue.filter.all_projects')}</option>
                     {projects.map(p => (
                         <option key={p.id} value={p.info.name}>{p.info.name}</option>
                     ))}
@@ -210,16 +210,16 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                <th className="px-6 py-4 w-24">ID</th>
-                                <th className="px-6 py-4 w-32">Date</th>
-                                <th className="px-6 py-4 w-48">Project</th>
-                                <th className="px-6 py-4">Description</th>
-                                <th className="px-6 py-4 w-24">Assets</th>
-                                <th className="px-6 py-4 w-32">Status</th>
-                                <th className="px-6 py-4 w-40">Responsible</th>
-                                <th className="px-6 py-4 w-32">Discovery</th>
-                                <th className="px-6 py-4 w-32">Resolution</th>
-                                <th className="px-6 py-4 w-24 text-right">Actions</th>
+                                <th className="px-6 py-4 w-24">{t('issue.table.id')}</th>
+                                <th className="px-6 py-4 w-32">{t('issue.table.date')}</th>
+                                <th className="px-6 py-4 w-48">{t('issue.table.project')}</th>
+                                <th className="px-6 py-4">{t('issue.table.description')}</th>
+                                <th className="px-6 py-4 w-24">{t('issue.table.assets')}</th>
+                                <th className="px-6 py-4 w-32">{t('issue.table.status')}</th>
+                                <th className="px-6 py-4 w-40">{t('issue.table.responsible')}</th>
+                                <th className="px-6 py-4 w-32">{t('issue.table.discovery')}</th>
+                                <th className="px-6 py-4 w-32">{t('issue.table.resolution')}</th>
+                                <th className="px-6 py-4 w-24 text-right">{t('issue.table.actions')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -229,7 +229,11 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                                     const docDetails = projectId ? getDocDetails(projectId, issue.linkedDocIds || []) : [];
 
                                     return (
-                                        <tr key={issue.id} className="hover:bg-gray-50/50 transition-colors group">
+                                        <tr
+                                            key={issue.id}
+                                            className="hover:bg-gray-50/50 transition-colors group cursor-pointer"
+                                            onDoubleClick={() => handleEdit(issue)}
+                                        >
                                             <td className="px-6 py-4 text-sm font-medium text-gray-900">#{issue.id}</td>
                                             <td className="px-6 py-4 text-sm text-gray-500">{issue.date}</td>
                                             <td className="px-6 py-4 text-sm text-gray-700 font-medium">{issue.projectName}</td>
@@ -242,7 +246,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                                                         <button
                                                             onClick={() => setViewingImages({ urls: issue.attachments!, index: 0 })}
                                                             className="relative p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors group/btn"
-                                                            title="View Images"
+                                                            title={t('issue.view_images')}
                                                         >
                                                             <ImageIcon size={16} />
                                                             {issue.attachments.length > 1 && (
@@ -262,7 +266,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                                                                 }
                                                             }}
                                                             className="relative p-1.5 text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors"
-                                                            title="View Linked Docs"
+                                                            title={t('issue.view_linked_docs')}
                                                         >
                                                             <FileText size={16} />
                                                             {docDetails.length > 1 && (
@@ -289,14 +293,14 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                                                     <button
                                                         onClick={() => handleEdit(issue)}
                                                         className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                        title="Edit"
+                                                        title={t('common.edit')}
                                                     >
                                                         <Edit2 size={16} />
                                                     </button>
                                                     <button
                                                         onClick={() => handleDelete(issue.id)}
                                                         className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                        title="Delete"
+                                                        title={t('common.delete')}
                                                     >
                                                         <Trash2 size={16} />
                                                     </button>
@@ -312,7 +316,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                                             <div className="p-3 bg-gray-100 rounded-full">
                                                 <AlertCircle size={24} className="text-gray-400" />
                                             </div>
-                                            <p>No issues found matching your filters.</p>
+                                            <p>{t('issue.no_issues')}</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -342,20 +346,20 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                 <div className="fixed inset-0 bg-black/50 z-[1000] flex items-center justify-center animate-in fade-in duration-200">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col">
                         <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-gray-50">
-                            <h2 className="text-xl font-bold text-gray-800">Import Issues</h2>
+                            <h2 className="text-xl font-bold text-gray-800">{t('issue.import.title')}</h2>
                             <button onClick={() => setIsImportModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
                                 <X size={20} />
                             </button>
                         </div>
                         <div className="p-6">
                             <p className="text-sm text-gray-500 mb-4">
-                                Paste your Excel/CSV data here. Ensure columns match: ID, Date, Project, Device Cat, Device Type, Issue Cat, Source, Reporter, Tracker, Description, Attachments, Root Cause, Responsible, Solution, Status.
+                                {t('issue.import.desc')}
                             </p>
                             <textarea
                                 value={importText}
                                 onChange={(e) => setImportText(e.target.value)}
                                 className="w-full h-64 border border-gray-200 rounded-lg p-4 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none"
-                                placeholder="Paste tab-separated data here..."
+                                placeholder={t('issue.import.placeholder')}
                             />
                         </div>
                         <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
@@ -363,13 +367,13 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                                 onClick={() => setIsImportModalOpen(false)}
                                 className="px-5 py-2 text-gray-600 font-medium hover:bg-gray-200 rounded-lg transition-colors"
                             >
-                                Cancel
+                                {t('common.cancel')}
                             </button>
                             <button
                                 onClick={handleImport}
                                 className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-200"
                             >
-                                Import Issues
+                                {t('issue.import.btn')}
                             </button>
                         </div>
                     </div>
@@ -435,7 +439,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                 >
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
                         <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                            <h3 className="font-bold text-gray-800">Linked Documents</h3>
+                            <h3 className="font-bold text-gray-800">{t('issue.linked_docs')}</h3>
                             <button onClick={() => setViewingDocList(null)} className="text-gray-400 hover:text-gray-600">
                                 <X size={18} />
                             </button>

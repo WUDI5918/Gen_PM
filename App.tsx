@@ -174,11 +174,11 @@ const AppContent: React.FC = () => {
             if (loadedTeam) setTeamMembers(loadedTeam);
             if (loadedUser) setUserProfile(loadedUser);
 
-            if (!showLoading) addToast(t('common.refreshed') || 'Interface Refreshed', 'success');
+            if (!showLoading) addToast(t('app.refreshed'), 'success');
 
         } catch (error) {
             console.error("Failed to load data", error);
-            addToast("Error loading data", 'error');
+            addToast(t('app.load_error'), 'error');
         } finally {
             if (showLoading) setIsLoading(false);
         }
@@ -225,7 +225,7 @@ const AppContent: React.FC = () => {
             lastModified: Date.now()
         };
         handleUpdateProject(updatedProject);
-        addToast('Issue reported successfully', 'success');
+        addToast(t('app.issue_reported'), 'success');
     };
 
     const handleUpdateIssue = (issue: Issue) => {
@@ -258,7 +258,7 @@ const AppContent: React.FC = () => {
             };
             handleUpdateProject(updatedProject);
         }
-        addToast('Issue updated', 'success');
+        addToast(t('app.issue_updated'), 'success');
     };
 
     const handleDeleteIssue = (issueId: string) => {
@@ -270,7 +270,7 @@ const AppContent: React.FC = () => {
                 lastModified: Date.now()
             };
             handleUpdateProject(updatedProject);
-            addToast('Issue deleted', 'info');
+            addToast(t('app.issue_deleted'), 'info');
         }
     };
 
@@ -307,7 +307,7 @@ const AppContent: React.FC = () => {
 
             return updatedProjects;
         });
-        addToast(`Imported ${newIssues.length} issues`, 'success');
+        addToast(`${t('app.issues_imported')}: ${newIssues.length}`, 'success');
     };
 
     const handleCreateProject = async () => {
@@ -315,7 +315,7 @@ const AppContent: React.FC = () => {
         setProjects(prev => [...prev, newProject]);
         setActiveProjectId(newProject.id);
         await db.saveProject(newProject);
-        addToast('New project created', 'success');
+        addToast(t('app.project_created'), 'success');
     };
 
     const handleDeleteProject = (id: string) => {
@@ -324,7 +324,7 @@ const AppContent: React.FC = () => {
         if (activeProjectId === id) setActiveProjectId(null);
         if (globalSelectedProjectId === id) setGlobalSelectedProjectId(newProjects[0]?.id || null);
         db.deleteProject(id);
-        addToast('Project deleted', 'info');
+        addToast(t('app.project_deleted'), 'info');
     };
 
     const handleUpdateProject = async (updatedProject: Project) => {
@@ -501,7 +501,7 @@ const AppContent: React.FC = () => {
                 const updatedProject = { ...project, phases: newPhases, lastModified: Date.now() };
                 handleUpdateProject(updatedProject);
                 setGlobalActiveTask({ task: taskToMove, project: updatedProject, phaseName: targetPhase.name });
-                addToast(`Task moved to ${targetPhase.name}`, 'success');
+                addToast(`${t('kanban.move_to')} ${targetPhase.name}`, 'success');
             }
         }
     };
@@ -521,13 +521,13 @@ const AppContent: React.FC = () => {
         if (!globalTargetProject) return;
         ask({
             title: t('common.delete') + ' Meeting?',
-            message: 'Are you sure you want to delete this meeting? This action cannot be undone.',
+            message: t('app.delete_meeting_confirm'),
             type: 'danger',
             confirmText: t('common.delete'),
             onConfirm: () => {
                 const newMeetings = (globalTargetProject.meetings || []).filter(m => m.id !== meetingId);
                 handleGlobalProjectUpdate({ ...globalTargetProject, meetings: newMeetings });
-                addToast('Meeting deleted', 'info');
+                addToast(t('app.meeting_deleted'), 'info');
             }
         });
     };
@@ -562,8 +562,8 @@ const AppContent: React.FC = () => {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-white">
                 <Loader2 size={48} className="text-indigo-600 animate-spin mb-4" />
-                <h2 className="text-lg font-bold text-gray-700">Loading Gen-PM</h2>
-                <p className="text-sm text-gray-400 mt-1">Initializing Database...</p>
+                <h2 className="text-lg font-bold text-gray-700">{t('app.loading_title')}</h2>
+                <p className="text-sm text-gray-400 mt-1">{t('app.loading_desc')}</p>
             </div>
         );
     }
@@ -643,7 +643,7 @@ const AppContent: React.FC = () => {
                     lastModified: Date.now()
                 });
             }
-            addToast('Event updated successfully', 'success');
+            addToast(t('app.event_updated'), 'success');
         } else {
             // CREATE new event
             const newEvent: CalendarEvent = {
@@ -668,7 +668,7 @@ const AppContent: React.FC = () => {
             };
 
             handleUpdateProject(updatedProject);
-            addToast('Event created successfully', 'success');
+            addToast(t('app.event_created'), 'success');
         }
     };
 
@@ -703,7 +703,7 @@ const AppContent: React.FC = () => {
         };
 
         handleUpdateProject(updatedProject);
-        addToast('Event deleted', 'info');
+        addToast(t('app.event_deleted'), 'info');
     };
 
     const handleQuickSync = async () => {
@@ -715,10 +715,10 @@ const AppContent: React.FC = () => {
 
             // Refresh UI
             await refreshData(false);
-            addToast('Sync completed successfully', 'success');
+            addToast(t('app.sync_success'), 'success');
         } catch (e) {
             console.error("Quick Sync failed", e);
-            addToast('Sync failed. Check connection.', 'error');
+            addToast(t('app.sync_fail'), 'error');
         } finally {
             setIsSyncing(false);
         }
@@ -740,7 +740,7 @@ const AppContent: React.FC = () => {
                             <h1 className="text-sm font-extrabold text-gray-800 tracking-tight leading-none truncate">
                                 Gen-PM
                             </h1>
-                            <p className="text-[10px] text-gray-400 font-bold mt-0.5">Workspace</p>
+                            <p className="text-[10px] text-gray-400 font-bold mt-0.5">{t('app.workspace')}</p>
                         </div>
                     </div>
 
@@ -749,7 +749,7 @@ const AppContent: React.FC = () => {
                         <button
                             onClick={handleQuickSync}
                             className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all relative group"
-                            title="Quick Sync to Cloud"
+                            title={t('app.quick_sync')}
                             disabled={isSyncing}
                         >
                             <div className={isSyncing ? "animate-spin" : ""}>
@@ -778,7 +778,7 @@ const AppContent: React.FC = () => {
                     >
                         <div className="flex items-center gap-2">
                             <Search size={14} />
-                            <span>Search...</span>
+                            <span>{t('app.search_placeholder')}</span>
                         </div>
                         <div className="flex items-center gap-1">
                             <span className="bg-white border border-gray-200 rounded px-1 py-0.5 text-[10px] font-bold shadow-sm">⌘K</span>
