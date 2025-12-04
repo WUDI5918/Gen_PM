@@ -55,6 +55,7 @@ const AppContent: React.FC = () => {
     const [projects, setProjects] = useState<Project[]>([]);
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>(INITIAL_TEAM);
     const [userProfile, setUserProfile] = useState<{ name: string, role: string, avatar: string }>({ name: 'Project Manager', role: 'Admin', avatar: 'PM' });
+    const [tags, setTags] = useState<Record<string, string[]>>({});
 
     // Notification State
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -116,10 +117,11 @@ const AppContent: React.FC = () => {
         try {
             if (showLoading) await db.init();
 
-            let [loadedProjects, loadedTeam, loadedUser] = await Promise.all([
+            let [loadedProjects, loadedTeam, loadedUser, loadedTags] = await Promise.all([
                 db.getAllProjects(),
                 db.getTeam(),
-                db.getUser()
+                db.getUser(),
+                db.getTags()
             ]);
 
             // Fallback: Check LocalStorage Backup if DB is empty
@@ -173,6 +175,7 @@ const AppContent: React.FC = () => {
 
             if (loadedTeam) setTeamMembers(loadedTeam);
             if (loadedUser) setUserProfile(loadedUser);
+            if (loadedTags) setTags(loadedTags);
 
             if (!showLoading) addToast(t('app.refreshed'), 'success');
 
@@ -1094,6 +1097,11 @@ const AppContent: React.FC = () => {
                         onDeleteIssue={handleDeleteIssue}
                         onImportIssues={handleImportIssues}
                         onNavigateToDoc={handleNavigateToDoc}
+                        tags={tags}
+                        onUpdateTags={async (newTags) => {
+                            await db.saveTags(newTags);
+                            setTags(newTags);
+                        }}
                     />
                 )}
 

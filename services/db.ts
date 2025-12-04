@@ -34,7 +34,7 @@ const getDB = () => {
   return dbPromise;
 };
 
-type DBListener = (type: 'project' | 'team' | 'user', data?: any) => void;
+type DBListener = (type: 'project' | 'team' | 'user' | 'tags', data?: any) => void;
 const listeners: DBListener[] = [];
 
 export const db = {
@@ -147,6 +147,19 @@ export const db = {
     const result = await (await getDB()).put('settings', user, 'user');
     if (!options?.skipNotification) {
       this.notify('user', user);
+    }
+    return result;
+  },
+
+  // --- Tags ---
+  async getTags(): Promise<Record<string, string[]> | undefined> {
+    return (await getDB()).get('settings', 'tags');
+  },
+
+  async saveTags(tags: Record<string, string[]>, options?: { skipNotification?: boolean }) {
+    const result = await (await getDB()).put('settings', tags, 'tags');
+    if (!options?.skipNotification) {
+      this.notify('tags', tags); // Note: You might need to update DBListener type
     }
     return result;
   },

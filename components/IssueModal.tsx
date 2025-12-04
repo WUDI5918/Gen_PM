@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Calendar, User, Tag, AlertTriangle, FileText, Link as LinkIcon, Image as ImageIcon, Upload, Trash2, Plus, File, ChevronDown } from 'lucide-react';
+import { X, Save, Calendar, User, Tag, AlertTriangle, FileText, Link as LinkIcon, Image as ImageIcon, Upload, Trash2, Plus, File, ChevronDown, ChevronUp, Check, Settings, Edit3, Trash } from 'lucide-react';
 import { Issue, Project, TeamMember } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -10,6 +10,9 @@ interface IssueModalProps {
     issueToEdit?: Issue;
     projects: Project[];
     teamMembers: TeamMember[];
+    existingIssues?: Issue[];
+    tags?: Record<string, string[]>;
+    onUpdateTags?: (tags: Record<string, string[]>) => void;
 }
 
 interface MemberSelectProps {
@@ -152,7 +155,95 @@ const StatusSelect = ({ value, onChange }: { value: Issue['status'], onChange: (
     );
 };
 
-export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave, issueToEdit, projects, teamMembers }) => {
+const TagSelect = ({ value, onChange, options, placeholder, title, icon: Icon }: { value: string, onChange: (val: string) => void, options: string[], placeholder: string, title: string, icon?: any }) => {
+    const { t } = useLanguage();
+    const [isOpen, setIsOpen] = useState(false);
+    const [inputValue, setInputValue] = useState(value);
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => { setInputValue(value); }, [value]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const filteredOptions = options.filter(o => o.toLowerCase().includes(inputValue.toLowerCase()));
+    const isExactMatch = options.some(o => o.toLowerCase() === inputValue.toLowerCase());
+    const displayedOptions = isExactMatch ? options : filteredOptions;
+    const showCreate = inputValue && !options.some(o => o.toLowerCase() === inputValue.toLowerCase());
+
+    return (
+        <div className="relative" ref={wrapperRef}>
+            <div className="flex justify-between items-center mb-2">
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                    {Icon && <Icon size={12} />}
+                    {title}
+                </label>
+            </div>
+            <div className="relative group">
+                <input
+                    type="text"
+                    value={inputValue}
+                    onChange={e => {
+                        setInputValue(e.target.value);
+                        onChange(e.target.value);
+                        setIsOpen(true);
+                    }}
+                    onFocus={() => setIsOpen(true)}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all group-hover:bg-white group-hover:shadow-sm"
+                    placeholder={placeholder}
+                />
+                <button
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1"
+                >
+                    <ChevronDown size={16} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+            </div>
+            {isOpen && (
+                <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+                    {displayedOptions.map(opt => (
+                        <button
+                            key={opt}
+                            onClick={() => {
+                                onChange(opt);
+                                setInputValue(opt);
+                                setIsOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-3 text-sm hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center justify-between group"
+                        >
+                            <span className="font-medium">{opt}</span>
+                            {value === opt && <Check size={14} className="text-blue-600" />}
+                        </button>
+                    ))}
+                    {showCreate && (
+                        <button
+                            onClick={() => {
+                                onChange(inputValue);
+                                setIsOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-3 text-sm text-blue-600 hover:bg-blue-50 transition-colors font-medium border-t border-gray-50 flex items-center gap-2"
+                        >
+                            <Plus size={14} />
+                            {t('common.create')} "{inputValue}"
+                        </button>
+                    )}
+                    {displayedOptions.length === 0 && !showCreate && (
+                        <div className="px-4 py-3 text-xs text-gray-400 italic text-center">No matching tags</div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave, issueToEdit, projects, teamMembers, existingIssues = [], tags = {}, onUpdateTags }) => {
     const { t } = useLanguage();
 
     // Form State
@@ -176,6 +267,11 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
     // New Features State
     const [attachments, setAttachments] = useState<string[]>([]);
     const [linkedDocIds, setLinkedDocIds] = useState<string[]>([]);
+
+    // Tag Management State
+    const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
+    const [activeTagCategory, setActiveTagCategory] = useState<string>('categories');
+    const [newTagInput, setNewTagInput] = useState('');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -258,6 +354,74 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
         );
     };
 
+
+
+    // Derived Data
+    const currentProject = projects.find(p => p.info.name === projectName);
+    const availableDocs = currentProject?.docs || [];
+
+    // Combine existing issue tags with global tags
+    const getUniqueTags = (key: string, globalKey: string) => {
+        const fromIssues = existingIssues.map(i => (i as any)[key]).filter(Boolean);
+        const fromGlobal = tags[globalKey] || [];
+        return Array.from(new Set([...fromIssues, ...fromGlobal])).sort();
+    };
+
+    const categories = getUniqueTags('category', 'categories');
+    const deviceCategories = getUniqueTags('deviceCategory', 'deviceCategories');
+    const deviceTypes = getUniqueTags('deviceType', 'deviceTypes');
+    const sources = getUniqueTags('source', 'sources');
+
+    // Tag Management Helpers
+    const handleAddTag = (categoryKey: string, tag: string) => {
+        if (!tag.trim() || !onUpdateTags) return;
+        const currentTags = tags[categoryKey] || [];
+        if (!currentTags.includes(tag.trim())) {
+            onUpdateTags({
+                ...tags,
+                [categoryKey]: [...currentTags, tag.trim()]
+            });
+        }
+        setNewTagInput('');
+    };
+
+    const openTagManager = (categoryKey: string) => {
+        setActiveTagCategory(categoryKey);
+        setIsTagManagerOpen(true);
+    };
+
+    const handleDeleteTag = (categoryKey: string, tag: string) => {
+        if (!onUpdateTags) return;
+        const currentTags = tags[categoryKey] || [];
+        onUpdateTags({
+            ...tags,
+            [categoryKey]: currentTags.filter(t => t !== tag)
+        });
+    };
+
+    // Auto-save new tags when saving issue
+    const saveNewTags = (issue: Issue) => {
+        if (!onUpdateTags) return;
+        let newTags = { ...tags };
+        let changed = false;
+
+        const checkAndAdd = (key: string, val: string) => {
+            if (val && !(newTags[key] || []).includes(val)) {
+                newTags[key] = [...(newTags[key] || []), val];
+                changed = true;
+            }
+        };
+
+        checkAndAdd('categories', issue.category);
+        checkAndAdd('deviceCategories', issue.deviceCategory);
+        checkAndAdd('deviceTypes', issue.deviceType);
+        checkAndAdd('sources', issue.source);
+
+        if (changed) {
+            onUpdateTags(newTags);
+        }
+    };
+
     const handleSave = () => {
         if (!description) {
             alert(t('issue.modal.desc_required'));
@@ -285,17 +449,15 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
             attachments,
             linkedDocIds
         };
+
+        saveNewTags(issue);
         onSave(issue);
         onClose();
     };
 
-    // Derived Data
-    const currentProject = projects.find(p => p.info.name === projectName);
-    const availableDocs = currentProject?.docs || [];
-
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center animate-in fade-in duration-200 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
                 {/* Header */}
                 <div className="flex justify-between items-center px-8 py-5 border-b border-gray-100 bg-white">
                     <div className="flex items-center gap-4">
@@ -312,11 +474,202 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => openTagManager('categories')}
+                            className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-blue-600 transition-colors"
+                            title="Manage Tags"
+                        >
+                            <Settings size={20} />
+                        </button>
                         <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors">
                             <X size={24} />
                         </button>
                     </div>
                 </div>
+
+                {/* Tag Manager Modal Overlay */}
+                {isTagManagerOpen && (
+                    <div className="absolute inset-0 bg-white z-50 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <div className="px-8 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900">{t('issue.modal.tag_manager_title')}</h3>
+                                <p className="text-sm text-gray-500">{t('issue.modal.tag_manager_desc')}</p>
+                            </div>
+                            <button onClick={() => setIsTagManagerOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="flex-1 flex overflow-hidden">
+                            {/* Sidebar */}
+                            <div className="w-64 border-r border-gray-200 bg-gray-50 p-4 space-y-6">
+                                <div>
+                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">{t('issue.modal.group_basic')}</h4>
+                                    <div className="space-y-1">
+                                        {[
+                                            { id: 'categories', label: t('issue.modal.category'), icon: Tag },
+                                            { id: 'sources', label: t('issue.modal.source'), icon: LinkIcon }
+                                        ].map(cat => (
+                                            <button
+                                                key={cat.id}
+                                                onClick={() => setActiveTagCategory(cat.id)}
+                                                className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex justify-between items-center
+                                                    ${activeTagCategory === cat.id ? 'bg-white shadow-sm text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    {cat.icon && <cat.icon size={14} />}
+                                                    {cat.label}
+                                                </div>
+                                                <span className="bg-gray-100 text-gray-500 text-xs py-0.5 px-2 rounded-full">
+                                                    {(tags?.[cat.id] || []).length}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">{t('issue.modal.group_device')}</h4>
+                                    <div className="space-y-1">
+                                        {[
+                                            { id: 'deviceCategories', label: t('issue.modal.device_category'), icon: AlertTriangle },
+                                            { id: 'deviceTypes', label: t('issue.modal.device_type'), icon: Settings }
+                                        ].map(cat => (
+                                            <button
+                                                key={cat.id}
+                                                onClick={() => setActiveTagCategory(cat.id)}
+                                                className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex justify-between items-center
+                                                    ${activeTagCategory === cat.id ? 'bg-white shadow-sm text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    {cat.icon && <cat.icon size={14} />}
+                                                    {cat.label}
+                                                </div>
+                                                <span className="bg-gray-100 text-gray-500 text-xs py-0.5 px-2 rounded-full">
+                                                    {(tags?.[cat.id] || []).length}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            {/* Content */}
+                            <div className="flex-1 p-8 overflow-y-auto">
+                                <div className="max-w-2xl mx-auto space-y-6">
+                                    {/* Import Banner */}
+                                    {(() => {
+                                        const fieldMap: Record<string, string> = {
+                                            'categories': 'category',
+                                            'deviceCategories': 'deviceCategory',
+                                            'deviceTypes': 'deviceType',
+                                            'sources': 'source'
+                                        };
+                                        const issueField = fieldMap[activeTagCategory];
+                                        const usedTags = Array.from(new Set(existingIssues.map(i => (i as any)[issueField]).filter(Boolean))) as string[];
+                                        const currentGlobalTags = tags[activeTagCategory] || [];
+                                        const missingTags = usedTags.filter(t => !currentGlobalTags.includes(t));
+
+                                        if (missingTags.length === 0) return null;
+
+                                        return (
+                                            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                                                        <Tag size={16} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-bold text-blue-900">{t('issue.modal.tags_found').replace('{n}', missingTags.length.toString())}</h4>
+                                                        <p className="text-xs text-blue-600">{t('issue.modal.tags_found_desc')}</p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        if (onUpdateTags) {
+                                                            onUpdateTags({
+                                                                ...tags,
+                                                                [activeTagCategory]: [...currentGlobalTags, ...missingTags].sort()
+                                                            });
+                                                        }
+                                                    }}
+                                                    className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors"
+                                                >
+                                                    {t('issue.modal.import_tags')}
+                                                </button>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={newTagInput}
+                                            onChange={e => setNewTagInput(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleAddTag(activeTagCategory, newTagInput)}
+                                            placeholder={t('issue.modal.add_tag_placeholder')}
+                                            className="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                        <button
+                                            onClick={() => handleAddTag(activeTagCategory, newTagInput)}
+                                            disabled={!newTagInput.trim()}
+                                            className="px-6 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {(tags[activeTagCategory] || []).map(tag => (
+                                            <div key={tag} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg group hover:border-blue-200 hover:shadow-sm transition-all">
+                                                <span className="font-medium text-gray-700">{tag}</span>
+                                                <button
+                                                    onClick={() => handleDeleteTag(activeTagCategory, tag)}
+                                                    className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {(tags?.[activeTagCategory] || []).length === 0 && (
+                                            <div className="col-span-2 text-center py-12 text-gray-400 italic bg-gray-50 rounded-xl border border-dashed border-gray-200 flex flex-col items-center gap-2">
+                                                <span>{t('issue.modal.no_tags_in_cat')}</span>
+                                                {(() => {
+                                                    const fieldMap: Record<string, string> = {
+                                                        'categories': 'category',
+                                                        'deviceCategories': 'deviceCategory',
+                                                        'deviceTypes': 'deviceType',
+                                                        'sources': 'source'
+                                                    };
+                                                    const issueField = fieldMap[activeTagCategory];
+                                                    const usedTags = Array.from(new Set((existingIssues || []).map(i => (i as any)[issueField]).filter(Boolean))) as string[];
+                                                    const currentGlobalTags = tags?.[activeTagCategory] || [];
+                                                    const missingTags = usedTags.filter(t => !currentGlobalTags.includes(t));
+
+                                                    if (missingTags.length > 0) {
+                                                        return (
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (onUpdateTags) {
+                                                                        onUpdateTags({
+                                                                            ...(tags || {}),
+                                                                            [activeTagCategory]: [...currentGlobalTags, ...missingTags].sort()
+                                                                        });
+                                                                    }
+                                                                }}
+                                                                className="text-blue-600 hover:underline text-sm font-medium"
+                                                            >
+                                                                {t('issue.modal.import_tags')} ({missingTags.length})
+                                                            </button>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Body */}
                 <div className="flex-1 overflow-y-auto bg-gray-50/50">
@@ -342,13 +695,13 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('issue.modal.category')}</label>
-                                        <input
-                                            type="text"
+                                        <TagSelect
+                                            title={t('issue.modal.category')}
                                             value={category}
-                                            onChange={e => setCategory(e.target.value)}
+                                            onChange={setCategory}
+                                            options={categories}
                                             placeholder={t('issue.modal.category_placeholder')}
-                                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                            icon={Tag}
                                         />
                                     </div>
                                 </div>
@@ -520,38 +873,32 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
 
                             {/* Device Info */}
                             <div className="space-y-4 pt-4 border-t border-gray-100">
-                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">{t('issue.modal.device_info')}</h3>
-                                <div className="space-y-3">
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">{t('issue.modal.device_category')}</label>
-                                        <input
-                                            type="text"
-                                            value={deviceCategory}
-                                            onChange={e => setDeviceCategory(e.target.value)}
-                                            className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none"
-                                            placeholder={t('issue.modal.device_category_placeholder')}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">{t('issue.modal.device_type')}</label>
-                                        <input
-                                            type="text"
-                                            value={deviceType}
-                                            onChange={e => setDeviceType(e.target.value)}
-                                            className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none"
-                                            placeholder={t('issue.modal.device_type_placeholder')}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">{t('issue.modal.source')}</label>
-                                        <input
-                                            type="text"
-                                            value={source}
-                                            onChange={e => setSource(e.target.value)}
-                                            className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none"
-                                            placeholder={t('issue.modal.source_placeholder')}
-                                        />
-                                    </div>
+                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                                    <AlertTriangle size={14} />
+                                    {t('issue.modal.device_info')}
+                                </h3>
+                                <div className="space-y-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
+                                    <TagSelect
+                                        title={t('issue.modal.device_category')}
+                                        value={deviceCategory}
+                                        onChange={setDeviceCategory}
+                                        options={deviceCategories}
+                                        placeholder={t('issue.modal.device_category_placeholder')}
+                                    />
+                                    <TagSelect
+                                        title={t('issue.modal.device_type')}
+                                        value={deviceType}
+                                        onChange={setDeviceType}
+                                        options={deviceTypes}
+                                        placeholder={t('issue.modal.device_type_placeholder')}
+                                    />
+                                    <TagSelect
+                                        title={t('issue.modal.source')}
+                                        value={source}
+                                        onChange={setSource}
+                                        options={sources}
+                                        placeholder={t('issue.modal.source_placeholder')}
+                                    />
                                 </div>
                             </div>
 
