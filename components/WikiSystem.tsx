@@ -9,8 +9,10 @@ import {
     Cloud,
     Link as LinkIcon,
     Loader2,
-    X
+    X,
+    Wand2
 } from 'lucide-react';
+import { performWikiAI } from '../services/geminiService';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useToast } from '../contexts/ToastContext';
@@ -71,47 +73,161 @@ const WikiEditor: React.FC<WikiEditorProps> = ({ initialContent, onContentChange
 };
 
 const SimpleMarkdownRenderer = ({ content }: { content: string }) => {
-    // Basic Markdown Rendering (since we don't have a library)
-    // This is a very simplified renderer. In a real app, use react-markdown.
-    const renderLine = (line: string, index: number) => {
+    // Parse and render markdown content with table support
+    const lines = content.split('\n');
+    const elements: React.ReactNode[] = [];
+    let i = 0;
+
+    while (i < lines.length) {
+        const line = lines[i];
+
+        // Code blocks (multi-line)
+        if (line.trim().startsWith('```')) {
+            const codeLines: string[] = [];
+            const lang = line.trim().slice(3);
+            i++;
+            while (i < lines.length && !lines[i].trim().startsWith('```')) {
+                codeLines.push(lines[i]);
+                i++;
+            }
+            elements.push(
+                <pre key={i} className="bg-gray-900 text-gray-100 p-4 rounded-lg my-4 overflow-x-auto">
+                    <code className="text-sm font-mono">{codeLines.join('\n')}</code>
+                </pre>
+            );
+            i++;
+            continue;
+        }
+
+        // Tables
+        if (line.includes('|') && line.trim().startsWith('|')) {
+            const tableRows: string[][] = [];
+            let hasHeader = false;
+
+            // Collect all table rows
+            while (i < lines.length && lines[i].includes('|')) {
+                const row = lines[i].trim();
+                // Check if this is separator row (|---|---|)
+                if (row.match(/^\|[\s\-:]+\|$/)) {
+                    hasHeader = true;
+                    i++;
+                    continue;
+                }
+                // Parse cells
+                const cells = row.split('|').filter((_, idx, arr) => idx > 0 && idx < arr.length - 1).map(c => c.trim());
+                if (cells.length > 0) {
+                    tableRows.push(cells);
+                }
+                i++;
+            }
+
+            if (tableRows.length > 0) {
+                elements.push(
+                    <div key={`table-${i}`} className="overflow-x-auto my-4">
+                        <table className="w-full border-collapse border border-gray-300 text-sm">
+                            {hasHeader && tableRows.length > 0 && (
+                                <thead className="bg-gray-100">
+                                    <tr>
+                                        {tableRows[0].map((cell, ci) => (
+                                            <th key={ci} className="border border-gray-300 px-3 py-2 text-left font-bold text-gray-800">
+                                                {cell}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                            )}
+                            <tbody>
+                                {tableRows.slice(hasHeader ? 1 : 0).map((row, ri) => (
+                                    <tr key={ri} className={ri % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                        {row.map((cell, ci) => (
+                                            <td key={ci} className="border border-gray-300 px-3 py-2 text-gray-700"
+                                                dangerouslySetInnerHTML={{ __html: cell.replace(/<br>/gi, '<br/>') }} />
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                );
+            }
+            continue;
+        }
+
         // Headers
-        if (line.startsWith('# ')) return <h1 id={`md-${index}`} key={index} className="text-3xl font-bold mb-4 text-gray-900">{line.slice(2)}</h1>;
-        if (line.startsWith('## ')) return <h2 id={`md-${index}`} key={index} className="text-2xl font-bold mb-3 mt-6 text-gray-800 border-b pb-1">{line.slice(3)}</h2>;
-        if (line.startsWith('### ')) return <h3 id={`md-${index}`} key={index} className="text-xl font-bold mb-2 mt-4 text-gray-800">{line.slice(4)}</h3>;
+        if (line.startsWith('# ')) {
+            elements.push(<h1 id={`md-${i}`} key={i} className="text-3xl font-bold mb-4 text-gray-900">{line.slice(2)}</h1>);
+            i++; continue;
+        }
+        if (line.startsWith('## ')) {
+            elements.push(<h2 id={`md-${i}`} key={i} className="text-2xl font-bold mb-3 mt-6 text-gray-800 border-b pb-1">{line.slice(3)}</h2>);
+            i++; continue;
+        }
+        if (line.startsWith('### ')) {
+            elements.push(<h3 id={`md-${i}`} key={i} className="text-xl font-bold mb-2 mt-4 text-gray-800">{line.slice(4)}</h3>);
+            i++; continue;
+        }
+        if (line.startsWith('#### ')) {
+            elements.push(<h4 id={`md-${i}`} key={i} className="text-lg font-bold mb-2 mt-3 text-gray-700">{line.slice(5)}</h4>);
+            i++; continue;
+        }
 
         // Lists
-        if (line.trim().startsWith('- ')) return <li key={index} className="ml-5 list-disc text-gray-700 mb-1">{line.trim().slice(2)}</li>;
-        if (line.trim().match(/^\d+\./)) return <li key={index} className="ml-5 list-decimal text-gray-700 mb-1">{line.trim().replace(/^\d+\.\s*/, '')}</li>;
+        if (line.trim().startsWith('- ')) {
+            elements.push(<li key={i} className="ml-5 list-disc text-gray-700 mb-1">{line.trim().slice(2)}</li>);
+            i++; continue;
+        }
+        if (line.trim().match(/^\d+\./)) {
+            elements.push(<li key={i} className="ml-5 list-decimal text-gray-700 mb-1">{line.trim().replace(/^\d+\.\s*/, '')}</li>);
+            i++; continue;
+        }
 
         // Blockquotes
-        if (line.startsWith('> ')) return <blockquote key={index} className="border-l-4 border-gray-300 pl-4 italic text-gray-600 my-2">{line.slice(2)}</blockquote>;
-
-        // Code blocks (simple detection)
-        if (line.startsWith('```')) return <div key={index} className="bg-gray-100 p-2 rounded my-2 font-mono text-xs text-gray-600">Code Block</div>;
+        if (line.startsWith('> ')) {
+            elements.push(<blockquote key={i} className="border-l-4 border-indigo-300 pl-4 italic text-gray-600 my-2 bg-indigo-50 py-2 rounded-r">{line.slice(2)}</blockquote>);
+            i++; continue;
+        }
 
         // Horizontal Rule
-        if (line.trim() === '---') return <hr key={index} className="my-4 border-gray-200" />;
+        if (line.trim() === '---' || line.trim() === '***') {
+            elements.push(<hr key={i} className="my-6 border-gray-300" />);
+            i++; continue;
+        }
 
-        // Paragraphs (empty lines are spacers)
-        if (line.trim() === '') return <div key={index} className="h-4"></div>;
+        // Empty lines
+        if (line.trim() === '') {
+            elements.push(<div key={i} className="h-3"></div>);
+            i++; continue;
+        }
 
-        // Basic formatting (Bold/Italic) - very naive regex
+        // Regular paragraphs with inline formatting
         const processed = line
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>')
-            .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded text-sm font-mono text-red-500">$1</code>');
+            .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono text-red-600">$1</code>')
+            .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-indigo-600 hover:underline" target="_blank">$1</a>');
 
-        return <p key={index} className="text-gray-700 leading-relaxed mb-2" dangerouslySetInnerHTML={{ __html: processed }} />;
-    };
+        elements.push(<p key={i} className="text-gray-700 leading-relaxed mb-2" dangerouslySetInnerHTML={{ __html: processed }} />);
+        i++;
+    }
 
     return (
         <div className="prose prose-indigo max-w-none p-8">
-            {content.split('\n').map((line, i) => renderLine(line, i))}
+            {elements}
         </div>
     );
 };
 
-const MarkdownEditor = ({ content, onChange }: { content: string, onChange: (val: string) => void }) => {
+const MarkdownEditor = ({
+    content,
+    onChange,
+    onFormatOptimize,
+    isFormatting = false
+}: {
+    content: string,
+    onChange: (val: string) => void,
+    onFormatOptimize?: () => void,
+    isFormatting?: boolean
+}) => {
     const [mode, setMode] = useState<'edit' | 'preview'>('edit');
 
     return (
@@ -131,7 +247,24 @@ const MarkdownEditor = ({ content, onChange }: { content: string, onChange: (val
                         Preview
                     </button>
                 </div>
-                <div className="text-xs text-gray-400 font-mono">Markdown</div>
+                <div className="flex items-center gap-2">
+                    {onFormatOptimize && (
+                        <button
+                            onClick={onFormatOptimize}
+                            disabled={isFormatting || !content.trim()}
+                            className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Auto-format and optimize markdown"
+                        >
+                            {isFormatting ? (
+                                <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                                <Wand2 size={14} />
+                            )}
+                            {isFormatting ? 'Formatting...' : 'Format'}
+                        </button>
+                    )}
+                    <div className="text-xs text-gray-400 font-mono">Markdown</div>
+                </div>
             </div>
 
             <div className="flex-1 overflow-hidden relative">
@@ -167,6 +300,7 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
     const [showExternalLinkModal, setShowExternalLinkModal] = useState(false);
     const [externalLinkUrl, setExternalLinkUrl] = useState('');
     const [externalLinkTitle, setExternalLinkTitle] = useState('');
+    const [isFormatting, setIsFormatting] = useState(false);
 
 
 
@@ -255,7 +389,49 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
         setIconMenuOpen(null);
     };
 
+    // Format and optimize markdown content using AI
+    const handleFormatOptimize = async () => {
+        if (!activeDoc || activeDoc.type !== 'markdown' || !activeDoc.markdownContent?.trim()) return;
 
+        setIsFormatting(true);
+        try {
+            const savedConfig = localStorage.getItem('project_ai_config');
+            const config = savedConfig ? JSON.parse(savedConfig) : undefined;
+
+            const result = await performWikiAI('custom', {
+                context: activeDoc.markdownContent,
+                userPrompt: `You are a Markdown formatting expert. Clean up and optimize this markdown:
+
+Rules:
+- Fix heading hierarchy (# for title, ## for sections, etc.)
+- Ensure proper line breaks between paragraphs
+- Use consistent list formatting (- for bullets)
+- Fix code blocks with proper syntax
+- Remove extra blank lines
+- DO NOT change the content meaning
+
+Return ONLY clean markdown. No code fences, no explanations.`,
+                language: language === 'zh' ? 'Chinese' : 'English'
+            }, config);
+
+            // Clean up the result
+            let cleanResult = result
+                .replace(/\\n/g, '\n')           // Convert literal \n to newlines
+                .replace(/^```markdown\n?/i, '') // Remove opening markdown fence
+                .replace(/^```\n?/i, '')         // Remove opening fence
+                .replace(/\n?```$/i, '')         // Remove closing fence
+                .trim();
+
+            // Update the document with formatted content
+            const updatedDoc = { ...activeDoc, markdownContent: cleanResult, lastModified: Date.now() };
+            onUpdateDocs(docs.map(d => d.id === activeDoc.id ? updatedDoc : d));
+            addToast(t('wiki.format_success') || 'Format optimized successfully', 'success');
+        } catch (error: any) {
+            addToast(error.message || t('wiki.format_error') || 'Format optimization failed', 'error');
+        } finally {
+            setIsFormatting(false);
+        }
+    };
 
     const filteredDocs = docs.filter(d => d.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -474,6 +650,8 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
                                             const updated = { ...activeDoc, markdownContent: val, lastModified: Date.now() };
                                             onUpdateDocs(docs.map(d => d.id === activeDoc.id ? updated : d));
                                         }}
+                                        onFormatOptimize={handleFormatOptimize}
+                                        isFormatting={isFormatting}
                                     />
                                 ) : (
                                     <div className="max-w-3xl mx-auto pb-32">
