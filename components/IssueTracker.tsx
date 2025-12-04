@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Issue, Project, TeamMember } from '../types';
 import { IssueModal } from './IssueModal';
+import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { Search, Filter, Plus, AlertCircle, CheckCircle, Clock, FileText, Edit2, Trash2, Upload, X, Image as ImageIcon, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useToast } from '../contexts/ToastContext';
 
 interface IssueTrackerProps {
     projects: Project[];
@@ -19,7 +21,9 @@ interface IssueTrackerProps {
 
 export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMembers, onAddIssue, onUpdateIssue, onDeleteIssue, onImportIssues, onNavigateToDoc, tags, onUpdateTags, onCreateProject }) => {
     const { t } = useLanguage();
+    const { addToast } = useToast();
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean, issueId: string | null }>({ isOpen: false, issueId: null });
     const [editingIssue, setEditingIssue] = useState<Issue | undefined>(undefined);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('All');
@@ -61,8 +65,14 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
     };
 
     const handleDelete = (id: string) => {
-        if (confirm(t('issue.delete_confirm'))) {
-            onDeleteIssue(id);
+        setDeleteModal({ isOpen: true, issueId: id });
+    };
+
+    const confirmDelete = () => {
+        if (deleteModal.issueId) {
+            onDeleteIssue(deleteModal.issueId);
+            addToast(t('issue.delete_success') || 'Issue deleted successfully', 'success');
+            setDeleteModal({ isOpen: false, issueId: null });
         }
     };
 
@@ -128,8 +138,9 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
             onImportIssues(issues);
             setIsImportModalOpen(false);
             setImportText('');
+            addToast(t('issue.import.success') || 'Issues imported successfully', 'success');
         } else {
-            alert(t('issue.import.error'));
+            addToast(t('issue.import.error'), 'error');
         }
     };
 
@@ -346,6 +357,15 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                 tags={tags}
                 onUpdateTags={onUpdateTags}
                 onCreateProject={onCreateProject}
+            />
+
+            <DeleteConfirmationModal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false, issueId: null })}
+                onConfirm={confirmDelete}
+                title={t('issue.delete_title') || 'Delete Issue'}
+                description={t('issue.delete_confirm')}
+                itemTitle={deleteModal.issueId ? allIssues.find(i => i.id === deleteModal.issueId)?.description : undefined}
             />
 
             {/* Import Modal */}

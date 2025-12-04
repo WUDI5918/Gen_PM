@@ -8,6 +8,7 @@ export interface DialogOptions {
   type?: 'danger' | 'info';
   confirmText?: string;
   cancelText?: string;
+  showCancel?: boolean; // Default true
   onConfirm: () => void;
   onCancel?: () => void;
 }
@@ -22,6 +23,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ isOpen, options, o
   if (!isOpen || !options) return null;
 
   const isDanger = options.type === 'danger';
+  const showCancel = options.showCancel !== false;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm animate-in fade-in duration-200">
@@ -30,35 +32,36 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ isOpen, options, o
           <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${isDanger ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>
             {isDanger ? <AlertTriangle size={24} /> : <Info size={24} />}
           </div>
-          
+
           <h3 className="text-lg font-bold text-gray-900 mb-2">
             {options.title}
           </h3>
-          
+
           <p className="text-sm text-gray-500 leading-relaxed mb-6">
             {options.message}
           </p>
 
           <div className="flex gap-3 w-full">
-            <button
-              onClick={() => {
-                if (options.onCancel) options.onCancel();
-                onClose();
-              }}
-              className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-sm transition-colors"
-            >
-              {options.cancelText || 'Cancel'}
-            </button>
+            {showCancel && (
+              <button
+                onClick={() => {
+                  if (options.onCancel) options.onCancel();
+                  onClose();
+                }}
+                className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-sm transition-colors"
+              >
+                {options.cancelText || 'Cancel'}
+              </button>
+            )}
             <button
               onClick={() => {
                 options.onConfirm();
                 onClose();
               }}
-              className={`flex-1 px-4 py-2.5 text-white rounded-xl font-bold text-sm shadow-lg transition-all transform active:scale-95 ${
-                isDanger 
-                  ? 'bg-red-500 hover:bg-red-600 shadow-red-500/30' 
+              className={`flex-1 px-4 py-2.5 text-white rounded-xl font-bold text-sm shadow-lg transition-all transform active:scale-95 ${isDanger
+                  ? 'bg-red-500 hover:bg-red-600 shadow-red-500/30'
                   : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/30'
-              }`}
+                }`}
             >
               {options.confirmText || 'Confirm'}
             </button>

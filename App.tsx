@@ -228,6 +228,18 @@ const AppContent: React.FC = () => {
             lastModified: Date.now()
         };
         handleUpdateProject(updatedProject);
+
+        // Add System Notification
+        const notification: AppNotification = {
+            id: `notif-${Date.now()}`,
+            title: t('app.issue_reported'),
+            message: `${issue.description.substring(0, 30)}...`,
+            type: 'success',
+            timestamp: Date.now(),
+            read: false,
+            link: { view: 'issues', projectId: targetProject.id, itemId: newIssue.id }
+        };
+        setNotifications(prev => [notification, ...prev]);
         addToast(t('app.issue_reported'), 'success');
     };
 
@@ -261,6 +273,18 @@ const AppContent: React.FC = () => {
             };
             handleUpdateProject(updatedProject);
         }
+
+        // Add System Notification
+        const notification: AppNotification = {
+            id: `notif-${Date.now()}`,
+            title: t('app.issue_updated'),
+            message: `${issue.description.substring(0, 30)}...`,
+            type: 'info',
+            timestamp: Date.now(),
+            read: false,
+            link: { view: 'issues', projectId: newProject?.id || '', itemId: issue.id }
+        };
+        setNotifications(prev => [notification, ...prev]);
         addToast(t('app.issue_updated'), 'success');
     };
 

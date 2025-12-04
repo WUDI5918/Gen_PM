@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, Calendar, User, Tag, AlertTriangle, FileText, Link as LinkIcon, Image as ImageIcon, Upload, Trash2, Plus, File, ChevronDown, ChevronUp, Check, Settings, Edit3, Trash, Sparkles } from 'lucide-react';
 import { Issue, Project, TeamMember } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+
 import { analyzeIssue } from '../services/geminiService';
+import { useDialog } from '../contexts/DialogContext';
 
 interface IssueModalProps {
     isOpen: boolean;
@@ -331,6 +333,7 @@ const TagSelect = ({ value, onChange, options, placeholder, title, icon: Icon }:
 
 export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave, issueToEdit, projects, teamMembers, existingIssues = [], tags = {}, onUpdateTags, onCreateProject }) => {
     const { t, language } = useLanguage();
+    const { ask } = useDialog();
 
     // Form State
     const [projectName, setProjectName] = useState('');
@@ -536,7 +539,14 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
 
     const handleSave = () => {
         if (!description) {
-            alert(t('issue.modal.desc_required'));
+            ask({
+                title: t('common.attention'),
+                message: t('issue.modal.desc_required'),
+                type: 'info',
+                confirmText: 'OK',
+                showCancel: false,
+                onConfirm: () => { }
+            });
             return;
         }
 
