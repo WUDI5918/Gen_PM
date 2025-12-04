@@ -217,6 +217,8 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                                 <th className="px-6 py-4 w-24">Assets</th>
                                 <th className="px-6 py-4 w-32">Status</th>
                                 <th className="px-6 py-4 w-40">Responsible</th>
+                                <th className="px-6 py-4 w-32">Discovery</th>
+                                <th className="px-6 py-4 w-32">Resolution</th>
                                 <th className="px-6 py-4 w-24 text-right">Actions</th>
                             </tr>
                         </thead>
@@ -280,6 +282,8 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                                             <td className="px-6 py-4 text-sm text-gray-600">
                                                 {issue.responsiblePerson || '-'}
                                             </td>
+                                            <td className="px-6 py-4 text-sm text-gray-500">{issue.discoveryDate || '-'}</td>
+                                            <td className="px-6 py-4 text-sm text-gray-500">{issue.resolutionDate || '-'}</td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <button
