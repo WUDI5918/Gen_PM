@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
 import { ProjectDoc, ProjectTask, TaskStatus } from '../types';
 import {
     FileText,
@@ -10,7 +10,8 @@ import {
     Link as LinkIcon,
     Loader2,
     X,
-    Wand2
+    Wand2,
+    PenLine
 } from 'lucide-react';
 import { performWikiAI } from '../services/geminiService';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
@@ -21,6 +22,10 @@ import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import "@blocknote/mantine/style.css";
 import { BlockNoteEditor, PartialBlock } from "@blocknote/core";
+import "@excalidraw/excalidraw/index.css";
+
+// Lazy load Excalidraw for performance
+const Excalidraw = lazy(() => import('@excalidraw/excalidraw').then(module => ({ default: module.Excalidraw })));
 
 interface WikiSystemProps {
     docs: ProjectDoc[];
@@ -288,6 +293,64 @@ const MarkdownEditor = ({
     );
 };
 
+// Excalidraw Editor Wrapper
+const ExcalidrawEditor = ({
+    data,
+    onChange
+}: {
+    data: any,
+    onChange: (data: any) => void
+}) => {
+    // Memoize initialData so it doesn't change on every render. 
+    // The parent component MUST use a key={docId} to force remount on doc change.
+    const initialData = useMemo(() => ({
+        elements: data?.elements || [],
+        appState: data?.appState || { viewBackgroundColor: "#ffffff" },
+        files: data?.files || {}
+    }), []); // Empty dependency array - only set on mount
+
+    // Ref for debounce timeout
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, []);
+
+    // Debounce onChange to prevent excessive updates and infinite loops
+    const handleChange = useCallback((elements: any, appState: any, files: any) => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+
+        timeoutRef.current = setTimeout(() => {
+            onChange({ elements, appState, files });
+        }, 500); // 500ms debounce
+    }, [onChange]);
+
+    return (
+        <div className="w-full h-full">
+            <Suspense fallback={
+                <div className="w-full h-full flex items-center justify-center bg-gray-50">
+                    <div className="flex flex-col items-center gap-2 text-gray-500">
+                        <Loader2 size={32} className="animate-spin" />
+                        <span className="text-sm">Loading Excalidraw...</span>
+                    </div>
+                </div>
+            }>
+                <Excalidraw
+                    initialData={initialData}
+                    onChange={handleChange}
+                />
+            </Suspense>
+        </div>
+    );
+};
+
 export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId, onSelectDoc, onUpdateDocs, onOpenTask }) => {
     const { t, language } = useLanguage();
     const { addToast } = useToast();
@@ -364,6 +427,24 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
             content: [],
             markdownContent: '# Untitled Markdown\n\nStart writing...',
             type: 'markdown',
+            lastModified: Date.now()
+        };
+        onUpdateDocs([...docs, newDoc]);
+        onSelectDoc(newDoc.id);
+    };
+
+    const handleCreateExcalidrawDoc = () => {
+        const newDoc: ProjectDoc = {
+            id: `draw-${Date.now()}`,
+            title: 'Untitled Diagram',
+            icon: '🎨',
+            content: [],
+            type: 'excalidraw',
+            excalidrawData: {
+                elements: [],
+                appState: { viewBackgroundColor: "#ffffff" },
+                files: {}
+            },
             lastModified: Date.now()
         };
         onUpdateDocs([...docs, newDoc]);
@@ -504,6 +585,12 @@ Return ONLY clean markdown. No code fences, no explanations.`,
                                     >
                                         <span className="text-lg">📝</span> Markdown Page
                                     </button>
+                                    <button
+                                        onClick={() => { handleCreateExcalidrawDoc(); setIsNewDocMenuOpen(false); }}
+                                        className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2 transition-colors"
+                                    >
+                                        <span className="text-lg">🎨</span> Excalidraw Diagram
+                                    </button>
                                     <div className="h-px bg-gray-100 my-1"></div>
                                     <button
                                         onClick={() => { handleCreateExternalDoc(); setIsNewDocMenuOpen(false); }}
@@ -642,7 +729,7 @@ Return ONLY clean markdown. No code fences, no explanations.`,
 
 
                             {/* Editor Area */}
-                            <div className={`flex-1 overflow-y-auto custom-scrollbar ${activeDoc.type === 'markdown' ? 'p-0' : 'p-4'}`}>
+                            <div className={`flex-1 overflow-y-auto custom-scrollbar ${activeDoc.type === 'markdown' || activeDoc.type === 'excalidraw' ? 'p-0' : 'p-4'}`}>
                                 {activeDoc.type === 'markdown' ? (
                                     <MarkdownEditor
                                         content={activeDoc.markdownContent || ''}
@@ -652,6 +739,15 @@ Return ONLY clean markdown. No code fences, no explanations.`,
                                         }}
                                         onFormatOptimize={handleFormatOptimize}
                                         isFormatting={isFormatting}
+                                    />
+                                ) : activeDoc.type === 'excalidraw' ? (
+                                    <ExcalidrawEditor
+                                        key={activeDoc.id}
+                                        data={activeDoc.excalidrawData}
+                                        onChange={(data) => {
+                                            const updated = { ...activeDoc, excalidrawData: data, lastModified: Date.now() };
+                                            onUpdateDocs(docs.map(d => d.id === activeDoc.id ? updated : d));
+                                        }}
                                     />
                                 ) : (
                                     <div className="max-w-3xl mx-auto pb-32">

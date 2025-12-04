@@ -185,8 +185,9 @@ export interface ProjectDoc {
   content?: any[]; // BlockNote blocks
   parentId?: string; // For nesting
   externalUrl?: string; // If set, acts as a link to Google Drive/etc
-  type?: 'block' | 'external' | 'markdown'; // New: Doc type
-  markdownContent?: string; // New: For markdown docs
+  type?: 'block' | 'external' | 'markdown' | 'excalidraw'; // Doc type
+  markdownContent?: string; // For markdown docs
+  excalidrawData?: any; // For excalidraw diagrams (stores Excalidraw scene data)
   lastModified: number;
 }
 
