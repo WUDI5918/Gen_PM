@@ -241,5 +241,6 @@ export interface Issue {
   rootCause?: string; // 原因分析
   responsiblePerson?: string; // 责任人
   temporarySolution?: string; // 临时解决措施
+  rootSolution?: string; // 根本解决措施
   status: 'Open' | 'In Progress' | 'Closed' | 'Planning'; // 问题处理状态
 }

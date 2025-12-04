@@ -170,6 +170,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
     const [rootCause, setRootCause] = useState('');
     const [responsiblePerson, setResponsiblePerson] = useState('');
     const [temporarySolution, setTemporarySolution] = useState('');
+    const [rootSolution, setRootSolution] = useState('');
     const [status, setStatus] = useState<Issue['status']>('Open');
 
     // New Features State
@@ -196,6 +197,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                 setRootCause(issueToEdit.rootCause || '');
                 setResponsiblePerson(issueToEdit.responsiblePerson || '');
                 setTemporarySolution(issueToEdit.temporarySolution || '');
+                setRootSolution(issueToEdit.rootSolution || '');
                 setStatus(issueToEdit.status);
                 setAttachments(issueToEdit.attachments || []);
                 setLinkedDocIds(issueToEdit.linkedDocIds || []);
@@ -215,6 +217,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                 setRootCause('');
                 setResponsiblePerson('');
                 setTemporarySolution('');
+                setRootSolution('');
                 setStatus('Open');
                 setAttachments([]);
                 setLinkedDocIds([]);
@@ -277,6 +280,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
             rootCause,
             responsiblePerson,
             temporarySolution,
+            rootSolution,
             status,
             attachments,
             linkedDocIds
@@ -427,6 +431,16 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                         rows={4}
                                         className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
                                         placeholder={t('issue.modal.temp_solution_placeholder')}
+                                    />
+                                </div>
+                                <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-3 md:col-span-2">
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">{t('issue.modal.root_solution')}</label>
+                                    <textarea
+                                        value={rootSolution}
+                                        onChange={e => setRootSolution(e.target.value)}
+                                        rows={4}
+                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                        placeholder={t('issue.modal.root_solution_placeholder')}
                                     />
                                 </div>
                             </div>
