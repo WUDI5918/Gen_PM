@@ -159,11 +159,11 @@ export const ProjectWorkspace: React.FC<ProjectWorkspaceProps> = ({
 
                         <div className="flex flex-col">
                             <h1 className="text-xl font-bold text-gray-900 leading-none">
-                                {project.info.name}
+                                {typeof project.info.name === 'string' ? project.info.name : String(project.info.name || '')}
                             </h1>
                             <div className="flex items-center gap-2 mt-1">
                                 <span className="text-xs font-mono text-gray-500 bg-gray-100 px-1.5 rounded">
-                                    {project.info.code}
+                                    {typeof project.info.code === 'string' ? project.info.code : String(project.info.code || '')}
                                 </span>
                             </div>
                         </div>

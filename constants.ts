@@ -200,6 +200,7 @@ export const createDefaultProject = (withSampleData: boolean = false, customTeam
     teamMembers: customTeam ? [...customTeam] : [...INITIAL_TEAM],
     milestones: withSampleData ? [...INITIAL_MILESTONES] : [],
     meetings: withSampleData ? [...INITIAL_MEETINGS] : [],
-    docs: withSampleData ? [...INITIAL_DOCS] : []
+    docs: withSampleData ? [...INITIAL_DOCS] : [],
+    issues: []
   };
 };

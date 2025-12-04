@@ -53,6 +53,7 @@ const translations: Record<Language, Record<string, string>> = {
     'app.create_phase': 'Create Phase',
     'app.gen_ai': 'Generate with AI',
     'app.switch_lang': '中文',
+    'app.project_name_exists': 'Project name already exists. Please use a different name.',
     // Project Meta
     'project.back': 'Back to Projects',
     'project.name_label': 'Project Name',
@@ -578,6 +579,7 @@ const translations: Record<Language, Record<string, string>> = {
     'app.create_phase': '创建阶段',
     'app.gen_ai': '使用 AI 生成',
     'app.switch_lang': 'English',
+    'app.project_name_exists': '项目名称已存在，请使用不同的名称',
     // Project Meta
     'project.back': '返回项目库',
     'project.name_label': '项目名称',

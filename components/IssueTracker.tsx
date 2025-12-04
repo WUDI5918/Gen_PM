@@ -213,7 +213,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                 >
                     <option value="All">{t('issue.filter.all_projects')}</option>
                     {projects.map(p => (
-                        <option key={p.id} value={p.info.name}>{p.info.name}</option>
+                        <option key={p.id} value={String(p.info.name || '')}>{String(p.info.name || 'Untitled')}</option>
                     ))}
                 </select>
             </div>

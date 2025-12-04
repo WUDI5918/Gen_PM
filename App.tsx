@@ -338,7 +338,21 @@ const AppContent: React.FC = () => {
     };
 
     const handleCreateProject = async (name?: string) => {
-        const newProject = createDefaultProject(false, teamMembers, name);
+        // Ensure name is a string, not an event object
+        const projectName = (typeof name === 'string' && name.trim()) ? name : undefined;
+        let newProject = createDefaultProject(false, teamMembers, projectName);
+
+        // Auto-generate unique name if duplicate exists
+        let baseName = newProject.info.name;
+        let counter = 1;
+
+        while (projects.some(p =>
+            String(p.info.name || '').toLowerCase() === String(newProject.info.name || '').toLowerCase()
+        )) {
+            counter++;
+            newProject.info.name = `${baseName} ${counter}`;
+        }
+
         setProjects(prev => [...prev, newProject]);
         setActiveProjectId(newProject.id);
         await db.saveProject(newProject);
@@ -355,6 +369,20 @@ const AppContent: React.FC = () => {
     };
 
     const handleUpdateProject = async (updatedProject: Project) => {
+        // Check if another project with the same name already exists (excluding the current project)
+        const duplicateProject = projects.find(p =>
+            p.id !== updatedProject.id &&
+            String(p.info.name || '').toLowerCase() === String(updatedProject.info.name || '').toLowerCase()
+        );
+
+        if (duplicateProject) {
+            addToast(
+                `${t('common.error')}: ${t('app.project_name_exists')}`,
+                'error'
+            );
+            return;
+        }
+
         setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
         await db.saveProject(updatedProject);
     };

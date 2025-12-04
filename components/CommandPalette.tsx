@@ -54,7 +54,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
     }));
 
   const allItems = [...commands, ...projectCommands].filter(item =>
-    item.title.toLowerCase().includes(query.toLowerCase())
+    String(item.title || '').toLowerCase().includes(query.toLowerCase())
   );
 
   // Reset selection when query changes

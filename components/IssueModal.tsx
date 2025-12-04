@@ -5,6 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 
 import { analyzeIssue } from '../services/geminiService';
 import { useDialog } from '../contexts/DialogContext';
+import { db } from '../services/db';
 
 interface IssueModalProps {
     isOpen: boolean;
@@ -365,6 +366,30 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
     // AI Analysis State
     const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+    // Fresh Project Data (loaded from DB to get complete docs)
+    const [freshProject, setFreshProject] = useState<Project | null>(null);
+
+    // Load fresh project data from database when projectName changes
+    useEffect(() => {
+        const loadProjectData = async () => {
+            if (!projectName || !isOpen) {
+                setFreshProject(null);
+                return;
+            }
+
+            try {
+                const allProjects = await db.getAllProjects();
+                const found = allProjects.find(p => String(p.info.name || '') === String(projectName || ''));
+                setFreshProject(found || null);
+            } catch (error) {
+                console.error('Failed to load project from DB:', error);
+                setFreshProject(null);
+            }
+        };
+
+        loadProjectData();
+    }, [projectName, isOpen]);
+
     const handleAIAnalyze = async () => {
         if (!description) return;
 
@@ -394,7 +419,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
     useEffect(() => {
         if (isOpen) {
             if (issueToEdit) {
-                setProjectName(issueToEdit.projectName);
+                setProjectName(String(issueToEdit.projectName || ''));
                 setDate(issueToEdit.date);
                 setDiscoveryDate(issueToEdit.discoveryDate || '');
                 setResolutionDate(issueToEdit.resolutionDate || '');
@@ -414,7 +439,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                 setLinkedDocIds(issueToEdit.linkedDocIds || []);
             } else {
                 // Default to first project if available
-                setProjectName(projects[0]?.info.name || '');
+                setProjectName(String(projects[0]?.info.name || ''));
                 setDate(new Date().toISOString().split('T')[0]);
                 setDiscoveryDate('');
                 setResolutionDate('');
@@ -435,6 +460,16 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
             }
         }
     }, [issueToEdit, isOpen, projects]);
+
+    // Clear linked docs when project changes (for new issues only)
+    const prevProjectNameRef = useRef<string>('');
+    useEffect(() => {
+        if (isOpen && !issueToEdit && prevProjectNameRef.current && prevProjectNameRef.current !== projectName) {
+            // Project has changed, clear linked docs
+            setLinkedDocIds([]);
+        }
+        prevProjectNameRef.current = projectName;
+    }, [projectName, isOpen, issueToEdit]);
 
     if (!isOpen) return null;
 
@@ -472,8 +507,10 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
 
 
     // Derived Data
-    const currentProject = projects.find(p => p.info.name === projectName);
-    const availableDocs = currentProject?.docs || [];
+    const currentProject = projects.find(p => String(p.info.name || '') === String(projectName || ''));
+    // Use freshProject (from DB) if available, otherwise fall back to currentProject (from props)
+    const projectToUse = freshProject || currentProject;
+    const availableDocs = projectToUse?.docs || [];
 
     // Combine existing issue tags with global tags
     const getUniqueTags = (key: string, globalKey: string) => {
@@ -1089,7 +1126,7 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
                                                     ${linkedDocIds.includes(doc.id) ? 'bg-blue-500 border-blue-500' : 'border-gray-300'}`}>
                                                     {linkedDocIds.includes(doc.id) && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
                                                 </div>
-                                                <span className="truncate flex-1">{doc.title || 'Untitled Doc'}</span>
+                                                <span className="truncate flex-1">{String(doc.title || 'Untitled Doc')}</span>
                                             </div>
                                         ))}
                                     </div>

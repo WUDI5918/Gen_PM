@@ -113,21 +113,21 @@ export const ProjectLibrary: React.FC<ProjectLibraryProps> = ({
                     <FolderOpen size={20} />
                   </div>
                   <span className="text-[10px] font-mono font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded border border-gray-100">
-                    {project.info.code || 'NO-CODE'}
+                    {String(project.info.code || 'NO-CODE')}
                   </span>
                 </div>
 
                 <h3 className="text-lg font-bold text-gray-800 mb-2 group-hover:text-indigo-700 transition-colors line-clamp-1">
-                  {project.info.name}
+                  {String(project.info.name || 'Untitled Project')}
                 </h3>
                 <p className="text-xs text-gray-500 line-clamp-2 mb-6 leading-relaxed">
-                  {project.info.description || t('project.no_desc')}
+                  {String(project.info.description || t('project.no_desc'))}
                 </p>
 
                 <div className="mt-auto pt-4 border-t border-gray-50 flex items-center gap-3 text-[10px] font-medium text-gray-400">
                   <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-md">
                     <User size={12} />
-                    <span className="truncate max-w-[80px]">{project.info.manager}</span>
+                    <span className="truncate max-w-[80px]">{String(project.info.manager || 'N/A')}</span>
                   </div>
                   <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-md">
                     <Clock size={12} />
