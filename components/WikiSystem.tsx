@@ -8,24 +8,9 @@ import {
     ExternalLink,
     Cloud,
     Link as LinkIcon,
-    MoreHorizontal,
-    GripVertical,
-    CheckSquare,
-    Image as ImageIcon,
-    Layout,
-    Sparkles,
-    Wand2,
-    X,
     Loader2,
-    PenTool,
-    MessageSquare,
-    BarChart,
-    FileJson,
-    Languages,
-    Play,
-    Bot
+    X
 } from 'lucide-react';
-import { performWikiAI, WikiAIIntent } from '../services/geminiService';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useToast } from '../contexts/ToastContext';
@@ -183,10 +168,7 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
     const [externalLinkUrl, setExternalLinkUrl] = useState('');
     const [externalLinkTitle, setExternalLinkTitle] = useState('');
 
-    // AI State
-    const [showAiDialog, setShowAiDialog] = useState(false);
-    const [aiPrompt, setAiPrompt] = useState('');
-    const [isAiLoading, setIsAiLoading] = useState(false);
+
 
     const activeDoc = docs.find(d => d.id === activeDocId);
     const linkedTasks = activeDoc ? tasks.filter(t => t.linkedDocIds?.includes(activeDoc.id)) : [];
@@ -273,42 +255,7 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
         setIconMenuOpen(null);
     };
 
-    const handleAiAction = async (intent: WikiAIIntent, customPrompt?: string) => {
-        if (!activeDoc) return;
 
-        setIsAiLoading(true);
-        try {
-            // Context: Current document content
-            const context = JSON.stringify(activeDoc.content);
-
-            // Load config
-            const savedConfig = localStorage.getItem('project_ai_config');
-            const config = savedConfig ? JSON.parse(savedConfig) : undefined;
-
-            const result = await performWikiAI(intent, {
-                context,
-                userPrompt: customPrompt || aiPrompt,
-                language: language === 'zh' ? 'Chinese' : 'English'
-            }, config);
-
-            if (intent === 'chat') {
-                // For chat, we might want to display the result in a chat interface
-                // For now, we'll just show it in the prompt area or a result area
-                setAiPrompt(result); // Reuse prompt area for output or create a new state
-            } else {
-                // For content generation, append to document
-                const newBlock = { type: "paragraph", content: result };
-                const newContent = [...activeDoc.content, newBlock];
-                handleContentChange(newContent);
-                addToast("Content Generated", 'success');
-                if (intent !== 'custom') setShowAiDialog(false);
-            }
-        } catch (error: any) {
-            addToast(error.message || "AI Action Failed", 'error');
-        } finally {
-            setIsAiLoading(false);
-        }
-    };
 
     const filteredDocs = docs.filter(d => d.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -513,81 +460,10 @@ export const WikiSystem: React.FC<WikiSystemProps> = ({ docs, tasks, activeDocId
                                     <span>Updated {new Date(activeDoc.lastModified).toLocaleDateString()}</span>
                                     {linkedTasks.length > 0 && <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded font-medium">{linkedTasks.length} Linked Tasks</span>}
 
-                                    <button
-                                        onClick={() => setShowAiDialog(true)}
-                                        className="ml-auto flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors text-xs font-bold"
-                                    >
-                                        <Sparkles size={14} /> AI Assist
-                                    </button>
+
                                 </div>
                             </div>
 
-                            {/* AI Command Center */}
-                            {showAiDialog && (
-                                <div className="absolute top-16 right-4 z-50 w-96 bg-white rounded-xl shadow-2xl border border-indigo-100 flex flex-col max-h-[80vh] animate-in slide-in-from-top-2 fade-in duration-200">
-                                    {/* Header */}
-                                    <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-indigo-50 to-white rounded-t-xl">
-                                        <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
-                                            <Bot size={16} className="text-indigo-600" /> AI Assistant
-                                        </h3>
-                                        <button onClick={() => setShowAiDialog(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
-                                            <X size={16} />
-                                        </button>
-                                    </div>
-
-                                    {/* Quick Actions Grid */}
-                                    <div className="p-4 grid grid-cols-2 gap-2 overflow-y-auto custom-scrollbar">
-                                        <div className="col-span-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Write & Edit</div>
-                                        <button onClick={() => handleAiAction('continue')} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-indigo-50 text-gray-700 hover:text-indigo-700 text-xs font-medium transition-all text-left">
-                                            <PenTool size={14} /> Continue Writing
-                                        </button>
-                                        <button onClick={() => handleAiAction('polish')} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-indigo-50 text-gray-700 hover:text-indigo-700 text-xs font-medium transition-all text-left">
-                                            <Sparkles size={14} /> Polish & Fix
-                                        </button>
-                                        <button onClick={() => handleAiAction('tone_pro')} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-indigo-50 text-gray-700 hover:text-indigo-700 text-xs font-medium transition-all text-left">
-                                            <Languages size={14} /> Make Professional
-                                        </button>
-                                        <button onClick={() => handleAiAction('summary')} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-indigo-50 text-gray-700 hover:text-indigo-700 text-xs font-medium transition-all text-left">
-                                            <FileText size={14} /> Summarize Doc
-                                        </button>
-
-                                        <div className="col-span-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1 mt-2">Analyze & Visualize</div>
-                                        <button onClick={() => handleAiAction('action_items')} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-indigo-50 text-gray-700 hover:text-indigo-700 text-xs font-medium transition-all text-left">
-                                            <CheckSquare size={14} /> Extract Tasks
-                                        </button>
-                                        <button onClick={() => handleAiAction('critique')} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-indigo-50 text-gray-700 hover:text-indigo-700 text-xs font-medium transition-all text-left">
-                                            <MessageSquare size={14} /> Review & Critique
-                                        </button>
-                                        <button onClick={() => handleAiAction('diagram', aiPrompt)} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-indigo-50 text-gray-700 hover:text-indigo-700 text-xs font-medium transition-all text-left">
-                                            <BarChart size={14} /> Generate Diagram
-                                        </button>
-                                        <button onClick={() => handleAiAction('table', aiPrompt)} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-indigo-50 text-gray-700 hover:text-indigo-700 text-xs font-medium transition-all text-left">
-                                            <Layout size={14} /> Create Table
-                                        </button>
-                                    </div>
-
-                                    {/* Custom Input Area */}
-                                    <div className="p-4 border-t border-gray-100 bg-gray-50 rounded-b-xl">
-                                        <label className="text-xs font-bold text-gray-500 mb-2 block">Custom Command / Chat</label>
-                                        <div className="relative">
-                                            <textarea
-                                                className="w-full text-sm border border-gray-200 rounded-lg p-3 pr-10 min-h-[80px] focus:ring-2 focus:ring-indigo-500/20 outline-none resize-none bg-white shadow-sm"
-                                                placeholder="Ask a question or describe what to generate..."
-                                                value={aiPrompt}
-                                                onChange={(e) => setAiPrompt(e.target.value)}
-                                                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiAction('custom'); } }}
-                                            />
-                                            <button
-                                                onClick={() => handleAiAction('custom')}
-                                                disabled={isAiLoading || !aiPrompt.trim()}
-                                                className="absolute bottom-2 right-2 p-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                                            >
-                                                {isAiLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} fill="currentColor" />}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
 
                             {/* Editor Area */}
                             <div className={`flex-1 overflow-y-auto custom-scrollbar ${activeDoc.type === 'markdown' ? 'p-0' : 'p-4'}`}>
