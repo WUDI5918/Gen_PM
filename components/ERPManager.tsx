@@ -330,7 +330,7 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                             {field.type === 'select' && (
                                 <div className="relative">
                                     <select
-                                        className={`w-full border rounded-xl px-4 py-3 text-sm outline-none transition-all appearance-none cursor-pointer ${isError ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10'}`}
+                                        className={`w-full border rounded-xl pl-4 pr-10 py-3 text-sm outline-none transition-all appearance-none cursor-pointer ${isError ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10'}`}
                                         value={data[field.id] || ''}
                                         onChange={(e) => handleChange(field.id, e.target.value)}
                                     >
@@ -339,7 +339,7 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                                             <option key={opt} value={opt}>{opt}</option>
                                         ))}
                                     </select>
-                                    <ArrowDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none opacity-70" />
                                 </div>
                             )}
 
@@ -724,40 +724,50 @@ export const ERPManager: React.FC = () => {
                 {activeTab === 'builder' && (
                     <div className="flex flex-1 overflow-hidden animate-in fade-in duration-300">
 
-                        {/* 1. New Left Sidebar Toolbox */}
-                        <div className="w-16 lg:w-48 bg-white border-r border-gray-200 flex flex-col shrink-0 z-20 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
-                            <div className="p-4 border-b border-gray-100 hidden lg:block">
-                                <h3 className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Components</h3>
+                        {/* 1. New Left Sidebar Toolbox (Sleek) */}
+                        <div className="w-16 lg:w-56 bg-white border-r border-gray-200 flex flex-col shrink-0 z-20">
+                            <div className="p-5 pb-2 border-b border-gray-50 bg-white">
+                                <h3 className="text-xs font-bold text-slate-800 hidden lg:block">Components</h3>
+                                <p className="text-[10px] text-slate-400 mt-0.5 hidden lg:block">Drag or click to add</p>
+                                <LayoutTemplate size={20} className="lg:hidden mx-auto text-slate-400" />
                             </div>
 
-                            <div className="flex-1 overflow-y-auto p-2 space-y-6 custom-scrollbar">
+                            <div className="flex-1 overflow-y-auto p-3 space-y-6 custom-scrollbar">
                                 {/* Group: Inputs */}
                                 <div className="space-y-1">
-                                    <div className="hidden lg:block px-2 text-[10px] font-bold text-gray-400 uppercase mb-2">Inputs</div>
-                                    <ToolboxItem type="text" label="Text" icon={Type} onClick={addField} colorClass="text-blue-600" />
-                                    <ToolboxItem type="number" label="Number" icon={Hash} onClick={addField} colorClass="text-emerald-600" />
-                                    <ToolboxItem type="date" label="Date" icon={Calendar} onClick={addField} colorClass="text-orange-600" />
+                                    <h4 className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2 hidden lg:block">Basic Inputs</h4>
+                                    <ToolboxItem type="text" label="Text Input" icon={Type} onClick={addField} colorClass="text-blue-500 group-hover:text-blue-600" />
+                                    <ToolboxItem type="number" label="Number" icon={Hash} onClick={addField} colorClass="text-emerald-500 group-hover:text-emerald-600" />
+                                    <ToolboxItem type="date" label="Date Picker" icon={Calendar} onClick={addField} colorClass="text-orange-500 group-hover:text-orange-600" />
                                 </div>
 
                                 {/* Group: Choices */}
                                 <div className="space-y-1">
-                                    <div className="hidden lg:block px-2 text-[10px] font-bold text-gray-400 uppercase mb-2">Choices</div>
-                                    <ToolboxItem type="select" label="Select" icon={List} onClick={addField} colorClass="text-purple-600" />
-                                    <ToolboxItem type="radio" label="Radio" icon={CircleIcon} onClick={addField} colorClass="text-pink-600" />
-                                    <ToolboxItem type="checkbox" label="Checkbox" icon={CheckSquare} onClick={addField} colorClass="text-teal-600" />
+                                    <h4 className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2 hidden lg:block">Selection</h4>
+                                    <ToolboxItem type="select" label="Dropdown" icon={List} onClick={addField} colorClass="text-purple-500 group-hover:text-purple-600" />
+                                    <ToolboxItem type="radio" label="Radio Group" icon={CircleIcon} onClick={addField} colorClass="text-pink-500 group-hover:text-pink-600" />
+                                    <ToolboxItem type="checkbox" label="Checkbox" icon={CheckSquare} onClick={addField} colorClass="text-teal-500 group-hover:text-teal-600" />
                                 </div>
 
                                 {/* Group: Layout */}
                                 <div className="space-y-1">
-                                    <div className="hidden lg:block px-2 text-[10px] font-bold text-gray-400 uppercase mb-2">Layout</div>
-                                    <ToolboxItem type="divider" label="Divider" icon={Minus} onClick={addField} colorClass="text-gray-600" />
-                                    <ToolboxItem type="notice" label="Notice" icon={Bell} onClick={addField} colorClass="text-amber-600" />
-                                    <ToolboxItem type="spacer" label="Spacer" icon={MoveVertical} onClick={addField} colorClass="text-gray-400" />
+                                    <h4 className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2 hidden lg:block">Structure</h4>
+                                    <ToolboxItem type="divider" label="Divider Line" icon={Minus} onClick={addField} colorClass="text-slate-500 group-hover:text-slate-700" />
+                                    <ToolboxItem type="notice" label="Warning / Notice" icon={Bell} onClick={addField} colorClass="text-amber-500 group-hover:text-amber-600" />
+                                    <ToolboxItem type="spacer" label="Empty Space" icon={MoveVertical} onClick={addField} colorClass="text-slate-400 group-hover:text-slate-600" />
+                                </div>
+                            </div>
+
+                            {/* Sidebar Footer */}
+                            <div className="p-4 border-t border-gray-100 bg-gray-50/50 hidden lg:block">
+                                <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-center">
+                                    <p className="text-[10px] text-indigo-800 font-medium mb-1">PRO Feature</p>
+                                    <button className="text-[10px] bg-white border border-indigo-200 text-indigo-600 font-bold px-3 py-1.5 rounded-full hover:bg-indigo-50 transition-colors w-full shadow-sm">
+                                        Save as Template
+                                    </button>
                                 </div>
                             </div>
                         </div>
-
-                        {/* 2. Middle: Canvas (Builder List) */}
                         <div className="flex-1 bg-slate-50/50 overflow-y-auto p-4 md:p-8 custom-scrollbar relative" id="canvas-container" onClick={() => setActiveFieldId(null)}>
                             <div className="max-w-xl mx-auto">
                                 {/* Canvas Header / Title */}
@@ -821,360 +831,363 @@ export const ERPManager: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                )}
+                )
+                }
 
                 {/* === DATA MODE (Restored from previous turn) === */}
-                {activeTab === 'data' && (
-                    <div className="flex flex-col h-full bg-white animate-in fade-in duration-300">
-                        {/* Data Toolbar */}
-                        <div className="px-6 py-3 border-b border-gray-200 flex flex-col sm:flex-row sm:justify-between sm:items-center bg-white shrink-0 gap-4">
-                            <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg self-start sm:self-auto">
-                                <button
-                                    onClick={() => setSubView('table')}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'table' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                >
-                                    <Grid size={14} /> Grid View
-                                </button>
-                                <button
-                                    onClick={() => setSubView('batch')}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'batch' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                >
-                                    <List size={14} /> Batch Entry
-                                </button>
-                                <button
-                                    onClick={() => setSubView('preview')}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'preview' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                >
-                                    <Plus size={14} /> New Entry
-                                </button>
-                            </div>
-
-                            <div className="flex items-center gap-2 flex-1 w-full sm:w-auto">
-                                <div className="relative flex-1 max-w-md">
-                                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    <input
-                                        className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
-                                        placeholder="Search records..."
-                                        value={globalSearch}
-                                        onChange={(e) => setGlobalSearch(e.target.value)}
-                                    />
-                                </div>
-
-                                <div className="flex items-center gap-2">
+                {
+                    activeTab === 'data' && (
+                        <div className="flex flex-col h-full bg-white animate-in fade-in duration-300">
+                            {/* Data Toolbar */}
+                            <div className="px-6 py-3 border-b border-gray-200 flex flex-col sm:flex-row sm:justify-between sm:items-center bg-white shrink-0 gap-4">
+                                <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg self-start sm:self-auto">
                                     <button
-                                        onClick={() => setShowFilters(!showFilters)}
-                                        className={`p-2 rounded-lg border transition-colors ${showFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                                        title="Toggle Filters"
+                                        onClick={() => setSubView('table')}
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'table' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                                     >
-                                        <Filter size={16} />
+                                        <Grid size={14} /> Grid View
                                     </button>
-                                    <div className="h-6 w-px bg-gray-200 mx-1 hidden sm:block"></div>
-                                    <button onClick={handleGenerateMock} className="hidden sm:flex items-center gap-2 px-3 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">
-                                        <RefreshCw size={14} /> Mock
+                                    <button
+                                        onClick={() => setSubView('batch')}
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'batch' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        <List size={14} /> Batch Entry
                                     </button>
-                                    <button onClick={handleExport} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors" title="Export CSV">
-                                        <Download size={16} />
+                                    <button
+                                        onClick={() => setSubView('preview')}
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'preview' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        <Plus size={14} /> New Entry
                                     </button>
-                                    <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors" title="Import CSV">
-                                        <Upload size={16} />
-                                    </button>
-                                    <input type="file" className="hidden" ref={fileInputRef} onChange={(e) => { /* Import Logic Here if simple */ addToast('Import simulated', 'info'); }} />
+                                </div>
+
+                                <div className="flex items-center gap-2 flex-1 w-full sm:w-auto">
+                                    <div className="relative flex-1 max-w-md">
+                                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                        <input
+                                            className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                                            placeholder="Search records..."
+                                            value={globalSearch}
+                                            onChange={(e) => setGlobalSearch(e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setShowFilters(!showFilters)}
+                                            className={`p-2 rounded-lg border transition-colors ${showFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                            title="Toggle Filters"
+                                        >
+                                            <Filter size={16} />
+                                        </button>
+                                        <div className="h-6 w-px bg-gray-200 mx-1 hidden sm:block"></div>
+                                        <button onClick={handleGenerateMock} className="hidden sm:flex items-center gap-2 px-3 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">
+                                            <RefreshCw size={14} /> Mock
+                                        </button>
+                                        <button onClick={handleExport} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors" title="Export CSV">
+                                            <Download size={16} />
+                                        </button>
+                                        <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors" title="Import CSV">
+                                            <Upload size={16} />
+                                        </button>
+                                        <input type="file" className="hidden" ref={fileInputRef} onChange={(e) => { /* Import Logic Here if simple */ addToast('Import simulated', 'info'); }} />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Enhanced Filter Panel */}
-                        {showFilters && (
-                            <div className="border-b border-gray-200 bg-white animate-in slide-in-from-top-2">
-                                <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
+                            {/* Enhanced Filter Panel */}
+                            {showFilters && (
+                                <div className="border-b border-gray-200 bg-white animate-in slide-in-from-top-2">
+                                    <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
 
-                                    {/* Left: Filter Builder */}
-                                    <div className="p-5 flex-1 space-y-4">
-                                        <div className="flex items-center gap-2 text-indigo-600 mb-2">
-                                            <Filter size={16} />
-                                            <span className="text-sm font-bold">添加筛选条件</span>
-                                        </div>
-
-                                        <div className="flex flex-wrap items-end gap-3">
-                                            <div className="flex-1 min-w-[140px]">
-                                                <select
-                                                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-gray-50 focus:bg-white transition-all"
-                                                    value={pendingFilter.fieldId}
-                                                    onChange={(e) => {
-                                                        const field = schema.find(f => f.id === e.target.value);
-                                                        const defaultOp = field ? getOperatorsForType(field.type)[0].val : '';
-                                                        setPendingFilter({ ...pendingFilter, fieldId: e.target.value, operator: defaultOp });
-                                                    }}
-                                                >
-                                                    <option value="">选择字段...</option>
-                                                    {dataColumns.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
-                                                </select>
+                                        {/* Left: Filter Builder */}
+                                        <div className="p-5 flex-1 space-y-4">
+                                            <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                                                <Filter size={16} />
+                                                <span className="text-sm font-bold">添加筛选条件</span>
                                             </div>
 
-                                            {pendingFilter.fieldId && (
-                                                <div className="w-[120px]">
+                                            <div className="flex flex-wrap items-end gap-3">
+                                                <div className="flex-1 min-w-[140px]">
                                                     <select
                                                         className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-gray-50 focus:bg-white transition-all"
-                                                        value={pendingFilter.operator}
-                                                        onChange={(e) => setPendingFilter({ ...pendingFilter, operator: e.target.value })}
+                                                        value={pendingFilter.fieldId}
+                                                        onChange={(e) => {
+                                                            const field = schema.find(f => f.id === e.target.value);
+                                                            const defaultOp = field ? getOperatorsForType(field.type)[0].val : '';
+                                                            setPendingFilter({ ...pendingFilter, fieldId: e.target.value, operator: defaultOp });
+                                                        }}
                                                     >
-                                                        {getOperatorsForType(schema.find(f => f.id === pendingFilter.fieldId)?.type || 'text').map(op => (
-                                                            <option key={op.val} value={op.val}>{op.label}</option>
-                                                        ))}
+                                                        <option value="">选择字段...</option>
+                                                        {dataColumns.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
                                                     </select>
                                                 </div>
-                                            )}
 
-                                            <div className="flex-1 min-w-[140px]">
-                                                <input
-                                                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-gray-50 focus:bg-white transition-all"
-                                                    placeholder="值..."
-                                                    value={pendingFilter.value}
-                                                    onChange={(e) => setPendingFilter({ ...pendingFilter, value: e.target.value })}
-                                                    onKeyDown={(e) => e.key === 'Enter' && handleAddPendingFilter()}
-                                                />
+                                                {pendingFilter.fieldId && (
+                                                    <div className="w-[120px]">
+                                                        <select
+                                                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-gray-50 focus:bg-white transition-all"
+                                                            value={pendingFilter.operator}
+                                                            onChange={(e) => setPendingFilter({ ...pendingFilter, operator: e.target.value })}
+                                                        >
+                                                            {getOperatorsForType(schema.find(f => f.id === pendingFilter.fieldId)?.type || 'text').map(op => (
+                                                                <option key={op.val} value={op.val}>{op.label}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                )}
+
+                                                <div className="flex-1 min-w-[140px]">
+                                                    <input
+                                                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-gray-50 focus:bg-white transition-all"
+                                                        placeholder="值..."
+                                                        value={pendingFilter.value}
+                                                        onChange={(e) => setPendingFilter({ ...pendingFilter, value: e.target.value })}
+                                                        onKeyDown={(e) => e.key === 'Enter' && handleAddPendingFilter()}
+                                                    />
+                                                </div>
+
+                                                <button
+                                                    onClick={handleAddPendingFilter}
+                                                    className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm"
+                                                >
+                                                    添加
+                                                </button>
                                             </div>
 
-                                            <button
-                                                onClick={handleAddPendingFilter}
-                                                className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm"
-                                            >
-                                                添加
-                                            </button>
-                                        </div>
-
-                                        {/* Active Filters Chips */}
-                                        <div className="flex flex-wrap gap-2 pt-2">
-                                            {filters.length === 0 && <span className="text-xs text-gray-400 italic">暂无筛选条件</span>}
-                                            {filters.map((f, i) => {
-                                                const field = schema.find(s => s.id === f.fieldId);
-                                                const opLabel = getOperatorsForType(field?.type || 'text').find(o => o.val === f.operator)?.label || f.operator;
-                                                return (
-                                                    <div key={f.id} className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-full text-xs font-medium animate-in zoom-in-95">
-                                                        <span className="font-bold">{field?.label}</span>
-                                                        <span className="text-indigo-400">{opLabel}</span>
-                                                        <span className="font-bold">{f.value}</span>
-                                                        <button onClick={() => handleRemoveFilter(f.id)} className="hover:text-red-500 ml-1"><X size={12} /></button>
-                                                    </div>
-                                                );
-                                            })}
-                                            {filters.length > 0 && (
-                                                <button onClick={() => setFilters([])} className="text-xs text-red-500 hover:underline self-center ml-2">
-                                                    清除所有
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Right: View Presets */}
-                                    <div className="p-5 lg:w-80 space-y-4 bg-gray-50/50">
-                                        <div className="flex items-center gap-2 text-gray-600 mb-2">
-                                            <Bookmark size={16} />
-                                            <span className="text-sm font-bold">视图预设</span>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            {savedViews.map((view, idx) => (
-                                                <div
-                                                    key={idx}
-                                                    className="flex items-center justify-between text-sm group cursor-pointer hover:bg-white p-2 rounded-lg transition-colors border border-transparent hover:border-gray-200"
-                                                    onClick={() => handleLoadView(view.filters)}
-                                                >
-                                                    <div className="flex items-center gap-2 text-gray-600 group-hover:text-indigo-600">
-                                                        <List size={14} />
-                                                        <span>{view.name}</span>
-                                                    </div>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); setSavedViews(savedViews.filter((_, i) => i !== idx)); }}
-                                                        className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    >
-                                                        <X size={12} />
+                                            {/* Active Filters Chips */}
+                                            <div className="flex flex-wrap gap-2 pt-2">
+                                                {filters.length === 0 && <span className="text-xs text-gray-400 italic">暂无筛选条件</span>}
+                                                {filters.map((f, i) => {
+                                                    const field = schema.find(s => s.id === f.fieldId);
+                                                    const opLabel = getOperatorsForType(field?.type || 'text').find(o => o.val === f.operator)?.label || f.operator;
+                                                    return (
+                                                        <div key={f.id} className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-full text-xs font-medium animate-in zoom-in-95">
+                                                            <span className="font-bold">{field?.label}</span>
+                                                            <span className="text-indigo-400">{opLabel}</span>
+                                                            <span className="font-bold">{f.value}</span>
+                                                            <button onClick={() => handleRemoveFilter(f.id)} className="hover:text-red-500 ml-1"><X size={12} /></button>
+                                                        </div>
+                                                    );
+                                                })}
+                                                {filters.length > 0 && (
+                                                    <button onClick={() => setFilters([])} className="text-xs text-red-500 hover:underline self-center ml-2">
+                                                        清除所有
                                                     </button>
-                                                </div>
-                                            ))}
-                                            {savedViews.length === 0 && <div className="text-xs text-gray-400 italic px-2">暂无预设视图</div>}
-                                        </div>
-
-                                        <div className="pt-3 border-t border-gray-200 flex gap-2">
-                                            <input
-                                                className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-indigo-500"
-                                                placeholder="视图名称..."
-                                                value={viewName}
-                                                onChange={(e) => setViewName(e.target.value)}
-                                            />
-                                            <button
-                                                onClick={handleSaveView}
-                                                disabled={!viewName.trim() || filters.length === 0}
-                                                className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                保存
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Content */}
-                        <div className="flex-1 overflow-hidden bg-slate-50 relative">
-
-                            {/* TABLE VIEW */}
-                            {subView === 'table' && (
-                                <div className="h-full overflow-auto custom-scrollbar p-6">
-                                    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden min-h-[400px]">
-                                        <table className="w-full text-left border-collapse">
-                                            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-                                                <tr>
-                                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase w-16 text-center bg-gray-50">#</th>
-                                                    {dataColumns.map(f => (
-                                                        <th key={f.id} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase whitespace-nowrap min-w-[150px] bg-gray-50 border-l border-gray-100">
-                                                            {f.label}
-                                                        </th>
-                                                    ))}
-                                                    <th className="px-6 py-4 w-20 text-center bg-gray-50 border-l border-gray-100">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-100">
-                                                {filteredRecords.length === 0 ? (
-                                                    <tr>
-                                                        <td colSpan={dataColumns.length + 2} className="px-6 py-16 text-center text-gray-400">
-                                                            <div className="flex flex-col items-center gap-3">
-                                                                <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
-                                                                    <Search size={24} className="opacity-30" />
-                                                                </div>
-                                                                <p className="text-sm font-medium">No records found.</p>
-                                                                <button onClick={() => setSubView('preview')} className="text-indigo-600 font-bold text-xs hover:underline mt-1">Add your first record</button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ) : (
-                                                    filteredRecords.map((row, i) => (
-                                                        <tr key={row._id} className="hover:bg-indigo-50/30 transition-colors group">
-                                                            <td className="px-6 py-4 text-xs font-mono text-gray-400 text-center group-hover:text-indigo-400">{i + 1}</td>
-                                                            {dataColumns.map(f => (
-                                                                <td key={f.id} className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap border-l border-transparent group-hover:border-indigo-100 max-w-xs truncate">
-                                                                    {f.type === 'checkbox' ? (
-                                                                        row[f.id] ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Yes</span> : <span className="text-gray-400 text-xs">No</span>
-                                                                    ) : (
-                                                                        safeRenderValue(row[f.id]) || <span className="text-gray-300">-</span>
-                                                                    )}
-                                                                </td>
-                                                            ))}
-                                                            <td className="px-6 py-4 text-center border-l border-transparent group-hover:border-indigo-100">
-                                                                <button
-                                                                    onClick={() => handleDeleteRecord(row._id)}
-                                                                    className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1.5 hover:bg-red-50 rounded"
-                                                                >
-                                                                    <Trash2 size={16} />
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ))
                                                 )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    <div className="mt-4 flex justify-between items-center text-xs text-gray-500 px-2">
-                                        <span>Showing {filteredRecords.length} records</span>
-                                        <span>Page 1 of 1</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Right: View Presets */}
+                                        <div className="p-5 lg:w-80 space-y-4 bg-gray-50/50">
+                                            <div className="flex items-center gap-2 text-gray-600 mb-2">
+                                                <Bookmark size={16} />
+                                                <span className="text-sm font-bold">视图预设</span>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                {savedViews.map((view, idx) => (
+                                                    <div
+                                                        key={idx}
+                                                        className="flex items-center justify-between text-sm group cursor-pointer hover:bg-white p-2 rounded-lg transition-colors border border-transparent hover:border-gray-200"
+                                                        onClick={() => handleLoadView(view.filters)}
+                                                    >
+                                                        <div className="flex items-center gap-2 text-gray-600 group-hover:text-indigo-600">
+                                                            <List size={14} />
+                                                            <span>{view.name}</span>
+                                                        </div>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setSavedViews(savedViews.filter((_, i) => i !== idx)); }}
+                                                            className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {savedViews.length === 0 && <div className="text-xs text-gray-400 italic px-2">暂无预设视图</div>}
+                                            </div>
+
+                                            <div className="pt-3 border-t border-gray-200 flex gap-2">
+                                                <input
+                                                    className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-indigo-500"
+                                                    placeholder="视图名称..."
+                                                    value={viewName}
+                                                    onChange={(e) => setViewName(e.target.value)}
+                                                />
+                                                <button
+                                                    onClick={handleSaveView}
+                                                    disabled={!viewName.trim() || filters.length === 0}
+                                                    className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    保存
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}
 
-                            {/* BATCH VIEW */}
-                            {subView === 'batch' && (
-                                <div className="h-full flex flex-col p-6">
-                                    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col">
-                                        <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                                            <h3 className="font-bold text-gray-700 text-sm flex items-center gap-2"><Grid size={16} /> Batch Entry Mode</h3>
-                                            <div className="flex gap-2">
-                                                <button onClick={() => setBatchRows([...batchRows, { tempId: Date.now(), data: {} }])} className="text-xs font-bold text-indigo-600 bg-white border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-50 transition-colors">+ Add Row</button>
-                                                <button onClick={handleBatchSubmit} className="text-xs font-bold text-white bg-indigo-600 px-3 py-1.5 rounded hover:bg-indigo-700 transition-colors shadow-sm">Save All</button>
-                                            </div>
-                                        </div>
-                                        <div className="overflow-auto flex-1">
+                            {/* Content */}
+                            <div className="flex-1 overflow-hidden bg-slate-50 relative">
+
+                                {/* TABLE VIEW */}
+                                {subView === 'table' && (
+                                    <div className="h-full overflow-auto custom-scrollbar p-6">
+                                        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden min-h-[400px]">
                                             <table className="w-full text-left border-collapse">
-                                                <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                                                <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10 shadow-sm">
                                                     <tr>
-                                                        <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-12 text-center">#</th>
+                                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase w-16 text-center bg-gray-50">#</th>
                                                         {dataColumns.map(f => (
-                                                            <th key={f.id} className="px-4 py-3 text-xs font-bold text-gray-500 uppercase whitespace-nowrap min-w-[150px] border-l border-gray-100">
-                                                                {f.label} {f.required && <span className="text-red-500">*</span>}
+                                                            <th key={f.id} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase whitespace-nowrap min-w-[150px] bg-gray-50 border-l border-gray-100">
+                                                                {f.label}
                                                             </th>
                                                         ))}
-                                                        <th className="px-4 py-3 w-10"></th>
+                                                        <th className="px-6 py-4 w-20 text-center bg-gray-50 border-l border-gray-100">Actions</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-100">
-                                                    {batchRows.map((row, idx) => (
-                                                        <tr key={row.tempId} className="group hover:bg-indigo-50/10">
-                                                            <td className="px-4 py-2 text-center text-xs text-gray-400 font-mono">{idx + 1}</td>
-                                                            {dataColumns.map(f => (
-                                                                <td key={f.id} className="p-0 border-l border-gray-100">
-                                                                    {f.type === 'select' ? (
-                                                                        <select
-                                                                            className="w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all h-full"
-                                                                            value={row.data[f.id] || ''}
-                                                                            onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
-                                                                        >
-                                                                            <option value="">Select...</option>
-                                                                            {f.options?.map((o: string) => <option key={o} value={o}>{o}</option>)}
-                                                                        </select>
-                                                                    ) : f.type === 'checkbox' ? (
-                                                                        <div className="flex items-center justify-center py-2">
-                                                                            <input
-                                                                                type="checkbox"
-                                                                                checked={!!row.data[f.id]}
-                                                                                onChange={e => handleBatchUpdate(idx, f.id, e.target.checked)}
-                                                                                className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                                                                            />
-                                                                        </div>
-                                                                    ) : (
-                                                                        <input
-                                                                            type={f.type === 'number' ? 'number' : 'text'}
-                                                                            className="w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-300"
-                                                                            placeholder={f.label}
-                                                                            value={row.data[f.id] || ''}
-                                                                            onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
-                                                                        />
-                                                                    )}
-                                                                </td>
-                                                            ))}
-                                                            <td className="px-2 text-center">
-                                                                <button onClick={() => setBatchRows(batchRows.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-500 p-1 rounded hover:bg-red-50">
-                                                                    <X size={14} />
-                                                                </button>
+                                                    {filteredRecords.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan={dataColumns.length + 2} className="px-6 py-16 text-center text-gray-400">
+                                                                <div className="flex flex-col items-center gap-3">
+                                                                    <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
+                                                                        <Search size={24} className="opacity-30" />
+                                                                    </div>
+                                                                    <p className="text-sm font-medium">No records found.</p>
+                                                                    <button onClick={() => setSubView('preview')} className="text-indigo-600 font-bold text-xs hover:underline mt-1">Add your first record</button>
+                                                                </div>
                                                             </td>
                                                         </tr>
-                                                    ))}
+                                                    ) : (
+                                                        filteredRecords.map((row, i) => (
+                                                            <tr key={row._id} className="hover:bg-indigo-50/30 transition-colors group">
+                                                                <td className="px-6 py-4 text-xs font-mono text-gray-400 text-center group-hover:text-indigo-400">{i + 1}</td>
+                                                                {dataColumns.map(f => (
+                                                                    <td key={f.id} className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap border-l border-transparent group-hover:border-indigo-100 max-w-xs truncate">
+                                                                        {f.type === 'checkbox' ? (
+                                                                            row[f.id] ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Yes</span> : <span className="text-gray-400 text-xs">No</span>
+                                                                        ) : (
+                                                                            safeRenderValue(row[f.id]) || <span className="text-gray-300">-</span>
+                                                                        )}
+                                                                    </td>
+                                                                ))}
+                                                                <td className="px-6 py-4 text-center border-l border-transparent group-hover:border-indigo-100">
+                                                                    <button
+                                                                        onClick={() => handleDeleteRecord(row._id)}
+                                                                        className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1.5 hover:bg-red-50 rounded"
+                                                                    >
+                                                                        <Trash2 size={16} />
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                    )}
                                                 </tbody>
                                             </table>
                                         </div>
+                                        <div className="mt-4 flex justify-between items-center text-xs text-gray-500 px-2">
+                                            <span>Showing {filteredRecords.length} records</span>
+                                            <span>Page 1 of 1</span>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
 
-                            {/* FORM VIEW (Single Entry) */}
-                            {subView === 'preview' && (
-                                <div className="h-full overflow-y-auto custom-scrollbar p-8 flex justify-center">
-                                    <div className="w-full max-w-4xl animate-in slide-in-from-bottom-4 duration-300">
-                                        <FormPreview
-                                            schema={schema}
-                                            data={previewData}
-                                            setData={setPreviewData}
-                                            errors={errors}
-                                            setErrors={setErrors}
-                                            onSubmit={() => handleRecordSubmit(previewData)}
-                                            onCancel={() => setSubView('table')}
-                                        />
+                                {/* BATCH VIEW */}
+                                {subView === 'batch' && (
+                                    <div className="h-full flex flex-col p-6">
+                                        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col">
+                                            <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                                                <h3 className="font-bold text-gray-700 text-sm flex items-center gap-2"><Grid size={16} /> Batch Entry Mode</h3>
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => setBatchRows([...batchRows, { tempId: Date.now(), data: {} }])} className="text-xs font-bold text-indigo-600 bg-white border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-50 transition-colors">+ Add Row</button>
+                                                    <button onClick={handleBatchSubmit} className="text-xs font-bold text-white bg-indigo-600 px-3 py-1.5 rounded hover:bg-indigo-700 transition-colors shadow-sm">Save All</button>
+                                                </div>
+                                            </div>
+                                            <div className="overflow-auto flex-1">
+                                                <table className="w-full text-left border-collapse">
+                                                    <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                                                        <tr>
+                                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-12 text-center">#</th>
+                                                            {dataColumns.map(f => (
+                                                                <th key={f.id} className="px-4 py-3 text-xs font-bold text-gray-500 uppercase whitespace-nowrap min-w-[150px] border-l border-gray-100">
+                                                                    {f.label} {f.required && <span className="text-red-500">*</span>}
+                                                                </th>
+                                                            ))}
+                                                            <th className="px-4 py-3 w-10"></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-gray-100">
+                                                        {batchRows.map((row, idx) => (
+                                                            <tr key={row.tempId} className="group hover:bg-indigo-50/10">
+                                                                <td className="px-4 py-2 text-center text-xs text-gray-400 font-mono">{idx + 1}</td>
+                                                                {dataColumns.map(f => (
+                                                                    <td key={f.id} className="p-0 border-l border-gray-100">
+                                                                        {f.type === 'select' ? (
+                                                                            <select
+                                                                                className="w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all h-full"
+                                                                                value={row.data[f.id] || ''}
+                                                                                onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
+                                                                            >
+                                                                                <option value="">Select...</option>
+                                                                                {f.options?.map((o: string) => <option key={o} value={o}>{o}</option>)}
+                                                                            </select>
+                                                                        ) : f.type === 'checkbox' ? (
+                                                                            <div className="flex items-center justify-center py-2">
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    checked={!!row.data[f.id]}
+                                                                                    onChange={e => handleBatchUpdate(idx, f.id, e.target.checked)}
+                                                                                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                                                                                />
+                                                                            </div>
+                                                                        ) : (
+                                                                            <input
+                                                                                type={f.type === 'number' ? 'number' : 'text'}
+                                                                                className="w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-300"
+                                                                                placeholder={f.label}
+                                                                                value={row.data[f.id] || ''}
+                                                                                onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
+                                                                            />
+                                                                        )}
+                                                                    </td>
+                                                                ))}
+                                                                <td className="px-2 text-center">
+                                                                    <button onClick={() => setBatchRows(batchRows.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-500 p-1 rounded hover:bg-red-50">
+                                                                        <X size={14} />
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
+
+                                {/* FORM VIEW (Single Entry) */}
+                                {subView === 'preview' && (
+                                    <div className="h-full overflow-y-auto custom-scrollbar p-8 flex justify-center">
+                                        <div className="w-full max-w-4xl animate-in slide-in-from-bottom-4 duration-300">
+                                            <FormPreview
+                                                schema={schema}
+                                                data={previewData}
+                                                setData={setPreviewData}
+                                                errors={errors}
+                                                setErrors={setErrors}
+                                                onSubmit={() => handleRecordSubmit(previewData)}
+                                                onCancel={() => setSubView('table')}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
-            </main>
-        </div>
+            </main >
+        </div >
     );
 };
