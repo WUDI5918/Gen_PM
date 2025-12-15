@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import {
     Plus, Trash2, GripVertical, Code, Eye, Save, Type, List,
     CheckSquare, Calendar, Hash, ArrowDown,
@@ -86,6 +86,17 @@ const FieldEditor = ({
     };
     const Icon = IconMap[field.type] || Type;
 
+    const widthOptions = [
+        { label: '50%', value: '50%', icon: Columns },
+        { label: '100%', value: '100%', icon: Maximize2 },
+    ];
+
+    const typeColors: any = {
+        text: 'bg-blue-500', number: 'bg-emerald-500', select: 'bg-purple-500', radio: 'bg-pink-500',
+        checkbox: 'bg-teal-500', date: 'bg-orange-500', divider: 'bg-slate-400', notice: 'bg-amber-500', spacer: 'bg-slate-300'
+    };
+    const accentColor = typeColors[field.type] || 'bg-slate-500';
+
     return (
         <div
             draggable
@@ -94,31 +105,41 @@ const FieldEditor = ({
             onDragEnd={onDragEnd}
             onClick={(e) => { e.stopPropagation(); onClick(); }}
             className={`relative group transition-all duration-300 mb-3 rounded-xl border cursor-pointer overflow-hidden
-        ${isActive
-                    ? 'bg-white border-indigo-500 ring-4 ring-indigo-500/10 shadow-lg z-10'
+                ${isActive
+                    ? 'bg-white ring-2 ring-indigo-500/20 shadow-lg z-10 border-indigo-500'
                     : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md'
                 }
-      `}
+            `}
         >
+            {/* Left Color Strip */}
+            <div className={`absolute left-0 top-0 bottom-0 w-1 ${isActive ? accentColor : 'bg-transparent group-hover:bg-slate-200'} transition-colors`}></div>
+
             {/* Header / Summary View */}
-            <div className="p-3 pl-2 flex items-center gap-3 select-none">
-                <div className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 p-1">
+            <div className="p-3 pl-4 flex items-center gap-3 select-none">
+                <div className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-600 p-1 -ml-1">
                     <GripVertical size={16} />
                 </div>
 
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${isActive ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
-                    <Icon size={16} />
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${isActive ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50 text-slate-400'}`}>
+                    <Icon size={16} strokeWidth={2.5} />
                 </div>
 
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 flex items-center gap-3">
+                    <span className={`text-sm font-bold truncate ${isActive ? 'text-slate-900' : 'text-slate-700'}`}>
+                        {field.label}
+                    </span>
                     <div className="flex items-center gap-2">
-                        <span className={`text-sm font-bold truncate ${isActive ? 'text-slate-900' : 'text-slate-700'}`}>
-                            {field.label}
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/50">
+                            {field.type}
                         </span>
-                        {field.required && <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-bold">Req</span>}
-                    </div>
-                    <div className="text-[10px] text-slate-400 font-mono uppercase tracking-wide">
-                        {field.type}
+                        {field.required && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100 font-bold uppercase tracking-wider">
+                                <span className="w-1 h-1 rounded-full bg-red-500"></span> Req
+                            </span>
+                        )}
+                        <span className="text-[10px] text-slate-400 hidden group-hover:inline-block transition-opacity">
+                            • {field.width === '50%' ? 'Half Width' : 'Full Width'}
+                        </span>
                     </div>
                 </div>
 
@@ -126,105 +147,142 @@ const FieldEditor = ({
                     <button onClick={(e) => { e.stopPropagation(); onRemove(field.id); }} className="text-slate-300 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100">
                         <Trash2 size={16} />
                     </button>
-                    {isActive ? <ChevronUp size={16} className="text-indigo-500" /> : <ChevronDown size={16} className="text-slate-300" />}
+                    <div className={`transition-transform duration-300 ${isActive ? 'rotate-180' : ''} text-slate-400`}>
+                        <ChevronDown size={16} />
+                    </div>
                 </div>
             </div>
 
             {/* Expanded Properties Panel */}
             {isActive && (
-                <div className="px-4 pb-4 pt-0 animate-in slide-in-from-top-2 duration-200" onClick={e => e.stopPropagation()}>
+                <div className="px-4 pb-4 pt-0 animate-in slide-in-from-top-1 duration-200" onClick={e => e.stopPropagation()}>
                     <div className="h-px bg-slate-100 w-full mb-4"></div>
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="col-span-2 sm:col-span-1">
-                            <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Field Label</label>
-                            <input
-                                value={field.label}
-                                onChange={(e) => onUpdate(field.id, 'label', e.target.value)}
-                                className="w-full text-xs px-2 py-1.5 bg-slate-50 border border-slate-200 rounded focus:bg-white focus:border-indigo-500 outline-none transition-all"
-                            />
-                        </div>
-                        <div className="col-span-2 sm:col-span-1">
-                            <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Width</label>
-                            <div className="flex bg-slate-100 p-0.5 rounded border border-slate-200">
-                                {['50%', '100%'].map(w => (
-                                    <button
-                                        key={w}
-                                        onClick={() => onUpdate(field.id, 'width', w)}
-                                        className={`flex-1 text-[10px] font-bold py-1 rounded-sm transition-all ${field.width === w ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-                                    >
-                                        {w}
-                                    </button>
-                                ))}
+
+                    <div className="space-y-4">
+
+                        {/* 1. General Settings */}
+                        <div className="grid grid-cols-12 gap-3">
+                            <div className="col-span-8">
+                                <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                    <Type size={10} /> Field Label
+                                </label>
+                                <input
+                                    autoFocus
+                                    value={field.label}
+                                    onChange={(e) => onUpdate(field.id, 'label', e.target.value)}
+                                    className="w-full text-xs font-medium px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-indigo-500 outline-none transition-all shadow-sm"
+                                    placeholder="Enter label..."
+                                />
+                            </div>
+                            <div className="col-span-4">
+                                <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                    <Columns size={10} /> Width
+                                </label>
+                                <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                    {widthOptions.map(opt => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => onUpdate(field.id, 'width', opt.value)}
+                                            className={`flex-1 flex items-center justify-center py-1.5 rounded-md transition-all ${field.width === opt.value ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                            title={opt.label}
+                                        >
+                                            <opt.icon size={14} />
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
 
+                        {/* 2. Specific Settings */}
                         {!isLayout && (
-                            <div className="col-span-2 space-y-3">
+                            <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-3 space-y-3">
+                                {/* Validation Row */}
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Configuration</h4>
+                                    <label className="flex items-center gap-2 cursor-pointer group/toggle">
+                                        <span className="text-xs font-semibold text-slate-600 group-hover/toggle:text-indigo-600 transition-colors">Required</span>
+                                        <div className={`relative w-8 h-4 rounded-full transition-colors ${field.required ? 'bg-indigo-500' : 'bg-slate-200'}`}>
+                                            <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform ${field.required ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                                            <input type="checkbox" className="hidden" checked={field.required} onChange={(e) => onUpdate(field.id, 'required', e.target.checked)} />
+                                        </div>
+                                    </label>
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Placeholder</label>
                                         <input
                                             value={field.placeholder || ''}
                                             onChange={(e) => onUpdate(field.id, 'placeholder', e.target.value)}
-                                            className="w-full text-xs px-2 py-1.5 bg-slate-50 border border-slate-200 rounded focus:bg-white focus:border-indigo-500 outline-none"
+                                            className="w-full text-xs px-2.5 py-2 bg-white border border-slate-200 rounded-lg focus:border-indigo-500 outline-none transition-colors"
+                                            placeholder="Placeholder text..."
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Help Text</label>
                                         <input
                                             value={field.helpText || ''}
                                             onChange={(e) => onUpdate(field.id, 'helpText', e.target.value)}
-                                            className="w-full text-xs px-2 py-1.5 bg-slate-50 border border-slate-200 rounded focus:bg-white focus:border-indigo-500 outline-none"
+                                            className="w-full text-xs px-2.5 py-2 bg-white border border-slate-200 rounded-lg focus:border-indigo-500 outline-none transition-colors"
+                                            placeholder="Help / Hint text..."
                                         />
                                     </div>
                                 </div>
-
-                                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 font-bold select-none w-fit p-1 rounded hover:bg-slate-50">
-                                    <input
-                                        type="checkbox"
-                                        checked={field.required}
-                                        onChange={(e) => onUpdate(field.id, 'required', e.target.checked)}
-                                        className="w-3.5 h-3.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                                    />
-                                    Required Field
-                                </label>
                             </div>
                         )}
 
-                        {field.type === 'notice' && (
-                            <div className="col-span-2 space-y-3">
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Alert Type</label>
-                                    <div className="flex gap-2">
-                                        {['info', 'warning', 'error', 'success'].map(type => (
-                                            <button key={type} onClick={() => onUpdate(field.id, 'noticeType', type)} className={`px-2 py-1 rounded text-[10px] font-bold capitalize border transition-colors ${field.noticeType === type ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{type}</button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Content</label>
-                                    <textarea rows={2} value={field.content || ''} onChange={(e) => onUpdate(field.id, 'content', e.target.value)} className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs focus:outline-none focus:border-indigo-500 transition-colors" />
-                                </div>
-                            </div>
-                        )}
-
+                        {/* 3. Type Specific: Options */}
                         {hasOptions && (
-                            <div className="col-span-2 bg-slate-50 p-3 rounded-lg border border-slate-200 mt-1">
-                                <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">Options</label>
-                                <div className="space-y-1.5">
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                        <List size={10} /> Options
+                                    </label>
+                                    <span className="text-[10px] text-slate-400 font-mono">{field.options?.length || 0} items</span>
+                                </div>
+
+                                <div className="space-y-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200">
                                     {field.options?.map((opt: string, idx: number) => (
-                                        <div key={idx} className="flex gap-2 items-center group/opt">
-                                            <div className="w-1 h-1 bg-slate-300 rounded-full group-hover/opt:bg-indigo-400 transition-colors"></div>
-                                            <input value={opt} onChange={(e) => onUpdateOption(field.id, idx, e.target.value)} className="flex-1 px-2 py-1 bg-white border border-slate-200 rounded text-xs focus:border-indigo-500 outline-none transition-colors" />
-                                            <button onClick={() => onRemoveOption(field.id, idx)} className="text-slate-400 hover:text-red-500 p-1 bg-white hover:bg-red-50 rounded border border-transparent hover:border-red-100 transition-all"><Trash2 size={12} /></button>
+                                        <div key={idx} className="flex gap-2 items-center group/opt p-1">
+                                            <div className="w-5 h-5 bg-white border border-slate-200 rounded flex items-center justify-center text-xs font-mono text-slate-400 shadow-sm shrink-0">{idx + 1}</div>
+                                            <input
+                                                value={opt}
+                                                onChange={(e) => onUpdateOption(field.id, idx, e.target.value)}
+                                                className="flex-1 px-2 py-1.5 bg-transparent border-b border-transparent focus:border-indigo-300 focus:bg-white rounded-sm text-xs outline-none transition-all placeholder-slate-300"
+                                                placeholder={`Option ${idx + 1}`}
+                                            />
+                                            <button onClick={() => onRemoveOption(field.id, idx)} className="text-slate-300 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors opacity-0 group-hover/opt:opacity-100"><X size={14} /></button>
                                         </div>
                                     ))}
-                                    <button onClick={() => onAddOption(field.id)} className="text-[10px] text-indigo-600 font-bold flex items-center gap-1 hover:bg-indigo-50 px-2 py-1.5 rounded transition-colors mt-2 border border-dashed border-indigo-200 hover:border-indigo-400 w-full justify-center">
-                                        <Plus size={12} /> Add Option
+                                    <button onClick={() => onAddOption(field.id)} className="w-full py-1.5 text-xs font-bold text-indigo-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex items-center justify-center gap-1">
+                                        <Plus size={12} /> Add New Option
                                     </button>
                                 </div>
                             </div>
                         )}
+
+                        {/* 4. Type Specific: Notice */}
+                        {field.type === 'notice' && (
+                            <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-3 space-y-3">
+                                <div className="flex gap-2 p-1 bg-slate-100 rounded-lg w-fit">
+                                    {['info', 'warning', 'error', 'success'].map(type => (
+                                        <button
+                                            key={type}
+                                            onClick={() => onUpdate(field.id, 'noticeType', type)}
+                                            className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${field.noticeType === type ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            {type}
+                                        </button>
+                                    ))}
+                                </div>
+                                <textarea
+                                    rows={2}
+                                    value={field.content || ''}
+                                    onChange={(e) => onUpdate(field.id, 'content', e.target.value)}
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-500 transition-colors shadow-sm"
+                                    placeholder="Enter notice content content..."
+                                />
+                            </div>
+                        )}
+
                     </div>
                 </div>
             )}
@@ -444,6 +502,39 @@ export const ERPManager: React.FC = () => {
     const [showFilters, setShowFilters] = useState(false);
 
     const [errors, setErrors] = useState<Record<string, string>>({});
+
+    // Preview Resizing Logic
+    const [previewWidth, setPreviewWidth] = useState(450);
+    const [showPreview, setShowPreview] = useState(true);
+    const [isResizing, setIsResizing] = useState(false);
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isResizing) return;
+            const newWidth = document.body.clientWidth - e.clientX;
+            if (newWidth >= 300 && newWidth <= 800) {
+                setPreviewWidth(newWidth);
+            }
+        };
+        const handleMouseUp = () => {
+            setIsResizing(false);
+        };
+        if (isResizing) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        } else {
+            document.body.style.cursor = 'default';
+            document.body.style.userSelect = 'auto';
+        }
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = 'default';
+            document.body.style.userSelect = 'auto';
+        };
+    }, [isResizing]);
 
     // DnD Refs
     const dragItem = useRef<number | null>(null);
@@ -778,7 +869,17 @@ export const ERPManager: React.FC = () => {
                                         </h3>
                                         <p className="text-xs text-gray-400 mt-1">Drag to reorder. Click to edit.</p>
                                     </div>
-                                    <div className="text-xs font-mono text-gray-300 bg-gray-100 px-2 py-1 rounded">v1.0</div>
+                                    <div className="flex items-center gap-3">
+                                        {!showPreview && (
+                                            <button
+                                                onClick={() => setShowPreview(true)}
+                                                className="flex items-center gap-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors border border-indigo-200 animate-in fade-in zoom-in duration-200"
+                                            >
+                                                <Columns size={14} /> Open Preview
+                                            </button>
+                                        )}
+                                        <div className="text-xs font-mono text-gray-300 bg-gray-100 px-2 py-1 rounded">v1.0</div>
+                                    </div>
                                 </div>
 
                                 {schema.length === 0 ? (
@@ -819,8 +920,29 @@ export const ERPManager: React.FC = () => {
                         </div>
 
                         {/* 3. Right: Live Preview */}
-                        <div className="w-[420px] bg-white border-l border-gray-200 overflow-y-auto shadow-xl z-30 hidden xl:block custom-scrollbar">
-                            <div className="p-6">
+                        <div
+                            style={{ width: showPreview ? previewWidth : 0, opacity: showPreview ? 1 : 0 }}
+                            className={`z-30 hidden xl:flex flex-col relative transition-[opacity] duration-300 ${!showPreview ? 'pointer-events-none' : ''}`}
+                        >
+                            {/* Resize Handle */}
+                            <div
+                                onMouseDown={(e) => { e.preventDefault(); setIsResizing(true); }}
+                                className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500 hover:w-1.5 transition-all z-50"
+                            ></div>
+
+                            {/* Collapse Button */}
+                            <div className="absolute top-6 right-6 z-50">
+                                <button
+                                    onClick={() => setShowPreview(false)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/80 backdrop-blur border border-slate-200 shadow-sm rounded-full text-xs font-bold text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all group"
+                                    title="Close Preview"
+                                >
+                                    <span>Hide</span>
+                                    <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                                 <FormPreview
                                     schema={schema}
                                     data={previewData}
