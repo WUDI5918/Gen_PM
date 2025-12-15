@@ -16,6 +16,7 @@ import { TeamView } from './components/TeamView';
 import { CommandPalette } from './components/CommandPalette';
 import { NotificationCenter } from './components/NotificationCenter';
 import { db } from './services/db';
+import { ERPManager } from './components/ERPManager';
 import { parseDate } from './utils';
 
 import {
@@ -38,14 +39,15 @@ import {
     PanelLeftOpen,
     Trash2,
     Loader2,
-    LogOut
+    LogOut,
+    Database
 } from 'lucide-react';
 import { EventData } from './components/EventModal';
 import { IssueTracker } from './components/IssueTracker';
 import { Issue } from './types';
 import { AlertCircle } from 'lucide-react';
 
-type AppView = 'projects' | 'wiki' | 'meetings' | 'calendar' | 'team' | 'issues';
+type AppView = 'projects' | 'wiki' | 'meetings' | 'calendar' | 'team' | 'issues' | 'erp';
 
 const AppContent: React.FC = () => {
     const { t } = useLanguage();
@@ -848,6 +850,7 @@ const AppContent: React.FC = () => {
                     <SidebarItem id="calendar" icon={CalendarDays} label={t('app.view.calendar')} />
                     <SidebarItem id="team" icon={Users} label={t('app.team')} />
                     <SidebarItem id="issues" icon={AlertCircle} label={t('app.view.issues')} />
+                    <SidebarItem id="erp" icon={Database} label="ERP Data" />
                 </nav>
 
                 <div className="p-3 mt-auto border-t border-gray-100 bg-white flex flex-col gap-2">
@@ -1137,6 +1140,11 @@ const AppContent: React.FC = () => {
                             />
                         </div>
                     </div>
+                )}
+
+                {/* ERP MANAGER VIEW */}
+                {currentView === 'erp' && (
+                    <ERPManager />
                 )}
 
                 {/* ISSUES VIEW */}
