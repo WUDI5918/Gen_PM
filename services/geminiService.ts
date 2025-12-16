@@ -706,3 +706,121 @@ export const analyzeIssue = async (description: string, config?: AIConfig, langu
     }
 };
 
+// --- AI Form Generation from Table Data ---
+export const generateFormSchemaFromData = async (
+    headers: string[],
+    sampleData: any[],
+    config?: AIConfig
+): Promise<any[]> => {
+    const isDeepSeek = config?.provider === 'deepseek';
+    const apiKey = config?.apiKey || process.env.API_KEY;
+    if (!apiKey) throw new Error("API Key is missing");
+
+    const context = JSON.stringify({
+        headers: headers,
+        sampleRows: sampleData.slice(0, 5) // Send first 5 rows for context
+    });
+
+    const prompt = `
+        Analyze the table structure and generate a Form Schema JSON.
+        
+        Headers: ${JSON.stringify(headers)}
+        Sample Data: ${context}
+        
+        Return a JSON ARRAY of Field objects.
+        Field Properties:
+        - id: string (snake_case, unique, based on header name)
+        - label: string (Human readable, use original header)
+        - type: "text" | "number" | "date" | "select" | "radio" | "checkbox" | "textarea" | "email"
+        - width: "50%" | "100%"
+        - required: boolean
+        - options: string[] (if type is select/radio, infer unique values from sample data)
+        - logic: { calculation?: string } (Optional. E.g., if a column looks like "Total", and there are "Price" and "Qty", suggest a calculation "{price} * {qty}")
+        
+        Rules:
+        - Infer field types from sample data values.
+        - Numbers -> "number", Dates -> "date", Emails -> "email"
+        - If column has few unique values (< 5), use 'select' or 'radio'.
+        - If column is long text, use 'textarea'.
+        - Suggest logic if obvious math relationships exist.
+        - Use 50% width by default, 100% for long text.
+        
+        Return ONLY a valid JSON array, no markdown or explanation.
+    `;
+
+    try {
+        if (isDeepSeek && config) {
+            // DeepSeek / OpenAI Compatible
+            const baseUrl = config.baseUrl?.replace(/\/$/, '') || 'https://api.deepseek.com';
+            const model = config.model || 'deepseek-chat';
+
+            const response = await fetch(`${baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [
+                        { role: "system", content: "You are a helpful assistant that outputs strict JSON arrays for form schema generation." },
+                        { role: "user", content: prompt }
+                    ],
+                    response_format: { type: "json_object" },
+                    temperature: 0.3
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error?.message || 'DeepSeek API Request failed');
+            }
+
+            const data = await response.json();
+            const rawText = data.choices?.[0]?.message?.content || '[]';
+            const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            // Try to parse, handle if wrapped in object
+            const parsed = JSON.parse(cleaned);
+            return Array.isArray(parsed) ? parsed : (parsed.fields || parsed.schema || []);
+        } else {
+            // Gemini
+            const client = getGeminiClient(apiKey);
+            if (!client) throw new Error("Failed to initialize Gemini");
+
+            const response = await client.models.generateContent({
+                model: config?.model || 'gemini-2.5-flash',
+                contents: prompt,
+                config: {
+                    responseMimeType: 'application/json',
+                    responseSchema: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                id: { type: Type.STRING },
+                                label: { type: Type.STRING },
+                                type: { type: Type.STRING, enum: ["text", "number", "date", "select", "radio", "checkbox", "textarea", "email"] },
+                                width: { type: Type.STRING, enum: ["50%", "100%"] },
+                                required: { type: Type.BOOLEAN },
+                                placeholder: { type: Type.STRING },
+                                options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                logic: {
+                                    type: Type.OBJECT,
+                                    properties: {
+                                        calculation: { type: Type.STRING }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            return JSON.parse(response.text || '[]');
+        }
+    } catch (error: any) {
+        console.error("Form Generation Error:", error);
+        throw new Error(error.message || "Failed to generate form schema.");
+    }
+};

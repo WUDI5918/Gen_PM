@@ -9,8 +9,10 @@ import {
     ChevronRight, ChevronDown, MoreHorizontal, Database, ArrowRight,
     Maximize2, Columns, Edit3, Check, ChevronUp, Layers, BoxSelect,
     ToggleLeft, FileText, PenTool, Star, CreditCard, Clock, Link,
-    ListOrdered, Folder, Sidebar, FormInput, BookOpen, Lightbulb, FunctionSquare, Calculator, Regex
+    ListOrdered, Folder, Sidebar, FormInput, BookOpen, Lightbulb, FunctionSquare, Calculator, Regex, Sparkles
 } from 'lucide-react';
+import { read, utils } from 'xlsx';
+import { generateFormSchemaFromData } from '../services/geminiService';
 import { useToast } from '../contexts/ToastContext';
 
 // --- Configuration Constants ---
@@ -1684,6 +1686,81 @@ export const ERPManager: React.FC = () => {
         setConfirmDialog({ isOpen: true, title, message, onConfirm, type, confirmText });
     };
 
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // AI Import Progress State
+    const [importProgress, setImportProgress] = useState<{
+        isOpen: boolean;
+        step: number;
+        message: string;
+        error?: string;
+    }>({ isOpen: false, step: 0, message: '' });
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setImportProgress({ isOpen: true, step: 1, message: 'Reading file...' });
+
+        try {
+            const buffer = await file.arrayBuffer();
+            const wb = read(buffer);
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const data = utils.sheet_to_json(ws, { header: 1 });
+
+            if (data.length < 2) throw new Error("File is empty or missing headers");
+
+            setImportProgress({ isOpen: true, step: 2, message: 'Extracting table structure...' });
+
+            const headers = data[0] as string[];
+            const rows = data.slice(1);
+
+            // Limit analysis rows to save tokens and context window
+            const semanticRows = rows.slice(0, 10).map((row: any) => {
+                const obj: any = {};
+                headers.forEach((h, i) => obj[h] = row[i]);
+                return obj;
+            });
+
+            // Get AI config from localStorage
+            const savedConfig = localStorage.getItem('project_ai_config');
+            const config = savedConfig ? JSON.parse(savedConfig) : {};
+
+            if (!config.apiKey) {
+                throw new Error("Please configure your AI API Key in Settings first.");
+            }
+
+            setImportProgress({ isOpen: true, step: 3, message: 'AI is analyzing data patterns...' });
+
+            const schema = await generateFormSchemaFromData(headers, semanticRows, {
+                provider: config.provider || 'gemini',
+                apiKey: config.apiKey,
+                baseUrl: config.baseUrl,
+                model: config.model
+            });
+
+            setImportProgress({ isOpen: true, step: 4, message: 'Generating form components...' });
+
+            // Small delay to show final step
+            await new Promise(r => setTimeout(r, 500));
+
+            if (schema && schema.length > 0) {
+                setSchema(schema);
+                setActiveTab('builder');
+                setImportProgress({ isOpen: false, step: 0, message: '' });
+                addToast(`Form generated with ${schema.length} fields!`, 'success');
+            } else {
+                throw new Error("AI could not generate schema");
+            }
+
+        } catch (error: any) {
+            console.error(error);
+            setImportProgress({ isOpen: true, step: 0, message: '', error: error.message || 'Import failed' });
+        } finally {
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
     // Update current form name when schema matches a saved form
     useEffect(() => {
         const matchedForm = savedForms.find(f => JSON.stringify(f.schema) === JSON.stringify(schema));
@@ -1750,7 +1827,6 @@ export const ERPManager: React.FC = () => {
     // DnD Refs
     const dragItem = useRef<number | null>(null);
     const dragOverItem = useRef<number | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Initialize batch rows
     useEffect(() => {
@@ -2821,12 +2897,27 @@ export const ERPManager: React.FC = () => {
                                         </h2>
                                         <p className="text-sm text-gray-500 mt-2">Manage your collection of saved form templates and schemas.</p>
                                     </div>
-                                    <button
-                                        onClick={() => setActiveTab('builder')}
-                                        className="flex items-center gap-2 px-4 py-2 bg-white text-indigo-600 border border-indigo-200 rounded-lg text-sm font-bold hover:bg-indigo-50 hover:border-indigo-300 transition-all shadow-sm"
-                                    >
-                                        <ArrowRight size={16} /> Back to Builder
-                                    </button>
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            type="file"
+                                            ref={fileInputRef}
+                                            hidden
+                                            accept=".xlsx, .xls, .csv"
+                                            onChange={handleFileUpload}
+                                        />
+                                        <button
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg text-sm font-bold hover:shadow-lg transition-all shadow-md"
+                                        >
+                                            <Sparkles size={16} /> AI Import
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveTab('builder')}
+                                            className="flex items-center gap-2 px-4 py-2 bg-white text-indigo-600 border border-indigo-200 rounded-lg text-sm font-bold hover:bg-indigo-50 hover:border-indigo-300 transition-all shadow-sm"
+                                        >
+                                            <ArrowRight size={16} /> Back to Builder
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -2958,6 +3049,92 @@ export const ERPManager: React.FC = () => {
                                 >
                                     {confirmDialog.confirmText}
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* --- AI Import Progress Modal --- */}
+            {
+                importProgress.isOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
+                            <div className="p-6">
+                                {importProgress.error ? (
+                                    // Error State
+                                    <div className="text-center">
+                                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <AlertCircle size={32} className="text-red-500" />
+                                        </div>
+                                        <h3 className="text-lg font-bold text-gray-900 mb-2">Import Failed</h3>
+                                        <p className="text-sm text-gray-600 mb-6">{importProgress.error}</p>
+                                        <button
+                                            onClick={() => setImportProgress({ isOpen: false, step: 0, message: '' })}
+                                            className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition-colors"
+                                        >
+                                            Close
+                                        </button>
+                                    </div>
+                                ) : (
+                                    // Progress State
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
+                                                <Sparkles size={24} className="text-white animate-pulse" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-bold text-gray-900">AI Import</h3>
+                                                <p className="text-xs text-gray-500">Generating form from spreadsheet</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Progress Bar */}
+                                        <div className="mb-6">
+                                            <div className="flex justify-between text-xs font-bold text-gray-500 mb-2">
+                                                <span>Progress</span>
+                                                <span>{Math.round((importProgress.step / 4) * 100)}%</span>
+                                            </div>
+                                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full transition-all duration-500 ease-out"
+                                                    style={{ width: `${(importProgress.step / 4) * 100}%` }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Steps */}
+                                        <div className="space-y-3">
+                                            {[
+                                                { num: 1, label: 'Reading file' },
+                                                { num: 2, label: 'Extracting structure' },
+                                                { num: 3, label: 'AI analyzing patterns' },
+                                                { num: 4, label: 'Generating components' }
+                                            ].map(s => (
+                                                <div key={s.num} className={`flex items-center gap-3 p-3 rounded-lg transition-all ${importProgress.step >= s.num ? 'bg-indigo-50' : 'bg-gray-50'}`}>
+                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${importProgress.step > s.num ? 'bg-green-500 text-white' :
+                                                            importProgress.step === s.num ? 'bg-indigo-500 text-white animate-pulse' :
+                                                                'bg-gray-200 text-gray-400'
+                                                        }`}>
+                                                        {importProgress.step > s.num ? <Check size={14} /> : s.num}
+                                                    </div>
+                                                    <span className={`text-sm font-medium ${importProgress.step >= s.num ? 'text-gray-800' : 'text-gray-400'}`}>
+                                                        {s.label}
+                                                    </span>
+                                                    {importProgress.step === s.num && (
+                                                        <div className="ml-auto">
+                                                            <RefreshCw size={14} className="text-indigo-500 animate-spin" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <p className="text-center text-xs text-gray-400 mt-6">
+                                            {importProgress.message}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
