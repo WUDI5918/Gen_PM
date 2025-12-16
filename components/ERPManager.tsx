@@ -1288,7 +1288,7 @@ export const ERPManager: React.FC = () => {
     const { addToast } = useToast();
 
     // State
-    const [activeTab, setActiveTab] = useState<'builder' | 'data'>('builder');
+    const [activeTab, setActiveTab] = useState<'builder' | 'data' | 'library'>('builder');
     const [subView, setSubView] = useState<'table' | 'preview' | 'batch'>('table'); // Data sub-views
 
     // Schema State
@@ -1317,6 +1317,36 @@ export const ERPManager: React.FC = () => {
     const [previewWidth, setPreviewWidth] = useState(450);
     const [showPreview, setShowPreview] = useState(true);
     const [isResizing, setIsResizing] = useState(false);
+
+    // --- Form Library State ---
+    const [savedForms, setSavedForms] = useState<{ id: string, name: string, description: string, schema: any[], timestamp: number }[]>([
+        { id: 'form_default', name: 'Product Inventory', description: 'Standard product entry form', schema: InitialSchema, timestamp: Date.now() }
+    ]);
+    // showLibrary removed in favor of activeTab === 'library'
+    const [saveFormOpen, setSaveFormOpen] = useState(false);
+    const [formName, setFormName] = useState('');
+    const [formDesc, setFormDesc] = useState('');
+
+    // Confirmation Modal State
+    const [confirmDialog, setConfirmDialog] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        type: 'danger' | 'info';
+        confirmText: string;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => { },
+        type: 'info',
+        confirmText: 'Confirm'
+    });
+
+    const triggerConfirm = (title: string, message: string, onConfirm: () => void, type: 'danger' | 'info' = 'info', confirmText = 'Confirm') => {
+        setConfirmDialog({ isOpen: true, title, message, onConfirm, type, confirmText });
+    };
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
@@ -1532,9 +1562,13 @@ export const ERPManager: React.FC = () => {
     };
 
     const handleDeleteRecord = (id: number) => {
-        if (confirm('Delete this record?')) {
-            setRecords(prev => prev.filter(r => r._id !== id));
-        }
+        triggerConfirm(
+            'Delete Record',
+            'Are you sure you want to delete this record? This action cannot be undone.',
+            () => setRecords(prev => prev.filter(r => r._id !== id)),
+            'danger',
+            'Delete'
+        );
     };
 
     // --- Filter Management ---
@@ -1640,6 +1674,56 @@ export const ERPManager: React.FC = () => {
         addToast('Generated mock record', 'info');
     };
 
+    // --- Form Library Actions ---
+    const handleSaveForm = () => {
+        if (!formName.trim()) {
+            addToast('Please enter a form name', 'error');
+            return;
+        }
+        const newForm = {
+            id: `form_${Date.now()}`,
+            name: formName,
+            description: formDesc,
+            schema: [...schema], // Deep copy needed in real app, simplistic here
+            timestamp: Date.now()
+        };
+        setSavedForms([newForm, ...savedForms]);
+        setSaveFormOpen(false);
+        setFormName('');
+        setFormDesc('');
+        addToast('Form saved to library', 'success');
+    };
+
+    const handleLoadForm = (formId: string) => {
+        const form = savedForms.find(f => f.id === formId);
+        if (form) {
+            triggerConfirm(
+                'Load Template',
+                'Loading a new form will overwrite your current workspace. Continue?',
+                () => {
+                    setSchema([...form.schema]);
+                    addToast(`Loaded form: ${form.name}`, 'success');
+                    setActiveTab('builder'); // Go back to builder
+                },
+                'info',
+                'Load Template'
+            );
+        }
+    };
+
+    const handleDeleteForm = (formId: string) => {
+        triggerConfirm(
+            'Delete Template',
+            'Are you sure you want to delete this form template?',
+            () => {
+                setSavedForms(prev => prev.filter(f => f.id !== formId));
+                addToast('Form template deleted', 'info');
+            },
+            'danger',
+            'Delete'
+        );
+    };
+
     // Data columns only
     const layoutTypes = ['divider', 'notice', 'spacer'];
     const allDataFields = schema.filter(f => !layoutTypes.includes(f.type));
@@ -1674,6 +1758,13 @@ export const ERPManager: React.FC = () => {
                         className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'data' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         <TableIcon size={14} /> Data Manager
+                    </button>
+                    <div className="w-px bg-gray-200 mx-1 my-1"></div>
+                    <button
+                        onClick={() => setActiveTab('library')}
+                        className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'library' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:text-indigo-600'}`}
+                    >
+                        <Folder size={14} /> Form Library
                     </button>
                 </div>
 
@@ -1741,9 +1832,18 @@ export const ERPManager: React.FC = () => {
                             {/* Sidebar Footer */}
                             <div className="p-4 border-t border-gray-100 bg-gray-50/50 hidden lg:block">
                                 <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-center">
-                                    <p className="text-[10px] text-indigo-800 font-medium mb-1">PRO Feature</p>
-                                    <button className="text-[10px] bg-white border border-indigo-200 text-indigo-600 font-bold px-3 py-1.5 rounded-full hover:bg-indigo-50 transition-colors w-full shadow-sm">
-                                        Save as Template
+                                    <p className="text-[10px] text-indigo-800 font-medium mb-1">Manage Forms</p>
+                                    <button
+                                        onClick={() => setSaveFormOpen(true)}
+                                        className="text-[10px] bg-white border border-indigo-200 text-indigo-600 font-bold px-3 py-1.5 rounded-full hover:bg-indigo-50 transition-colors w-full shadow-sm mb-2"
+                                    >
+                                        Save to Library
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('library')}
+                                        className="text-[10px] bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-full hover:bg-indigo-700 transition-colors w-full shadow-sm"
+                                    >
+                                        Open Library
                                     </button>
                                 </div>
                             </div>
@@ -2045,7 +2145,7 @@ export const ERPManager: React.FC = () => {
                                 {/* TABLE VIEW */}
                                 {subView === 'table' && (
                                     <div className="h-full overflow-auto custom-scrollbar p-6">
-                                        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden min-h-[400px]">
+                                        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto min-h-[400px]">
                                             <table className="w-full text-left border-collapse">
                                                 <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10 shadow-sm">
                                                     <tr>
@@ -2199,7 +2299,158 @@ export const ERPManager: React.FC = () => {
                     )
                 }
 
+                {/* --- Form Library Tab Content --- */}
+                {activeTab === 'library' && (
+                    <div className="flex-1 bg-slate-50 p-8 overflow-y-auto animate-in fade-in duration-300">
+                        <div className="max-w-5xl mx-auto">
+                            <div className="flex justify-between items-center mb-8">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+                                        <Folder size={28} className="text-indigo-600" /> Form Library
+                                    </h2>
+                                    <p className="text-sm text-gray-500 mt-2">Manage your collection of saved form templates and schemas.</p>
+                                </div>
+                                <button
+                                    onClick={() => setActiveTab('builder')}
+                                    className="flex items-center gap-2 px-4 py-2 bg-white text-indigo-600 border border-indigo-200 rounded-lg text-sm font-bold hover:bg-indigo-50 hover:border-indigo-300 transition-all shadow-sm"
+                                >
+                                    <ArrowRight size={16} /> Back to Builder
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {/* Create New Card */}
+                                <div
+                                    onClick={() => {
+                                        triggerConfirm(
+                                            'Create New Form',
+                                            'Create a blank new form? Current changes will be lost.',
+                                            () => {
+                                                setSchema([]);
+                                                setActiveTab('builder');
+                                                addToast('Created new blank form', 'info');
+                                            },
+                                            'info',
+                                            'Create New'
+                                        );
+                                    }}
+                                    className="bg-white p-6 rounded-2xl border-2 border-dashed border-gray-200 hover:border-indigo-400 hover:bg-indigo-50/10 cursor-pointer transition-all group flex flex-col items-center justify-center text-center h-48 shadow-sm hover:shadow-md"
+                                >
+                                    <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform text-indigo-600">
+                                        <Plus size={24} />
+                                    </div>
+                                    <h4 className="font-bold text-gray-700">Create New Form</h4>
+                                    <p className="text-xs text-gray-400 mt-2">Start from a blank canvas</p>
+                                </div>
+
+                                {savedForms.map(form => (
+                                    <div key={form.id} className="bg-white p-6 rounded-2xl border border-gray-100 hover:border-indigo-200 hover:shadow-lg transition-all group relative flex flex-col h-48">
+                                        <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteForm(form.id); }}
+                                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="Delete Template"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-start gap-4 mb-4">
+                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm uppercase shadow-md shrink-0">
+                                                {form.name.substring(0, 2)}
+                                            </div>
+                                            <div className="overflow-hidden">
+                                                <h4 className="font-bold text-gray-800 truncate" title={form.name}>{form.name}</h4>
+                                                <span className="text-xs text-gray-400 mt-1 block flex items-center gap-1">
+                                                    <Clock size={10} /> {new Date(form.timestamp).toLocaleDateString()}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <p className="text-sm text-gray-500 line-clamp-2 mb-auto flex-1">{form.description || 'No description provided.'}</p>
+
+                                        <button
+                                            onClick={() => handleLoadForm(form.id)}
+                                            className="w-full py-2.5 mt-4 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-100 flex items-center justify-center gap-2 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-transparent"
+                                        >
+                                            Load Template <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
             </main >
+
+            {/* --- Save Form Modal --- */}
+            {saveFormOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
+                        <div className="px-6 py-4 border-b border-gray-100">
+                            <h3 className="font-bold text-gray-800">Save Form Template</h3>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Form Name</label>
+                                <input
+                                    autoFocus
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 transition-all"
+                                    placeholder="e.g., Q3 Survey"
+                                    value={formName}
+                                    onChange={e => setFormName(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Description</label>
+                                <textarea
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 transition-all h-20 resize-none"
+                                    placeholder="Optional description..."
+                                    value={formDesc}
+                                    onChange={e => setFormDesc(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 bg-gray-50 flex justify-end gap-2">
+                            <button onClick={() => setSaveFormOpen(false)} className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors">Cancel</button>
+                            <button onClick={handleSaveForm} className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors">Save Form</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* --- Generic Confirmation Modal --- */}
+            {confirmDialog.isOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
+                        <div className="px-6 py-4 border-b border-gray-100">
+                            <h3 className={`font-bold ${confirmDialog.type === 'danger' ? 'text-red-600' : 'text-gray-800'}`}>{confirmDialog.title}</h3>
+                        </div>
+                        <div className="p-6 text-sm text-gray-600 leading-relaxed">
+                            {confirmDialog.message}
+                        </div>
+                        <div className="px-6 py-4 bg-gray-50 flex justify-end gap-2">
+                            <button
+                                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                                className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    confirmDialog.onConfirm();
+                                    setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                                }}
+                                className={`px-4 py-2 text-xs font-bold text-white rounded-lg transition-colors ${confirmDialog.type === 'danger' ? 'bg-red-500 hover:bg-red-600' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                            >
+                                {confirmDialog.confirmText}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div >
     );
 };
