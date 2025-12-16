@@ -943,7 +943,7 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                 <h2 className="text-2xl font-extrabold text-slate-800 flex items-center gap-3">
                     {formName || 'Preview Mode'}
                 </h2>
-                <p className="text-slate-400 text-sm mt-1">{formName ? 'Form Template Preview' : 'This is how your users will see the form.'}</p>
+                <p className="text-slate-400 text-sm mt-1">{formName ? '' : 'This is how your users will see the form.'}</p>
             </div>
 
             <div className="flex flex-wrap -mx-3">
