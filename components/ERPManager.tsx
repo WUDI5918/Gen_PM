@@ -53,6 +53,103 @@ const InitialSchema = [
         width: '100%',
         placeholder: 'example@domain.com',
         logic: { regex: "^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$", errorMsg: "Invalid email format" }
+    },
+
+    { id: 'f_dates_demo', type: 'divider', label: 'Advanced Logic: Dates & Validation', width: '100%' },
+    { id: 'start_date', type: 'date', label: 'Start Date', width: '50%', required: true },
+    {
+        id: 'end_date',
+        type: 'date',
+        label: 'End Date',
+        width: '50%',
+        required: true,
+        logic: {
+            customRule: "DAYS({end_date}, {start_date}) >= 0",
+            customErrorMsg: "End Date must be after Start Date"
+        }
+    },
+    {
+        id: 'duration_days',
+        type: 'number',
+        label: 'Duration (Days)',
+        width: '100%',
+        logic: {
+            calculation: "DAYS({end_date}, {start_date})",
+            readOnly: "true"
+        }
+    },
+
+    { id: 'f_string_logic', type: 'divider', label: 'String & Dynamic Logic', width: '100%' },
+    {
+        id: 'region',
+        type: 'select',
+        label: 'Region',
+        width: '50%',
+        options: ['North America', 'Europe', 'Asia'],
+        required: true
+    },
+    {
+        id: 'city',
+        type: 'select',
+        label: 'City (Dynamic Options)',
+        width: '50%',
+        options: [],
+        logic: {
+            // Example of logic-based options
+            optionsRule: "IF({region} == 'North America', ['New York', 'Toronto', 'Chicago'], IF({region} == 'Europe', ['London', 'Berlin', 'Paris'], ['Tokyo', 'Beijing', 'Seoul']))"
+        }
+    },
+    {
+        id: 'sku_code',
+        type: 'text',
+        label: 'Generated SKU Code',
+        width: '100%',
+        logic: {
+            calculation: "UPPER(CONCAT({region}, '-', {city}, '-', ROUND(RAND() * 1000, 0)))",
+            readOnly: "true"
+        },
+        helpText: "Auto-generated from Region + City + Random ID"
+    },
+
+    { id: 'f_api_demo', type: 'divider', label: 'External Data (API Simulation)', width: '100%' },
+    {
+        id: 'user_id',
+        type: 'select',
+        label: 'Select User ID',
+        width: '50%',
+        options: ['101', '102', '103'],
+        required: true
+    },
+    {
+        id: 'user_name',
+        type: 'text',
+        label: 'Fetched Name',
+        width: '50%',
+        logic: {
+            // MOCK_LOOKUP(dataset, key, field)
+            apiRule: "MOCK_LOOKUP('users', {user_id}, 'name')",
+            readOnly: "true"
+        }
+    },
+    {
+        id: 'user_role',
+        type: 'text',
+        label: 'Fetched Role',
+        width: '50%',
+        logic: {
+            apiRule: "MOCK_LOOKUP('users', {user_id}, 'role')",
+            readOnly: "true"
+        }
+    },
+    {
+        id: 'user_dept',
+        type: 'text',
+        label: 'Fetched Dept',
+        width: '50%',
+        logic: {
+            apiRule: "MOCK_LOOKUP('users', {user_id}, 'dept')",
+            readOnly: "true"
+        }
     }
 ];
 
@@ -91,20 +188,69 @@ const safeRenderValue = (val: any) => {
     return val;
 };
 
+// --- Mock API Database for Simulation ---
+const MOCK_DB: any = {
+    users: {
+        '101': { name: 'Alice Smith', role: 'Manager', dept: 'Sales' },
+        '102': { name: 'Bob Jones', role: 'Engineer', dept: 'IT' },
+        '103': { name: 'Charlie Day', role: 'Analyst', dept: 'Finance' }
+    },
+    products: {
+        'P-001': { price: 1200, stock: 55 },
+        'P-002': { price: 850, stock: 12 }
+    }
+};
+
+// --- Logic Engine Core ---
 // --- Logic Engine Core ---
 const evaluateExpression = (expr: string, data: any) => {
     if (!expr) return null;
     try {
-        // Regex to find variable placeholders {field_id}
-        const parsedExpr = expr.replace(/\{(\w+)\}/g, (match, fieldId) => {
+        // 1. Pre-process text markers ex: {field_id}
+        const processedExpr = expr.replace(/\{(\w+)\}/g, (match, fieldId) => {
             const val = data[fieldId];
-            if (val === undefined || val === null) return '0'; // Default to 0/null for safety
-            if (!isNaN(Number(val)) && val !== '') return Number(val).toString(); // Return number if numeric
-            return `'${val}'`; // Return quoted string otherwise
+            if (val === undefined || val === null || val === '') return 'null';
+            if (!isNaN(Number(val)) && typeof val !== 'boolean') return Number(val).toString(); // Number
+            return `'${String(val).replace(/'/g, "\\'")}'`; // String escape quotes
         });
-        // Safe-ish eval: in production use a parser library like 'mathjs'
+
+        // 2. Define Helper Functions directly in the evaluated string scope
+        const funcBody = `
+            const DAYS = (d1, d2) => {
+                 if(!d1 || !d2) return 0;
+                 const t1 = new Date(d1).getTime();
+                 const t2 = new Date(d2).getTime();
+                 if(isNaN(t1) || isNaN(t2)) return 0;
+                 return Math.ceil((t1 - t2) / (1000 * 60 * 60 * 24));
+            };
+            const IF = (c, t, f) => c ? t : f;
+            const NOW = () => new Date().toISOString().split('T')[0];
+            const YEAR = (d) => new Date(d).getFullYear();
+            const MONTH = (d) => new Date(d).getMonth() + 1;
+            
+            const CONCAT = (...args) => args.join('');
+            const UPPER = (s) => String(s||'').toUpperCase();
+            const LOWER = (s) => String(s||'').toLowerCase();
+            const LEN = (s) => String(s||'').length;
+            
+            const MAX = (...args) => Math.max(...args);
+            const MIN = (...args) => Math.min(...args);
+            const ROUND = (n, d=0) => { const m=Math.pow(10,d); return Math.round(Number(n)*m)/m; };
+            const RAND = () => Math.random();
+            
+            // Mock API Lookup helper
+            const MOCK_LOOKUP = (dataset, id, key) => {
+                 // In a real app, this would be an async call. Here we simulate it sync for "calculation",
+                 // but we will treat it specially in the effect hook.
+                 return { __isApi: true, dataset, id, key };
+            };
+
+            return (${processedExpr});
+        `;
+
+        // Safe-ish eval
         // eslint-disable-next-line
-        return new Function(`return (${parsedExpr})`)();
+        return new Function(funcBody)();
     } catch (error) {
         // console.warn('Logic Error:', error);
         return null;
@@ -410,6 +556,26 @@ const FieldEditor = ({
                                         />
                                     </div>
                                 </div>
+
+                                {/* Display Visibility Settings */}
+                                <div className="flex gap-4 pt-2 border-t border-slate-100">
+                                    <label className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase cursor-pointer hover:text-indigo-600 transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={field.showInGrid !== false}
+                                            onChange={(e) => onUpdate(field.id, 'showInGrid', e.target.checked)}
+                                            className="rounded text-indigo-500 w-3 h-3 focus:ring-0"
+                                        /> Show in Grid
+                                    </label>
+                                    <label className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase cursor-pointer hover:text-indigo-600 transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={field.showInBatch !== false}
+                                            onChange={(e) => onUpdate(field.id, 'showInBatch', e.target.checked)}
+                                            className="rounded text-indigo-500 w-3 h-3 focus:ring-0"
+                                        /> Show in Batch
+                                    </label>
+                                </div>
                             </div>
                         )}
 
@@ -501,13 +667,43 @@ const FieldEditor = ({
                                         <div>
                                             <div className="flex justify-between mb-1">
                                                 <label className="text-[10px] font-bold text-slate-400 uppercase">Calculated Value (=)</label>
-                                                <span className="text-[10px] text-slate-300 font-mono">e.g. {'{f1}'} * {'{f2}'}</span>
+                                                <span className="text-[10px] text-slate-300 font-mono">e.g. CONCAT({'{f1}'}, '-', {'{f2}'})</span>
                                             </div>
                                             <input
                                                 value={field.logic?.calculation || ''}
                                                 onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, calculation: e.target.value })}
                                                 className="w-full text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
                                                 placeholder="Formula..."
+                                            />
+                                        </div>
+
+                                        {/* Dynamic Options Rule */}
+                                        {['select', 'radio', 'tabs'].includes(field.type) && (
+                                            <div>
+                                                <div className="flex justify-between mb-1">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Dynamic Options Rule</label>
+                                                    <span className="text-[10px] text-slate-300 font-mono">Returns Array</span>
+                                                </div>
+                                                <input
+                                                    value={field.logic?.optionsRule || ''}
+                                                    onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, optionsRule: e.target.value })}
+                                                    className="w-full text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
+                                                    placeholder="IF({region} == 'US', ['NY', 'LA'], ['London'])"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* API Fetch Rule */}
+                                        <div>
+                                            <div className="flex justify-between mb-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">External Data Logic</label>
+                                                <span className="text-[10px] text-slate-300 font-mono">Simulated API</span>
+                                            </div>
+                                            <input
+                                                value={field.logic?.apiRule || ''}
+                                                onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, apiRule: e.target.value })}
+                                                className="w-full text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
+                                                placeholder="MOCK_LOOKUP('users', {user_id}, 'name')"
                                             />
                                         </div>
 
@@ -519,11 +715,30 @@ const FieldEditor = ({
                                                     value={field.logic?.regex || ''}
                                                     onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, regex: e.target.value })}
                                                     className="flex-1 text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
-                                                    placeholder="^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$"
+                                                    placeholder="Regex Pattern..."
                                                 />
                                                 <input
                                                     value={field.logic?.errorMsg || ''}
                                                     onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, errorMsg: e.target.value })}
+                                                    className="w-1/3 text-xs px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
+                                                    placeholder="Error Msg"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Cross-Field Validation Rule */}
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Custom Logic Validation</label>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    value={field.logic?.customRule || ''}
+                                                    onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, customRule: e.target.value })}
+                                                    className="flex-1 text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
+                                                    placeholder="{val} > {other_field}"
+                                                />
+                                                <input
+                                                    value={field.logic?.customErrorMsg || ''}
+                                                    onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, customErrorMsg: e.target.value })}
                                                     className="w-1/3 text-xs px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
                                                     placeholder="Error Msg"
                                                 />
@@ -571,13 +786,34 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
         let hasChanges = false;
 
         schema.forEach((field: any) => {
-            // Calculation
+            // 1. Calculation (Sync)
             if (field.logic?.calculation) {
                 const result = evaluateExpression(field.logic.calculation, data);
-                if (result !== null && result !== undefined && result !== data[field.id]) {
-                    // Avoid infinite loops: only update if changed and numeric/safe
-                    if (Number(result) !== Number(data[field.id])) {
+                if (result !== null && result !== undefined && !result.__isApi) {
+                    if (String(result) !== String(data[field.id])) {
                         newData[field.id] = result;
+                        hasChanges = true;
+                    }
+                }
+            }
+
+            // 2. API Logic (Simulated Async)
+            if (field.logic?.apiRule) {
+                const meta = evaluateExpression(field.logic.apiRule, data);
+                // Check if we have a valid lookup instruction object
+                if (meta && meta.__isApi && meta.id) {
+                    // Check MOCK_DB
+                    const record = MOCK_DB[meta.dataset]?.[meta.id];
+                    const fetchedValue = record ? record[meta.key] : '';
+
+                    if (fetchedValue !== undefined && fetchedValue !== data[field.id]) {
+                        newData[field.id] = fetchedValue;
+                        hasChanges = true;
+                    }
+                } else if (data[field.id]) {
+                    // API Rule exists but invalid ID (e.g. empty), clear field
+                    if (data[field.id] !== '') {
+                        newData[field.id] = '';
                         hasChanges = true;
                     }
                 }
@@ -607,6 +843,14 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
         return field.required;
     };
 
+    const getOptions = (field: any) => {
+        if (field.logic?.optionsRule) {
+            const result = evaluateExpression(field.logic.optionsRule, data);
+            if (Array.isArray(result)) return result;
+        }
+        return field.options;
+    };
+
     const handleChange = (id: string, value: any) => {
         // ... (Update local data)
         const updatedData = { ...data, [id]: value };
@@ -631,6 +875,16 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
             delete newErrors[id];
         }
 
+        // 2. Custom Logic Validation (Cross-field)
+        if (field?.logic?.customRule) {
+            const isValid = evaluateExpression(field.logic.customRule, updatedData);
+            if (isValid === false) { // Strict false check
+                newErrors[id] = field.logic.customErrorMsg || 'Validation failed';
+            } else if (newErrors[id] === (field.logic.customErrorMsg || 'Validation failed')) {
+                delete newErrors[id];
+            }
+        }
+
         // 2. Dynamic Required Check (Simulated for feedback)
         // In a real form library like React Hook Form, this would be cleaner.
         const isReq = field.logic?.requiredRule ? (evaluateExpression(field.logic.requiredRule, updatedData) === true) : field.required;
@@ -641,8 +895,38 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
         }
 
         setErrors(newErrors);
+        setErrors(newErrors);
         setData(updatedData);
     };
+
+    // Re-validate all fields when data changes (for cross-field dependencies)
+    useEffect(() => {
+        const newErrors = { ...errors };
+        let hasValidationChanges = false;
+
+        schema.forEach((field: any) => {
+            if (field.logic?.customRule) {
+                const isValid = evaluateExpression(field.logic.customRule, data);
+                const errorMsg = field.logic.customErrorMsg || 'Validation failed';
+
+                if (isValid === false) {
+                    if (newErrors[field.id] !== errorMsg) {
+                        newErrors[field.id] = errorMsg;
+                        hasValidationChanges = true;
+                    }
+                } else {
+                    if (newErrors[field.id] === errorMsg) {
+                        delete newErrors[field.id];
+                        hasValidationChanges = true;
+                    }
+                }
+            }
+        });
+
+        if (hasValidationChanges) {
+            setErrors(newErrors);
+        }
+    }, [data, schema]);
 
     return (
         <div className="bg-white p-8 min-h-[800px] shadow-2xl shadow-slate-200/50 rounded-2xl border border-slate-200 relative overflow-hidden flex flex-col">
@@ -873,7 +1157,7 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                             {/* Tabs as Segmented Control */}
                             {field.type === 'tabs' && (
                                 <div className="bg-slate-100 p-1 rounded-xl flex items-center mb-2">
-                                    {(field.options || ['Tab 1', 'Tab 2']).map((tab: string) => (
+                                    {(getOptions(field) || ['Tab 1', 'Tab 2']).map((tab: string) => (
                                         <button
                                             key={tab}
                                             onClick={() => handleChange(field.id, tab)}
@@ -888,7 +1172,7 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                             {field.type === 'steps' && (
                                 <div className="w-full overflow-x-auto py-4">
                                     <div className="flex items-center min-w-max">
-                                        {(field.options || ['Step 1', 'Step 2', 'Step 3']).map((step: string, idx: number) => (
+                                        {(getOptions(field) || ['Step 1', 'Step 2', 'Step 3']).map((step: string, idx: number) => (
                                             <div key={idx} className="flex items-center">
                                                 <div className="flex items-center gap-2">
                                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${idx === 0 ? 'bg-indigo-600 text-white ring-4 ring-indigo-50' : 'bg-white border border-slate-200 text-slate-500'}`}>
@@ -896,7 +1180,7 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                                                     </div>
                                                     <span className={`text-sm font-bold ${idx === 0 ? 'text-indigo-600' : 'text-slate-500'}`}>{step}</span>
                                                 </div>
-                                                {idx < (field.options?.length || 3) - 1 && (
+                                                {idx < (getOptions(field)?.length || 3) - 1 && (
                                                     <div className="h-0.5 w-12 bg-slate-200 mx-3"></div>
                                                 )}
                                             </div>
@@ -917,7 +1201,7 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                                         disabled={isReadOnly}
                                     >
                                         <option value="">Select an option...</option>
-                                        {field.options?.map((opt: string) => (
+                                        {getOptions(field)?.map((opt: string) => (
                                             <option key={opt} value={opt}>{opt}</option>
                                         ))}
                                     </select>
@@ -927,7 +1211,7 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
 
                             {field.type === 'radio' && (
                                 <div className={`flex flex-wrap gap-3 mt-1 ${isReadOnly ? 'opacity-60 pointer-events-none' : ''}`}>
-                                    {field.options?.map((opt: string) => (
+                                    {getOptions(field)?.map((opt: string) => (
                                         <label key={opt} className={`flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border transition-all ${data[field.id] === opt ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}>
                                             <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${data[field.id] === opt ? 'border-indigo-600' : 'border-slate-300'}`}>
                                                 {data[field.id] === opt && <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>}
@@ -1008,7 +1292,7 @@ export const ERPManager: React.FC = () => {
     const [subView, setSubView] = useState<'table' | 'preview' | 'batch'>('table'); // Data sub-views
 
     // Schema State
-    const [schema, setSchema] = useState(InitialSchema);
+    const [schema, setSchema] = useState<any[]>(InitialSchema);
     const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
 
     // Data State
@@ -1084,7 +1368,9 @@ export const ERPManager: React.FC = () => {
             width: '100%',
             options: ['Option 1', 'Option 2'],
             placeholder: '',
-            helpText: ''
+            helpText: '',
+            showInGrid: true,
+            showInBatch: true
         };
         setSchema([...schema, newField]);
         setActiveFieldId(newField.id);
@@ -1195,7 +1481,8 @@ export const ERPManager: React.FC = () => {
             _schema.splice(dragOverItem.current, 0, draggedItemContent);
             setSchema(_schema);
         }
-        dragItem.current = null; dragOverItem.current = null;
+        dragItem.current = null;
+        dragOverItem.current = null;
     };
 
     // --- Data Actions ---
@@ -1354,7 +1641,10 @@ export const ERPManager: React.FC = () => {
     };
 
     // Data columns only
-    const dataColumns = schema.filter(f => !['divider', 'notice', 'spacer'].includes(f.type));
+    const layoutTypes = ['divider', 'notice', 'spacer'];
+    const allDataFields = schema.filter(f => !layoutTypes.includes(f.type));
+    const gridColumns = allDataFields.filter(f => f.showInGrid !== false);
+    const batchColumns = allDataFields.filter(f => f.showInBatch !== false);
 
     return (
         <div className="flex flex-col h-full bg-slate-50 font-sans text-slate-900">
@@ -1641,7 +1931,7 @@ export const ERPManager: React.FC = () => {
                                                         }}
                                                     >
                                                         <option value="">选择字段...</option>
-                                                        {dataColumns.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                                                        {allDataFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
                                                     </select>
                                                 </div>
 
@@ -1760,7 +2050,7 @@ export const ERPManager: React.FC = () => {
                                                 <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10 shadow-sm">
                                                     <tr>
                                                         <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase w-16 text-center bg-gray-50">#</th>
-                                                        {dataColumns.map(f => (
+                                                        {gridColumns.map(f => (
                                                             <th key={f.id} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase whitespace-nowrap min-w-[150px] bg-gray-50 border-l border-gray-100">
                                                                 {f.label}
                                                             </th>
@@ -1771,7 +2061,7 @@ export const ERPManager: React.FC = () => {
                                                 <tbody className="divide-y divide-gray-100">
                                                     {filteredRecords.length === 0 ? (
                                                         <tr>
-                                                            <td colSpan={dataColumns.length + 2} className="px-6 py-16 text-center text-gray-400">
+                                                            <td colSpan={gridColumns.length + 2} className="px-6 py-16 text-center text-gray-400">
                                                                 <div className="flex flex-col items-center gap-3">
                                                                     <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
                                                                         <Search size={24} className="opacity-30" />
@@ -1785,7 +2075,7 @@ export const ERPManager: React.FC = () => {
                                                         filteredRecords.map((row, i) => (
                                                             <tr key={row._id} className="hover:bg-indigo-50/30 transition-colors group">
                                                                 <td className="px-6 py-4 text-xs font-mono text-gray-400 text-center group-hover:text-indigo-400">{i + 1}</td>
-                                                                {dataColumns.map(f => (
+                                                                {gridColumns.map(f => (
                                                                     <td key={f.id} className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap border-l border-transparent group-hover:border-indigo-100 max-w-xs truncate">
                                                                         {f.type === 'checkbox' ? (
                                                                             row[f.id] ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Yes</span> : <span className="text-gray-400 text-xs">No</span>
@@ -1831,7 +2121,7 @@ export const ERPManager: React.FC = () => {
                                                     <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                                                         <tr>
                                                             <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-12 text-center">#</th>
-                                                            {dataColumns.map(f => (
+                                                            {batchColumns.map(f => (
                                                                 <th key={f.id} className="px-4 py-3 text-xs font-bold text-gray-500 uppercase whitespace-nowrap min-w-[150px] border-l border-gray-100">
                                                                     {f.label} {f.required && <span className="text-red-500">*</span>}
                                                                 </th>
@@ -1843,7 +2133,7 @@ export const ERPManager: React.FC = () => {
                                                         {batchRows.map((row, idx) => (
                                                             <tr key={row.tempId} className="group hover:bg-indigo-50/10">
                                                                 <td className="px-4 py-2 text-center text-xs text-gray-400 font-mono">{idx + 1}</td>
-                                                                {dataColumns.map(f => (
+                                                                {batchColumns.map(f => (
                                                                     <td key={f.id} className="p-0 border-l border-gray-100">
                                                                         {f.type === 'select' ? (
                                                                             <select
