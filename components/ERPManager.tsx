@@ -8,19 +8,52 @@ import {
     Filter, Search, Bookmark, Download, Upload, Copy, Grid,
     Settings2, LayoutTemplate, Circle as CircleIcon,
     ChevronRight, ChevronDown, MoreHorizontal, Database, ArrowRight,
-    Maximize2, Columns, Edit3, Check, ChevronUp, Layers, BoxSelect
+    Maximize2, Columns, Edit3, Check, ChevronUp, Layers, BoxSelect,
+    ToggleLeft, FileText, PenTool, Star, CreditCard, Clock, Link,
+    ListOrdered, Folder, Sidebar
 } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 
 // --- Configuration Constants ---
 const InitialSchema = [
-    { id: 'f_title', type: 'divider', label: '基本信息', width: '100%' },
-    { id: 'f_notice_1', type: 'notice', label: '填写说明', width: '100%', noticeType: 'info', content: '请确保所有产品数据与 ERP 物料主数据保持一致。' },
-    { id: 'f1', type: 'text', label: '产品名称', required: true, width: '50%', placeholder: '请输入产品全称', helpText: '例如：304不锈钢螺丝 M4*12' },
-    { id: 'f2', type: 'select', label: '产品分类', required: true, width: '50%', options: ['电子元器件', '机械结构件', '耗材'] },
-    { id: 'f_stock', type: 'divider', label: '库存控制', width: '100%' },
-    { id: 'f3', type: 'number', label: '安全库存', required: true, width: '50%', placeholder: '0', min: 0 },
-    { id: 'f4', type: 'radio', label: '检验方式', required: true, width: '50%', options: ['全检', '抽检', '免检'] },
+    { id: 'f_title', type: 'divider', label: 'Basic Info', width: '100%' },
+    { id: 'f_notice_1', type: 'notice', label: 'Instructions', width: '100%', noticeType: 'info', content: 'Ensure all product data matches the ERP master data.' },
+    { id: 'f1', type: 'text', label: 'Product Name', required: true, width: '50%', placeholder: 'Enter product name...' },
+    { id: 'f2', type: 'select', label: 'Category', required: true, width: '50%', options: ['Electronics', 'Mechanical', 'Consumables'] },
+
+    { id: 'f_logic_demo', type: 'divider', label: 'Logic Engine Demo', width: '100%' },
+    { id: 'f_show_details', type: 'radio', label: 'Show Advanced Details?', required: true, width: '100%', options: ['Yes', 'No'] },
+
+    // Visibility Rule Demo
+    {
+        id: 'f_details',
+        type: 'text',
+        label: 'Extra Details (Visible if Yes)',
+        width: '100%',
+        logic: { visibility: "{f_show_details} == 'Yes'" }
+    },
+
+    // Calculation Demo
+    { id: 'f_calc_title', type: 'notice', label: 'Calculation Demo', width: '100%', noticeType: 'warning', content: 'Try changing Price or Qty to see auto-calculation.' },
+    { id: 'price', type: 'number', label: 'Price', required: true, width: '33%', placeholder: '0' },
+    { id: 'qty', type: 'number', label: 'Quantity', required: true, width: '33%', placeholder: '0' },
+    {
+        id: 'total',
+        type: 'number',
+        label: 'Total (Price * Qty)',
+        width: '33%',
+        logic: { calculation: "{price} * {qty}", readOnly: "true" }
+    },
+
+    // Regex Demo
+    {
+        id: 'email',
+        type: 'text',
+        label: 'Email (Regex Validated)',
+        width: '100%',
+        placeholder: 'example@domain.com',
+        logic: { regex: "^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$", errorMsg: "Invalid email format" }
+    }
 ];
 
 // --- Helper Functions ---
@@ -58,6 +91,117 @@ const safeRenderValue = (val: any) => {
     return val;
 };
 
+// --- Logic Engine Core ---
+const evaluateExpression = (expr: string, data: any) => {
+    if (!expr) return null;
+    try {
+        // Regex to find variable placeholders {field_id}
+        const parsedExpr = expr.replace(/\{(\w+)\}/g, (match, fieldId) => {
+            const val = data[fieldId];
+            if (val === undefined || val === null) return '0'; // Default to 0/null for safety
+            if (!isNaN(Number(val)) && val !== '') return Number(val).toString(); // Return number if numeric
+            return `'${val}'`; // Return quoted string otherwise
+        });
+        // Safe-ish eval: in production use a parser library like 'mathjs'
+        // eslint-disable-next-line
+        return new Function(`return (${parsedExpr})`)();
+    } catch (error) {
+        // console.warn('Logic Error:', error);
+        return null;
+    }
+};
+
+// Signature Pad Component
+
+// Signature Pad Component
+const SignaturePad = ({ value, onChange }: any) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+
+    const startDrawing = (e: any) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX || e.touches[0].clientX) - rect.left;
+        const y = (e.clientY || e.touches[0].clientY) - rect.top;
+
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#000';
+        setIsDrawing(true);
+    };
+
+    const draw = (e: any) => {
+        if (!isDrawing) return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX || e.touches[0].clientX) - rect.left;
+        const y = (e.clientY || e.touches[0].clientY) - rect.top;
+
+        ctx.lineTo(x, y);
+        ctx.stroke();
+    };
+
+    const stopDrawing = () => {
+        if (!isDrawing) return;
+        setIsDrawing(false);
+        const canvas = canvasRef.current;
+        if (canvas) onChange(canvas.toDataURL());
+    };
+
+    const clear = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            onChange('');
+        }
+    };
+
+    return (
+        <div className="border border-slate-200 rounded-xl bg-slate-50 p-3">
+            {value ? (
+                <div className="relative group">
+                    <img src={value} alt="Signature" className="h-24 w-full object-contain bg-white border border-slate-200 rounded" />
+                    <button onClick={clear} className="absolute inset-0 bg-white/90 opacity-0 group-hover:opacity-100 flex items-center justify-center font-bold text-red-500 transition-opacity">
+                        Clear Signature
+                    </button>
+                </div>
+            ) : (
+                <>
+                    <canvas
+                        ref={canvasRef}
+                        width={400}
+                        height={100}
+                        className="w-full h-24 bg-white border border-dashed border-slate-300 rounded cursor-crosshair touch-none"
+                        onMouseDown={startDrawing}
+                        onMouseMove={draw}
+                        onMouseUp={stopDrawing}
+                        onMouseLeave={stopDrawing}
+                        onTouchStart={startDrawing}
+                        onTouchMove={draw}
+                        onTouchEnd={stopDrawing}
+                    />
+                    <div className="flex justify-between items-center mt-2 px-1">
+                        <span className="text-[10px] text-slate-400">Sign above</span>
+                        <button onClick={clear} className="text-[10px] text-red-400 hover:text-red-500">Reset</button>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
+
 // --- Sub-Components ---
 
 // 1. Redesigned Toolbox Item (Premium Ghost Style)
@@ -75,14 +219,30 @@ const ToolboxItem = ({ type, label, icon: Icon, onClick, colorClass = "text-slat
 
 // 2. Left Side Field Editor (Canvas Item + Properties)
 const FieldEditor = ({
-    field, index, isActive, onClick, onUpdate, onRemove, onUpdateOption, onAddOption, onRemoveOption, onDragStart, onDragEnter, onDragEnd
+    field, index, isActive, onClick, onUpdate, onRemove, onUpdateOption, onAddOption, onRemoveOption, onRename, onDragStart, onDragEnter, onDragEnd
 }: any) => {
     const isLayout = ['divider', 'notice', 'spacer'].includes(field.type);
-    const hasOptions = ['select', 'radio'].includes(field.type);
+    const hasOptions = ['select', 'radio', 'steps', 'tabs'].includes(field.type);
+    const [isLogicOpen, setIsLogicOpen] = useState(!!field.logic);
+    const [tempId, setTempId] = useState(field.id);
+
+    // Sync tempId when field.id changes externally
+    useEffect(() => {
+        setTempId(field.id);
+    }, [field.id]);
+
+    const handleIdSubmit = () => {
+        if (tempId !== field.id && onRename) {
+            onRename(field.id, tempId);
+        }
+    };
 
     const IconMap: any = {
         text: Type, number: Hash, select: List, radio: CircleIcon, checkbox: CheckSquare,
-        date: Calendar, divider: Minus, notice: Bell, spacer: MoveVertical
+        date: Calendar, divider: Minus, notice: Bell, spacer: MoveVertical,
+        time: Clock, switch: ToggleLeft, richtext: FileText, file: Upload,
+        signature: PenTool, rating: Star, card: CreditCard,
+        grid: Grid, tabs: Folder, collapse: ChevronRight, steps: ListOrdered
     };
     const Icon = IconMap[field.type] || Type;
 
@@ -93,7 +253,10 @@ const FieldEditor = ({
 
     const typeColors: any = {
         text: 'bg-blue-500', number: 'bg-emerald-500', select: 'bg-purple-500', radio: 'bg-pink-500',
-        checkbox: 'bg-teal-500', date: 'bg-orange-500', divider: 'bg-slate-400', notice: 'bg-amber-500', spacer: 'bg-slate-300'
+        checkbox: 'bg-teal-500', date: 'bg-orange-500', divider: 'bg-slate-400', notice: 'bg-amber-500', spacer: 'bg-slate-300',
+        time: 'bg-lime-500', switch: 'bg-indigo-500', richtext: 'bg-violet-500', file: 'bg-sky-500',
+        signature: 'bg-gray-600', rating: 'bg-yellow-500', card: 'bg-indigo-600',
+        grid: 'bg-slate-400', tabs: 'bg-slate-400', collapse: 'bg-slate-400', steps: 'bg-slate-400'
     };
     const accentColor = typeColors[field.type] || 'bg-slate-500';
 
@@ -161,8 +324,8 @@ const FieldEditor = ({
                     <div className="space-y-4">
 
                         {/* 1. General Settings */}
-                        <div className="grid grid-cols-12 gap-3">
-                            <div className="col-span-8">
+                        <div className="space-y-3">
+                            <div>
                                 <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                                     <Type size={10} /> Field Label
                                 </label>
@@ -174,21 +337,42 @@ const FieldEditor = ({
                                     placeholder="Enter label..."
                                 />
                             </div>
-                            <div className="col-span-4">
-                                <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                                    <Columns size={10} /> Width
-                                </label>
-                                <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                                    {widthOptions.map(opt => (
-                                        <button
-                                            key={opt.value}
-                                            onClick={() => onUpdate(field.id, 'width', opt.value)}
-                                            className={`flex-1 flex items-center justify-center py-1.5 rounded-md transition-all ${field.width === opt.value ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
-                                            title={opt.label}
-                                        >
-                                            <opt.icon size={14} />
-                                        </button>
-                                    ))}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                        <Code size={10} /> Variable ID
+                                    </label>
+                                    <div className="relative group/id">
+                                        <input
+                                            value={tempId}
+                                            onChange={(e) => setTempId(e.target.value)}
+                                            onBlur={handleIdSubmit}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleIdSubmit()}
+                                            className="w-full text-xs font-mono px-2.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 focus:bg-white focus:border-indigo-500 focus:text-indigo-600 outline-none transition-colors"
+                                            placeholder="Variable Name"
+                                            title="Variable Name for Logic Formulas (Alphanumeric only)"
+                                        />
+                                        {tempId !== field.id && (
+                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold animate-pulse">Save</div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                        <Columns size={10} /> Width
+                                    </label>
+                                    <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                        {widthOptions.map(opt => (
+                                            <button
+                                                key={opt.value}
+                                                onClick={() => onUpdate(field.id, 'width', opt.value)}
+                                                className={`flex-1 flex items-center justify-center py-1.5 rounded-md transition-all ${field.width === opt.value ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                                title={opt.label}
+                                            >
+                                                <opt.icon size={14} />
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -259,30 +443,118 @@ const FieldEditor = ({
                             </div>
                         )}
 
-                        {/* 4. Type Specific: Notice */}
-                        {field.type === 'notice' && (
+                        {/* 4. Type Specific: Notice, Card, Collapse */}
+                        {['notice', 'card', 'collapse'].includes(field.type) && (
                             <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-3 space-y-3">
-                                <div className="flex gap-2 p-1 bg-slate-100 rounded-lg w-fit">
-                                    {['info', 'warning', 'error', 'success'].map(type => (
-                                        <button
-                                            key={type}
-                                            onClick={() => onUpdate(field.id, 'noticeType', type)}
-                                            className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${field.noticeType === type ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                        >
-                                            {type}
-                                        </button>
-                                    ))}
-                                </div>
+                                {field.type === 'notice' && (
+                                    <div className="flex gap-2 p-1 bg-slate-100 rounded-lg w-fit">
+                                        {['info', 'warning', 'error', 'success'].map(type => (
+                                            <button
+                                                key={type}
+                                                onClick={() => onUpdate(field.id, 'noticeType', type)}
+                                                className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${field.noticeType === type ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                            >
+                                                {type}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                                 <textarea
-                                    rows={2}
+                                    rows={3}
                                     value={field.content || ''}
                                     onChange={(e) => onUpdate(field.id, 'content', e.target.value)}
                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-500 transition-colors shadow-sm"
-                                    placeholder="Enter notice content content..."
+                                    placeholder={field.type === 'notice' ? "Enter notice content..." : "Enter default content..."}
                                 />
                             </div>
                         )}
 
+                        {/* 5. Logic & Rules Section */}
+                        {!isLayout && (
+                            <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+                                <div
+                                    className="bg-slate-100/50 px-3 py-2 border-b border-slate-200 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
+                                    onClick={() => setIsLogicOpen(!isLogicOpen)}
+                                >
+                                    <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                        <RefreshCw size={10} /> Logic Engine <span className="normal-case font-mono bg-slate-200 px-1 rounded text-slate-600 ml-1 opacity-70">var: {'{' + field.id + '}'}</span>
+                                    </h4>
+                                    {isLogicOpen ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
+                                </div>
+                                {isLogicOpen && (
+                                    <div className="p-3 space-y-3 animate-in slide-in-from-top-1">
+                                        {/* Visibility Rule */}
+                                        <div>
+                                            <div className="flex justify-between mb-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Visibility Rule (Show ...)</label>
+                                                <span className="text-[10px] text-slate-300 font-mono">e.g. {'{f1}'} == 'Yes'</span>
+                                            </div>
+                                            <input
+                                                value={field.logic?.visibility || ''}
+                                                onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, visibility: e.target.value })}
+                                                className="w-full text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
+                                                placeholder="Expression..."
+                                            />
+                                        </div>
+
+                                        {/* Calculation Formula */}
+                                        <div>
+                                            <div className="flex justify-between mb-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Calculated Value (=)</label>
+                                                <span className="text-[10px] text-slate-300 font-mono">e.g. {'{f1}'} * {'{f2}'}</span>
+                                            </div>
+                                            <input
+                                                value={field.logic?.calculation || ''}
+                                                onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, calculation: e.target.value })}
+                                                className="w-full text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
+                                                placeholder="Formula..."
+                                            />
+                                        </div>
+
+                                        {/* Validation Regex */}
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Regex Validation</label>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    value={field.logic?.regex || ''}
+                                                    onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, regex: e.target.value })}
+                                                    className="flex-1 text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
+                                                    placeholder="^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$"
+                                                />
+                                                <input
+                                                    value={field.logic?.errorMsg || ''}
+                                                    onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, errorMsg: e.target.value })}
+                                                    className="w-1/3 text-xs px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
+                                                    placeholder="Error Msg"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Advanced Rules */}
+                                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Read-Only Rule</label>
+                                                <input
+                                                    value={field.logic?.readOnly || ''}
+                                                    onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, readOnly: e.target.value })}
+                                                    className="w-full text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
+                                                    placeholder="{f1} == 'Lock'"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Required Rule</label>
+                                                <input
+                                                    value={field.logic?.requiredRule || ''}
+                                                    onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, requiredRule: e.target.value })}
+                                                    className="w-full text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
+                                                    placeholder="{val} > 100"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -293,16 +565,83 @@ const FieldEditor = ({
 // 3. Right Side Live Preview
 const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCancel }: any) => {
 
-    const handleChange = (id: string, value: any) => {
-        setData((prev: any) => ({ ...prev, [id]: value }));
-        // Clear error if exists
-        if (errors && errors[id]) {
-            setErrors((prev: any) => {
-                const newErrors = { ...prev };
-                delete newErrors[id];
-                return newErrors;
-            });
+    // --- Logic Engine Execution ---
+    useEffect(() => {
+        const newData = { ...data };
+        let hasChanges = false;
+
+        schema.forEach((field: any) => {
+            // Calculation
+            if (field.logic?.calculation) {
+                const result = evaluateExpression(field.logic.calculation, data);
+                if (result !== null && result !== undefined && result !== data[field.id]) {
+                    // Avoid infinite loops: only update if changed and numeric/safe
+                    if (Number(result) !== Number(data[field.id])) {
+                        newData[field.id] = result;
+                        hasChanges = true;
+                    }
+                }
+            }
+        });
+
+        if (hasChanges) {
+            setData(newData);
         }
+    }, [data, schema]); // Dependency on data triggers recalculation loop. React batches updates, but care needed.
+
+    const getVisibility = (field: any) => {
+        if (!field.logic?.visibility) return true;
+        const result = evaluateExpression(field.logic.visibility, data);
+        return result === true;
+    };
+
+    const getReadOnly = (field: any) => {
+        if (!field.logic?.readOnly) return false;
+        return evaluateExpression(field.logic.readOnly, data) === true;
+    };
+
+    const getRequired = (field: any) => {
+        if (field.logic?.requiredRule) {
+            return evaluateExpression(field.logic.requiredRule, data) === true;
+        }
+        return field.required;
+    };
+
+    const handleChange = (id: string, value: any) => {
+        // ... (Update local data)
+        const updatedData = { ...data, [id]: value };
+
+        // Inline Validation Logic
+        const newErrors = { ...errors };
+        const field = schema.find((f: any) => f.id === id);
+
+        // 1. Regex Validation
+        if (field?.logic?.regex) {
+            try {
+                const regex = new RegExp(field.logic.regex);
+                if (!regex.test(value)) {
+                    newErrors[id] = field.logic.errorMsg || 'Format invalid';
+                } else {
+                    delete newErrors[id];
+                }
+            } catch (e) {
+                // Ignore bad regex
+            }
+        } else {
+            delete newErrors[id];
+        }
+
+        // 2. Dynamic Required Check (Simulated for feedback)
+        // In a real form library like React Hook Form, this would be cleaner.
+        const isReq = field.logic?.requiredRule ? (evaluateExpression(field.logic.requiredRule, updatedData) === true) : field.required;
+        if (isReq && !value) {
+            newErrors[id] = 'This field is required';
+        } else if (newErrors[id] === 'This field is required') {
+            delete newErrors[id];
+        }
+
+        setErrors(newErrors);
+        setData(updatedData);
     };
 
     return (
@@ -329,6 +668,14 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                 {schema.map((field: any) => {
                     const widthClass = field.width === '50%' ? 'w-1/2' : 'w-full';
                     const isError = !!errors?.[field.id];
+
+                    // Logic: Visibility Check
+                    if (!getVisibility(field)) return null;
+
+                    // Logic: ReadOnly & Required
+                    const isReadOnly = getReadOnly(field);
+                    const isRequired = getRequired(field);
+                    const commonInputClasses = `w-full border rounded-xl px-4 py-3 text-sm outline-none transition-all ${isError ? 'border-red-300 bg-red-50 focus:border-red-500' : isReadOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10'}`;
 
                     if (field.type === 'divider') {
                         return (
@@ -372,25 +719,202 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                         <div key={field.id} className={`${widthClass} px-3 mb-5 transition-all`}>
                             <label className="block text-sm font-bold text-slate-700 mb-2">
                                 {field.label}
-                                {field.required && <span className="text-red-500 ml-1">*</span>}
+                                {isRequired && <span className="text-red-500 ml-1">*</span>}
                             </label>
 
                             {['text', 'number', 'date', 'time', 'email', 'tel'].includes(field.type) && (
                                 <input
                                     type={field.type === 'text' ? 'text' : field.type}
-                                    className={`w-full border rounded-xl px-4 py-3 text-sm outline-none transition-all ${isError ? 'border-red-300 bg-red-50 focus:border-red-500' : 'border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10'}`}
+                                    className={commonInputClasses}
                                     placeholder={field.placeholder}
                                     value={data[field.id] || ''}
+                                    disabled={isReadOnly}
                                     onChange={(e) => handleChange(field.id, e.target.value)}
                                 />
                             )}
 
+                            {field.type === 'switch' && (
+                                <label className={`flex items-center gap-3 cursor-pointer w-fit ${isReadOnly ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    <div className={`w-11 h-6 rounded-full transition-colors relative ${data[field.id] ? 'bg-indigo-600' : 'bg-slate-200'}`}>
+                                        <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full shadow-sm transition-transform ${data[field.id] ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                    </div>
+                                    <span className="text-sm font-medium text-slate-700">{data[field.id] ? 'On' : 'Off'}</span>
+                                    <input type="checkbox" className="hidden" checked={!!data[field.id]} onChange={(e) => handleChange(field.id, e.target.checked)} disabled={isReadOnly} />
+                                </label>
+                            )}
+
+                            {field.type === 'richtext' && (
+                                <div className={`border rounded-xl overflow-hidden bg-white ${isError ? 'border-red-300' : 'border-slate-200'} ${isReadOnly ? 'opacity-60 pointer-events-none bg-slate-50' : ''}`}>
+                                    <div className="bg-slate-50 border-b border-slate-200 px-2 py-1.5 flex gap-1 shadow-sm">
+                                        {['bold', 'italic', 'underline', 'insertUnorderedList'].map((cmd) => (
+                                            <button
+                                                key={cmd}
+                                                onClick={(e) => { e.preventDefault(); document.execCommand(cmd, false); }}
+                                                className="p-1.5 hover:bg-slate-200 rounded text-slate-600 transition-colors"
+                                                title={cmd}
+                                            >
+                                                {cmd === 'bold' && <Type size={14} strokeWidth={3} />}
+                                                {cmd === 'italic' && <Type size={14} className="italic" />}
+                                                {cmd === 'underline' && <Type size={14} className="underline" />}
+                                                {cmd === 'insertUnorderedList' && <List size={14} />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div
+                                        contentEditable
+                                        className="w-full h-32 px-4 py-3 text-sm outline-none overflow-y-auto prose prose-sm max-w-none"
+                                        onBlur={(e) => handleChange(field.id, e.currentTarget.innerHTML)}
+                                        dangerouslySetInnerHTML={{ __html: data[field.id] || '' }}
+                                        data-placeholder="Start typing..."
+                                    />
+                                    {/* Small hint for reactivity */}
+                                    <div className="px-2 py-1 text-[10px] text-slate-300 text-right border-t border-slate-50">Editor updates on blur</div>
+                                </div>
+                            )}
+
+                            {field.type === 'file' && (
+                                <div>
+                                    <label className={`border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-slate-400 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 transition-all cursor-pointer group relative overflow-hidden ${isReadOnly ? 'opacity-60 pointer-events-none' : ''}`}>
+                                        <input
+                                            type="file"
+                                            multiple
+                                            disabled={isReadOnly}
+                                            className="absolute inset-0 opacity-0 cursor-pointer"
+                                            onChange={(e) => {
+                                                const files = Array.from(e.target.files || []);
+                                                const current = data[field.id] || [];
+                                                const newFiles = files.map((f: any) => ({ name: f.name, size: (f.size / 1024).toFixed(1) + ' KB', type: f.type }));
+                                                handleChange(field.id, [...current, ...newFiles]);
+                                            }}
+                                        />
+                                        <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mb-3 group-hover:scale-110 group-hover:shadow-md transition-all">
+                                            <Upload size={24} className="text-indigo-500" />
+                                        </div>
+                                        <p className="text-sm font-bold text-slate-600 group-hover:text-indigo-600 transition-colors">Click or drag properties</p>
+                                        <p className="text-xs text-slate-400 mt-1">SVG, PNG, JPG or GIF (max. 10MB)</p>
+                                    </label>
+
+                                    {/* File List */}
+                                    {(data[field.id] && data[field.id].length > 0) && (
+                                        <div className="mt-3 space-y-2 animate-in slide-in-from-top-2">
+                                            {data[field.id].map((f: any, idx: number) => (
+                                                <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
+                                                    <div className="flex items-center gap-3 overflow-hidden">
+                                                        <div className="w-8 h-8 rounded bg-indigo-50 flex items-center justify-center text-indigo-500 shrink-0">
+                                                            <FileText size={16} />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="text-xs font-bold text-slate-700 truncate">{f.name}</p>
+                                                            <p className="text-[10px] text-slate-400">{f.size}</p>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            const newFiles = [...data[field.id]];
+                                                            newFiles.splice(idx, 1);
+                                                            handleChange(field.id, newFiles);
+                                                        }}
+                                                        className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {field.type === 'signature' && (
+                                <SignaturePad value={data[field.id]} onChange={(val: string) => handleChange(field.id, val)} />
+                            )}
+
+                            {field.type === 'rating' && (
+                                <div className={`flex items-center gap-1 ${isReadOnly ? 'pointer-events-none opacity-60' : ''}`}>
+                                    {[1, 2, 3, 4, 5].map(star => (
+                                        <button key={star} onClick={() => handleChange(field.id, star)} className="transition-transform hover:scale-110">
+                                            <Star
+                                                size={24}
+                                                className={`${(data[field.id] || 0) >= star ? 'fill-yellow-400 text-yellow-400' : 'text-slate-200'}`}
+                                            />
+                                        </button>
+                                    ))}
+                                    <span className="ml-2 text-sm font-bold text-slate-500">{data[field.id] ? `${data[field.id]} Stars` : ''}</span>
+                                </div>
+                            )}
+
+                            {field.type === 'card' && (
+                                <div className="p-5 rounded-2xl border border-slate-200 shadow-sm bg-white mt-4 relative overflow-hidden group hover:shadow-md transition-all">
+                                    <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <CreditCard size={18} className="text-indigo-600" />
+                                        <h4 className="font-bold text-lg text-slate-800">{field.label}</h4>
+                                    </div>
+                                    <p className="text-sm text-slate-500 leading-relaxed">
+                                        {field.content || 'This is a content card. You can edit this text in the builder.'}
+                                    </p>
+                                </div>
+                            )}
+
+                            {field.type === 'collapse' && (
+                                <details className="group border border-slate-200 rounded-xl bg-white open:ring-2 open:ring-indigo-500/10 open:border-indigo-200 transition-all mt-4">
+                                    <summary className="flex items-center justify-between p-4 cursor-pointer list-none text-slate-700 font-bold select-none hover:bg-slate-50 rounded-xl group-open:rounded-b-none transition-colors">
+                                        <div className="flex items-center gap-2">
+                                            <ChevronRight size={18} className="text-slate-400 group-open:rotate-90 transition-transform group-open:text-indigo-600" />
+                                            {field.label}
+                                        </div>
+                                    </summary>
+                                    <div className="p-4 pt-0 text-sm text-slate-500 leading-relaxed border-t border-transparent group-open:border-slate-100 animate-in slide-in-from-top-1">
+                                        {field.content || 'Hidden content details go here...'}
+                                    </div>
+                                </details>
+                            )}
+
+                            {/* Tabs as Segmented Control */}
+                            {field.type === 'tabs' && (
+                                <div className="bg-slate-100 p-1 rounded-xl flex items-center mb-2">
+                                    {(field.options || ['Tab 1', 'Tab 2']).map((tab: string) => (
+                                        <button
+                                            key={tab}
+                                            onClick={() => handleChange(field.id, tab)}
+                                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${data[field.id] === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            {tab}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {field.type === 'steps' && (
+                                <div className="w-full overflow-x-auto py-4">
+                                    <div className="flex items-center min-w-max">
+                                        {(field.options || ['Step 1', 'Step 2', 'Step 3']).map((step: string, idx: number) => (
+                                            <div key={idx} className="flex items-center">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${idx === 0 ? 'bg-indigo-600 text-white ring-4 ring-indigo-50' : 'bg-white border border-slate-200 text-slate-500'}`}>
+                                                        {idx + 1}
+                                                    </div>
+                                                    <span className={`text-sm font-bold ${idx === 0 ? 'text-indigo-600' : 'text-slate-500'}`}>{step}</span>
+                                                </div>
+                                                {idx < (field.options?.length || 3) - 1 && (
+                                                    <div className="h-0.5 w-12 bg-slate-200 mx-3"></div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Layout Visualizers */}
+
+
                             {field.type === 'select' && (
                                 <div className="relative">
                                     <select
-                                        className={`w-full border rounded-xl pl-4 pr-10 py-3 text-sm outline-none transition-all appearance-none cursor-pointer ${isError ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10'}`}
+                                        className={`w-full border rounded-xl pl-4 pr-10 py-3 text-sm outline-none transition-all appearance-none cursor-pointer ${isError ? 'border-red-300 bg-red-50' : isReadOnly ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed' : 'border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10'}`}
                                         value={data[field.id] || ''}
                                         onChange={(e) => handleChange(field.id, e.target.value)}
+                                        disabled={isReadOnly}
                                     >
                                         <option value="">Select an option...</option>
                                         {field.options?.map((opt: string) => (
@@ -402,7 +926,7 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                             )}
 
                             {field.type === 'radio' && (
-                                <div className="flex flex-wrap gap-3 mt-1">
+                                <div className={`flex flex-wrap gap-3 mt-1 ${isReadOnly ? 'opacity-60 pointer-events-none' : ''}`}>
                                     {field.options?.map((opt: string) => (
                                         <label key={opt} className={`flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border transition-all ${data[field.id] === opt ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}>
                                             <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${data[field.id] === opt ? 'border-indigo-600' : 'border-slate-300'}`}>
@@ -415,6 +939,7 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                                                 name={field.id}
                                                 checked={data[field.id] === opt}
                                                 onChange={() => handleChange(field.id, opt)}
+                                                disabled={isReadOnly}
                                             />
                                         </label>
                                     ))}
@@ -422,7 +947,7 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                             )}
 
                             {field.type === 'checkbox' && (
-                                <label className={`flex items-center gap-3 cursor-pointer p-3 rounded-xl border transition-all ${data[field.id] ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200 hover:bg-white'}`}>
+                                <label className={`flex items-center gap-3 cursor-pointer p-3 rounded-xl border transition-all ${isReadOnly ? 'opacity-60 pointer-events-none' : ''} ${data[field.id] ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200 hover:bg-white'}`}>
                                     <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${data[field.id] ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300'}`}>
                                         {data[field.id] && <Check size={14} />}
                                     </div>
@@ -432,6 +957,7 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                                         className="hidden"
                                         checked={!!data[field.id]}
                                         onChange={(e) => handleChange(field.id, e.target.checked)}
+                                        disabled={isReadOnly}
                                     />
                                 </label>
                             )}
@@ -550,7 +1076,7 @@ export const ERPManager: React.FC = () => {
 
     // --- Builder Actions ---
     const addField = (type: string) => {
-        const newField = {
+        const newField: any = {
             id: `f_${Date.now()}`,
             type,
             label: type === 'divider' ? 'Section' : type === 'notice' ? 'Notice' : 'New Field',
@@ -579,8 +1105,62 @@ export const ERPManager: React.FC = () => {
         setSchema(schema.map(f => f.id === id ? { ...f, [key]: value } : f));
     };
 
+    const renameField = (id: string, newId: string) => {
+        // Valdiation
+        if (!newId || newId === id) return;
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(newId)) {
+            addToast('Variable Name must start with a letter and contain only alphanumeric characters', 'error');
+            return;
+        }
+        if (schema.some(f => f.id === newId)) {
+            addToast('Variable Name must be unique', 'error');
+            return;
+        }
+
+        // Smart Update: Update references in logic & Rename field
+        const updatedSchema = schema.map(f => {
+            // 1. Rename the target field
+            if (f.id === id) return { ...f, id: newId };
+
+            // 2. Update references in other fields' logic
+            if (f.logic) {
+                const newLogic: any = { ...f.logic };
+                let modified = false;
+                const logicKeys = ['visibility', 'calculation', 'readOnly', 'requiredRule', 'regex', 'errorMsg']; // regex/errorMsg usually don't reference others, but good to inspect if extended
+
+                // Specific Check for keys that use variables
+                ['visibility', 'calculation', 'readOnly', 'requiredRule'].forEach(key => {
+                    if (newLogic[key] && typeof newLogic[key] === 'string' && newLogic[key].includes(`{${id}}`)) {
+                        newLogic[key] = newLogic[key].split(`{${id}}`).join(`{${newId}}`);
+                        modified = true;
+                    }
+                });
+
+                if (modified) return { ...f, logic: newLogic };
+            }
+            return f;
+        });
+
+        setSchema(updatedSchema);
+
+        // Update Active Selection
+        if (activeFieldId === id) setActiveFieldId(newId);
+
+        // Update DataRefs
+        setPreviewData(prev => {
+            const next = { ...prev };
+            if (next[id] !== undefined) {
+                next[newId] = next[id];
+                delete next[id];
+            }
+            return next;
+        });
+
+        addToast(`Renamed variable to ${newId} and updated references`, 'success');
+    };
+
     const updateOption = (id: string, idx: number, val: string) => {
-        setSchema(schema.map(f => {
+        setSchema(schema.map((f: any) => {
             if (f.id !== id) return f;
             const newOpts = [...(f.options || [])];
             newOpts[idx] = val;
@@ -589,16 +1169,22 @@ export const ERPManager: React.FC = () => {
     };
 
     const addOption = (id: string) => {
-        setSchema(schema.map(f => {
+        setSchema(schema.map((f: any) => {
             if (f.id !== id) return f;
-            return { ...f, options: [...(f.options || []), 'New Option'] };
+            const currentOpts = f.options || [];
+            let nextNum = currentOpts.length + 1;
+            // Simple heuristics to find next number
+            while (currentOpts.includes(`Option ${nextNum}`)) {
+                nextNum++;
+            }
+            return { ...f, options: [...currentOpts, `Option ${nextNum}`] };
         }));
     };
 
     const removeOption = (id: string, idx: number) => {
-        setSchema(schema.map(f => {
+        setSchema(schema.map((f: any) => {
             if (f.id !== id) return f;
-            return { ...f, options: (f.options || []).filter((_, i) => i !== idx) };
+            return { ...f, options: (f.options || []).filter((_: any, i: number) => i !== idx) };
         }));
     };
 
@@ -847,6 +1433,19 @@ export const ERPManager: React.FC = () => {
                                     <ToolboxItem type="notice" label="Warning / Notice" icon={Bell} onClick={addField} colorClass="text-amber-500 group-hover:text-amber-600" />
                                     <ToolboxItem type="spacer" label="Empty Space" icon={MoveVertical} onClick={addField} colorClass="text-slate-400 group-hover:text-slate-600" />
                                 </div>
+
+                                {/* Group: Advanced & Layout */}
+                                <div className="space-y-1">
+                                    <h4 className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2 hidden lg:block">Advanced & Layout</h4>
+                                    <ToolboxItem type="richtext" label="Rich Text" icon={FileText} onClick={addField} colorClass="text-violet-500 group-hover:text-violet-600" />
+                                    <ToolboxItem type="file" label="File Upload" icon={Upload} onClick={addField} colorClass="text-sky-500 group-hover:text-sky-600" />
+                                    <ToolboxItem type="signature" label="Signature" icon={PenTool} onClick={addField} colorClass="text-gray-500 group-hover:text-gray-700" />
+                                    <ToolboxItem type="rating" label="Star Rating" icon={Star} onClick={addField} colorClass="text-yellow-500 group-hover:text-yellow-600" />
+                                    <ToolboxItem type="card" label="Card Container" icon={CreditCard} onClick={addField} colorClass="text-indigo-600 group-hover:text-indigo-700" />
+                                    <ToolboxItem type="time" label="Time Picker" icon={Clock} onClick={addField} colorClass="text-lime-500 group-hover:text-lime-600" />
+                                    <ToolboxItem type="switch" label="Switch" icon={ToggleLeft} onClick={addField} colorClass="text-indigo-500 group-hover:text-indigo-600" />
+                                    <ToolboxItem type="steps" label="Steps Flow" icon={ListOrdered} onClick={addField} colorClass="text-slate-500 group-hover:text-slate-600" />
+                                </div>
                             </div>
 
                             {/* Sidebar Footer */}
@@ -901,6 +1500,7 @@ export const ERPManager: React.FC = () => {
                                                 onClick={() => setActiveFieldId(field.id)}
                                                 onUpdate={updateField}
                                                 onRemove={removeField}
+                                                onRename={renameField}
                                                 onUpdateOption={updateOption}
                                                 onAddOption={addOption}
                                                 onRemoveOption={removeOption}
