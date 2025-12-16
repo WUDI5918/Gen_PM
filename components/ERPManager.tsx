@@ -349,17 +349,23 @@ const SignaturePad = ({ value, onChange }: any) => {
 
 // --- Sub-Components ---
 
-// 1. Redesigned Toolbox Item (Premium Ghost Style)
-const ToolboxItem = ({ type, label, icon: Icon, onClick, colorClass = "text-slate-500" }: any) => (
-    <button
+// 1. Redesigned Toolbox Item (Premium Ghost Style) - Now Draggable
+const ToolboxItem = ({ type, label, icon: Icon, onClick, colorClass = "text-slate-500", onDragStart }: any) => (
+    <div
+        draggable
+        onDragStart={(e) => {
+            e.dataTransfer.setData('component-type', type);
+            e.dataTransfer.effectAllowed = 'copy';
+            if (onDragStart) onDragStart(type);
+        }}
         onClick={() => onClick(type)}
-        className="group flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-slate-100/80 transition-all active:scale-95 text-left border border-transparent hover:border-slate-200/50"
+        className="group flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-slate-100/80 transition-all active:scale-95 text-left border border-transparent hover:border-slate-200/50 cursor-grab active:cursor-grabbing"
     >
         <div className={`p-1.5 rounded-md shadow-sm border border-slate-200 bg-white group-hover:scale-105 transition-all duration-200 ${colorClass}`}>
             <Icon size={15} strokeWidth={2.5} />
         </div>
-        <span className="text-xs font-semibold text-slate-600 group-hover:text-slate-900 tracking-tight">{label}</span>
-    </button>
+        <span className="text-xs font-semibold text-slate-600 group-hover:text-slate-900 tracking-tight hidden lg:block">{label}</span>
+    </div>
 );
 
 // 2. Left Side Field Editor (Canvas Item + Properties)
@@ -1340,6 +1346,10 @@ export const ERPManager: React.FC = () => {
     const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
     const [currentFormName, setCurrentFormName] = useState('Custom Form');
 
+    // Drag from toolbox state
+    const [isDraggingFromToolbox, setIsDraggingFromToolbox] = useState(false);
+    const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+
     // Confirmation Modal State
     const [confirmDialog, setConfirmDialog] = useState<{
         isOpen: boolean;
@@ -1437,7 +1447,7 @@ export const ERPManager: React.FC = () => {
     }, []);
 
     // --- Builder Actions ---
-    const addField = (type: string) => {
+    const addField = (type: string, insertAt?: number) => {
         const newField: any = {
             id: `f_${Date.now()}`,
             type,
@@ -1450,13 +1460,21 @@ export const ERPManager: React.FC = () => {
             showInGrid: true,
             showInBatch: true
         };
-        setSchema([...schema, newField]);
-        setActiveFieldId(newField.id);
 
-        // Scroll to bottom of canvas (simple implementation)
+        if (insertAt !== undefined && insertAt >= 0 && insertAt <= schema.length) {
+            const newSchema = [...schema];
+            newSchema.splice(insertAt, 0, newField);
+            setSchema(newSchema);
+        } else {
+            setSchema([...schema, newField]);
+        }
+        setActiveFieldId(newField.id);
+        setDropTargetIndex(null);
+
+        // Scroll to the new field
         setTimeout(() => {
             const el = document.getElementById('canvas-container');
-            if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+            if (el && insertAt === undefined) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
         }, 100);
     };
 
@@ -1921,38 +1939,92 @@ export const ERPManager: React.FC = () => {
                                 </div>
 
                                 {schema.length === 0 ? (
-                                    <div className="h-96 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 bg-white/50 hover:bg-white/80 transition-colors cursor-pointer" onClick={() => addField('text')}>
+                                    <div
+                                        className={`h-96 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center bg-white/50 transition-colors cursor-pointer ${isDraggingFromToolbox ? 'border-indigo-400 bg-indigo-50/50' : 'border-slate-200 hover:bg-white/80'}`}
+                                        onClick={() => addField('text')}
+                                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+                                        onDragEnter={() => setIsDraggingFromToolbox(true)}
+                                        onDragLeave={() => setIsDraggingFromToolbox(false)}
+                                        onDrop={(e) => {
+                                            e.preventDefault();
+                                            const type = e.dataTransfer.getData('component-type');
+                                            if (type) addField(type);
+                                            setIsDraggingFromToolbox(false);
+                                        }}
+                                    >
                                         <div className="p-4 bg-slate-50 rounded-full mb-4">
-                                            <LayoutTemplate size={32} className="opacity-50" />
+                                            <LayoutTemplate size={32} className="opacity-50 text-slate-400" />
                                         </div>
-                                        <p className="font-bold text-sm">Form is Empty</p>
-                                        <p className="text-xs mt-1">Select a component from the left sidebar</p>
+                                        <p className="font-bold text-sm text-slate-400">Form is Empty</p>
+                                        <p className="text-xs mt-1 text-slate-400">{isDraggingFromToolbox ? 'Drop component here' : 'Drag or click a component from the left sidebar'}</p>
+
                                     </div>
                                 ) : (
-                                    <div className="space-y-3 pb-20">
+                                    <div className="space-y-1 pb-20">
+                                        {/* Drop zone before first item */}
+                                        <div
+                                            className={`h-2 rounded transition-all ${dropTargetIndex === 0 ? 'bg-indigo-400 h-3' : 'bg-transparent'}`}
+                                            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+                                            onDragEnter={() => { setIsDraggingFromToolbox(true); setDropTargetIndex(0); }}
+                                            onDragLeave={() => setDropTargetIndex(null)}
+                                            onDrop={(e) => {
+                                                e.preventDefault();
+                                                const type = e.dataTransfer.getData('component-type');
+                                                if (type) addField(type, 0);
+                                                setIsDraggingFromToolbox(false);
+                                                setDropTargetIndex(null);
+                                            }}
+                                        />
                                         {schema.map((field, idx) => (
-                                            <FieldEditor
-                                                key={field.id}
-                                                field={field}
-                                                index={idx}
-                                                isActive={activeFieldId === field.id}
-                                                onClick={() => setActiveFieldId(field.id)}
-                                                onUpdate={updateField}
-                                                onRemove={removeField}
-                                                onRename={renameField}
-                                                onUpdateOption={updateOption}
-                                                onAddOption={addOption}
-                                                onRemoveOption={removeOption}
-                                                onDragStart={(e: any) => { dragItem.current = idx; }}
-                                                onDragEnter={(e: any) => { dragOverItem.current = idx; }}
-                                                onDragEnd={handleDragSort}
-                                            />
+                                            <React.Fragment key={field.id}>
+                                                <FieldEditor
+                                                    field={field}
+                                                    index={idx}
+                                                    isActive={activeFieldId === field.id}
+                                                    onClick={() => setActiveFieldId(field.id)}
+                                                    onUpdate={updateField}
+                                                    onRemove={removeField}
+                                                    onRename={renameField}
+                                                    onUpdateOption={updateOption}
+                                                    onAddOption={addOption}
+                                                    onRemoveOption={removeOption}
+                                                    onDragStart={(e: any) => { dragItem.current = idx; }}
+                                                    onDragEnter={(e: any) => { dragOverItem.current = idx; }}
+                                                    onDragEnd={handleDragSort}
+                                                />
+                                                {/* Drop zone after each item */}
+                                                <div
+                                                    className={`h-2 rounded transition-all ${dropTargetIndex === idx + 1 ? 'bg-indigo-400 h-3' : 'bg-transparent'}`}
+                                                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+                                                    onDragEnter={() => { setIsDraggingFromToolbox(true); setDropTargetIndex(idx + 1); }}
+                                                    onDragLeave={() => setDropTargetIndex(null)}
+                                                    onDrop={(e) => {
+                                                        e.preventDefault();
+                                                        const type = e.dataTransfer.getData('component-type');
+                                                        if (type) addField(type, idx + 1);
+                                                        setIsDraggingFromToolbox(false);
+                                                        setDropTargetIndex(null);
+                                                    }}
+                                                />
+                                            </React.Fragment>
                                         ))}
 
                                         {/* Drop Zone Hint */}
-                                        <div className="h-24 border-2 border-dashed border-transparent hover:border-indigo-200 rounded-xl flex items-center justify-center text-indigo-300 text-xs font-bold transition-all">
-                                            End of Form
+                                        <div
+                                            className={`h-24 border-2 border-dashed rounded-xl flex items-center justify-center text-xs font-bold transition-all ${isDraggingFromToolbox ? 'border-indigo-400 bg-indigo-50/50 text-indigo-500' : 'border-transparent text-indigo-300 hover:border-indigo-200'}`}
+                                            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+                                            onDragEnter={() => setIsDraggingFromToolbox(true)}
+                                            onDragLeave={() => setIsDraggingFromToolbox(false)}
+                                            onDrop={(e) => {
+                                                e.preventDefault();
+                                                const type = e.dataTransfer.getData('component-type');
+                                                if (type) addField(type);
+                                                setIsDraggingFromToolbox(false);
+                                            }}
+                                        >
+                                            {isDraggingFromToolbox ? 'Drop component here' : 'End of Form'}
                                         </div>
+
                                     </div>
                                 )}
                             </div>
