@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import {
     Plus, Trash2, GripVertical, Code, Eye, Save, Type, List,
@@ -10,7 +9,7 @@ import {
     ChevronRight, ChevronDown, MoreHorizontal, Database, ArrowRight,
     Maximize2, Columns, Edit3, Check, ChevronUp, Layers, BoxSelect,
     ToggleLeft, FileText, PenTool, Star, CreditCard, Clock, Link,
-    ListOrdered, Folder, Sidebar
+    ListOrdered, Folder, Sidebar, FormInput
 } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 
@@ -1326,6 +1325,8 @@ export const ERPManager: React.FC = () => {
     const [saveFormOpen, setSaveFormOpen] = useState(false);
     const [formName, setFormName] = useState('');
     const [formDesc, setFormDesc] = useState('');
+    const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
+    const [currentFormName, setCurrentFormName] = useState('Custom Form');
 
     // Confirmation Modal State
     const [confirmDialog, setConfirmDialog] = useState<{
@@ -1347,6 +1348,12 @@ export const ERPManager: React.FC = () => {
     const triggerConfirm = (title: string, message: string, onConfirm: () => void, type: 'danger' | 'info' = 'info', confirmText = 'Confirm') => {
         setConfirmDialog({ isOpen: true, title, message, onConfirm, type, confirmText });
     };
+
+    // Update current form name when schema matches a saved form
+    useEffect(() => {
+        const matchedForm = savedForms.find(f => JSON.stringify(f.schema) === JSON.stringify(schema));
+        setCurrentFormName(matchedForm ? matchedForm.name : 'Custom Form');
+    }, [schema, savedForms]);
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
@@ -1694,7 +1701,7 @@ export const ERPManager: React.FC = () => {
         addToast('Form saved to library', 'success');
     };
 
-    const handleLoadForm = (formId: string) => {
+    const handleLoadForm = (formId: string, targetTab: 'builder' | 'data' = 'builder') => {
         const form = savedForms.find(f => f.id === formId);
         if (form) {
             triggerConfirm(
@@ -1703,7 +1710,8 @@ export const ERPManager: React.FC = () => {
                 () => {
                     setSchema([...form.schema]);
                     addToast(`Loaded form: ${form.name}`, 'success');
-                    setActiveTab('builder'); // Go back to builder
+                    setActiveTab(targetTab);
+                    setTemplateSelectorOpen(false);
                 },
                 'info',
                 'Load Template'
@@ -1951,31 +1959,78 @@ export const ERPManager: React.FC = () => {
                     activeTab === 'data' && (
                         <div className="flex flex-col h-full bg-white animate-in fade-in duration-300">
                             {/* Data Toolbar */}
-                            <div className="px-6 py-3 border-b border-gray-200 flex flex-col sm:flex-row sm:justify-between sm:items-center bg-white shrink-0 gap-4">
-                                <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg self-start sm:self-auto">
-                                    <button
-                                        onClick={() => setSubView('table')}
-                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'table' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                    >
-                                        <Grid size={14} /> Grid View
+                            <div className="bg-white border-b border-gray-200 px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-20 shadow-sm/50">
+                                {/* Sub-View Switcher (Left) */}
+                                <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-lg self-start md:self-auto">
+                                    <button onClick={() => setSubView('table')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                                        <TableIcon size={14} /> Grid View
                                     </button>
-                                    <button
-                                        onClick={() => setSubView('batch')}
-                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'batch' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                    >
-                                        <List size={14} /> Batch Entry
+                                    <button onClick={() => setSubView('batch')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'batch' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                                        <Grid size={14} /> Batch Entry
                                     </button>
-                                    <button
-                                        onClick={() => setSubView('preview')}
-                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'preview' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                    >
-                                        <Plus size={14} /> New Entry
+                                    <button onClick={() => setSubView('preview')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                                        <FormInput size={14} /> New Entry
                                     </button>
                                 </div>
 
-                                <div className="flex items-center gap-2 flex-1 w-full sm:w-auto">
-                                    <div className="relative flex-1 max-w-md">
-                                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                {/* Actions (Right) */}
+                                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                                    {/* Template Selector */}
+                                    <div className="relative">
+                                        <button
+                                            onClick={() => setTemplateSelectorOpen(!templateSelectorOpen)}
+                                            className="w-full sm:w-auto flex items-center justify-between gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <Folder size={14} />
+                                                <span className="truncate max-w-[100px]">{currentFormName}</span>
+                                            </div>
+                                            <ChevronDown size={12} />
+                                        </button>
+
+                                        {templateSelectorOpen && (
+                                            <>
+                                                <div className="fixed inset-0 z-10" onClick={() => setTemplateSelectorOpen(false)}></div>
+                                                <div className="absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                                    <div className="p-2 border-b border-gray-100 bg-gray-50">
+                                                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-2">Select Template</span>
+                                                    </div>
+                                                    <div className="max-h-60 overflow-y-auto p-1">
+                                                        {savedForms.length === 0 ? (
+                                                            <div className="text-xs text-gray-400 p-3 text-center italic">No saved templates</div>
+                                                        ) : (
+                                                            savedForms.map(form => (
+                                                                <div
+                                                                    key={form.id}
+                                                                    onClick={() => handleLoadForm(form.id, 'data')}
+                                                                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-indigo-50 cursor-pointer group"
+                                                                >
+                                                                    <div className="w-6 h-6 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold uppercase shrink-0">
+                                                                        {form.name.substring(0, 2)}
+                                                                    </div>
+                                                                    <div className="overflow-hidden">
+                                                                        <div className="text-xs font-bold text-gray-700 truncate group-hover:text-indigo-700">{form.name}</div>
+                                                                        <div className="text-[10px] text-gray-400 truncate">{new Date(form.timestamp).toLocaleDateString()}</div>
+                                                                    </div>
+                                                                </div>
+                                                            ))
+                                                        )}
+                                                    </div>
+                                                    <div className="p-2 border-t border-gray-100 bg-gray-50">
+                                                        <button
+                                                            onClick={() => { setActiveTab('library'); setTemplateSelectorOpen(false); }}
+                                                            className="w-full text-xs font-bold text-indigo-600 hover:underline text-center"
+                                                        >
+                                                            Manage Library
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    <div className="relative flex-1 sm:flex-none">
+                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                         <input
                                             className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
                                             placeholder="Search records..."
