@@ -1286,25 +1286,37 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
 export const ERPManager: React.FC = () => {
     const { addToast } = useToast();
 
+    // Helper to load from localStorage
+    const loadFromStorage = <T,>(key: string, defaultValue: T): T => {
+        if (typeof window === 'undefined') return defaultValue;
+        try {
+            const item = window.localStorage.getItem(key);
+            return item ? JSON.parse(item) : defaultValue;
+        } catch (error) {
+            console.warn(`Error reading localStorage key "${key}":`, error);
+            return defaultValue;
+        }
+    };
+
     // State
-    const [activeTab, setActiveTab] = useState<'builder' | 'data' | 'library'>('builder');
-    const [subView, setSubView] = useState<'table' | 'preview' | 'batch'>('table'); // Data sub-views
+    const [activeTab, setActiveTab] = useState<'builder' | 'data' | 'library'>(() => loadFromStorage('erp_active_tab', 'builder'));
+    const [subView, setSubView] = useState<'table' | 'preview' | 'batch'>(() => loadFromStorage('erp_sub_view', 'table')); // Data sub-views
 
     // Schema State
-    const [schema, setSchema] = useState<any[]>(InitialSchema);
+    const [schema, setSchema] = useState<any[]>(() => loadFromStorage('erp_schema', InitialSchema));
     const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
 
     // Data State
-    const [records, setRecords] = useState<any[]>([]);
+    const [records, setRecords] = useState<any[]>(() => loadFromStorage('erp_records', []));
     const [previewData, setPreviewData] = useState<any>({});
     const [batchRows, setBatchRows] = useState<any[]>([]);
 
     // Advanced Filter State
-    const [filters, setFilters] = useState<{ id: string, fieldId: string, operator: string, value: string }[]>([]);
+    const [filters, setFilters] = useState<{ id: string, fieldId: string, operator: string, value: string }[]>(() => loadFromStorage('erp_filters', []));
     const [pendingFilter, setPendingFilter] = useState({ fieldId: '', operator: '', value: '' });
-    const [savedViews, setSavedViews] = useState<{ name: string, filters: any[] }[]>([
+    const [savedViews, setSavedViews] = useState<{ name: string, filters: any[] }[]>(() => loadFromStorage('erp_saved_views', [
         { name: '库存预警', filters: [{ id: 'demo_1', fieldId: 'f3', operator: 'lt', value: '10' }] }
-    ]);
+    ]));
     const [viewName, setViewName] = useState('');
 
     const [globalSearch, setGlobalSearch] = useState('');
@@ -1318,9 +1330,9 @@ export const ERPManager: React.FC = () => {
     const [isResizing, setIsResizing] = useState(false);
 
     // --- Form Library State ---
-    const [savedForms, setSavedForms] = useState<{ id: string, name: string, description: string, schema: any[], timestamp: number }[]>([
+    const [savedForms, setSavedForms] = useState<{ id: string, name: string, description: string, schema: any[], timestamp: number }[]>(() => loadFromStorage('erp_saved_forms', [
         { id: 'form_default', name: 'Product Inventory', description: 'Standard product entry form', schema: InitialSchema, timestamp: Date.now() }
-    ]);
+    ]));
     // showLibrary removed in favor of activeTab === 'library'
     const [saveFormOpen, setSaveFormOpen] = useState(false);
     const [formName, setFormName] = useState('');
@@ -1354,6 +1366,35 @@ export const ERPManager: React.FC = () => {
         const matchedForm = savedForms.find(f => JSON.stringify(f.schema) === JSON.stringify(schema));
         setCurrentFormName(matchedForm ? matchedForm.name : 'Custom Form');
     }, [schema, savedForms]);
+
+    // --- Persistence Effects ---
+    useEffect(() => {
+        localStorage.setItem('erp_active_tab', JSON.stringify(activeTab));
+    }, [activeTab]);
+
+    useEffect(() => {
+        localStorage.setItem('erp_sub_view', JSON.stringify(subView));
+    }, [subView]);
+
+    useEffect(() => {
+        localStorage.setItem('erp_schema', JSON.stringify(schema));
+    }, [schema]);
+
+    useEffect(() => {
+        localStorage.setItem('erp_records', JSON.stringify(records));
+    }, [records]);
+
+    useEffect(() => {
+        localStorage.setItem('erp_saved_forms', JSON.stringify(savedForms));
+    }, [savedForms]);
+
+    useEffect(() => {
+        localStorage.setItem('erp_saved_views', JSON.stringify(savedViews));
+    }, [savedViews]);
+
+    useEffect(() => {
+        localStorage.setItem('erp_filters', JSON.stringify(filters));
+    }, [filters]);
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
