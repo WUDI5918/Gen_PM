@@ -784,7 +784,7 @@ const FieldEditor = ({
 };
 
 // 3. Right Side Live Preview
-const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCancel }: any) => {
+const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCancel, formName }: any) => {
 
     // --- Logic Engine Execution ---
     useEffect(() => {
@@ -941,9 +941,9 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
 
             <div className="mb-8 pb-6 border-b border-slate-100">
                 <h2 className="text-2xl font-extrabold text-slate-800 flex items-center gap-3">
-                    Preview Mode
+                    {formName || 'Preview Mode'}
                 </h2>
-                <p className="text-slate-400 text-sm mt-1">This is how your users will see the form.</p>
+                <p className="text-slate-400 text-sm mt-1">{formName ? 'Form Template Preview' : 'This is how your users will see the form.'}</p>
             </div>
 
             <div className="flex flex-wrap -mx-3">
@@ -1462,6 +1462,7 @@ const LogicGuide = () => {
                                         setData={setLocalData}
                                         errors={localErrors}
                                         setErrors={setLocalErrors}
+                                        formName={activeDemo.title}
                                     />
                                 </div>
                             </div>
@@ -2399,6 +2400,7 @@ export const ERPManager: React.FC = () => {
                                         setData={setPreviewData}
                                         errors={errors}
                                         setErrors={setErrors}
+                                        formName={currentFormName}
                                     />
                                 </div>
                             </div>
@@ -2797,6 +2799,7 @@ export const ERPManager: React.FC = () => {
                                                 setErrors={setErrors}
                                                 onSubmit={() => handleRecordSubmit(previewData)}
                                                 onCancel={() => setSubView('table')}
+                                                formName={currentFormName}
                                             />
                                         </div>
                                     </div>
@@ -2830,17 +2833,9 @@ export const ERPManager: React.FC = () => {
                                     {/* Create New Card */}
                                     <div
                                         onClick={() => {
-                                            triggerConfirm(
-                                                'Create New Form',
-                                                'Create a blank new form? Current changes will be lost.',
-                                                () => {
-                                                    setSchema([]);
-                                                    setActiveTab('builder');
-                                                    addToast('Created new blank form', 'info');
-                                                },
-                                                'info',
-                                                'Create New'
-                                            );
+                                            setSchema([]);
+                                            setActiveTab('builder');
+                                            addToast('Created new blank form', 'info');
                                         }}
                                         className="bg-white p-6 rounded-2xl border-2 border-dashed border-gray-200 hover:border-indigo-400 hover:bg-indigo-50/10 cursor-pointer transition-all group flex flex-col items-center justify-center text-center h-48 shadow-sm hover:shadow-md"
                                     >
