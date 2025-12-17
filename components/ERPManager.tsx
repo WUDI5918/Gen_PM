@@ -204,7 +204,7 @@ const MOCK_DB: any = {
 
 // --- Logic Engine Core ---
 // --- Logic Engine Core ---
-const evaluateExpression = (expr: string, data: any) => {
+const evaluateExpression = (expr: string, data: any, returnError = false): any => {
     if (!expr) return null;
     try {
         // 1. Pre-process text markers ex: {field_id}
@@ -217,6 +217,7 @@ const evaluateExpression = (expr: string, data: any) => {
 
         // 2. Define Helper Functions directly in the evaluated string scope
         const funcBody = `
+            // Date Functions
             const DAYS = (d1, d2) => {
                  if(!d1 || !d2) return 0;
                  const t1 = new Date(d1).getTime();
@@ -224,26 +225,75 @@ const evaluateExpression = (expr: string, data: any) => {
                  if(isNaN(t1) || isNaN(t2)) return 0;
                  return Math.ceil((t1 - t2) / (1000 * 60 * 60 * 24));
             };
-            const IF = (c, t, f) => c ? t : f;
-            const NOW = () => new Date().toISOString().split('T')[0];
-            const YEAR = (d) => new Date(d).getFullYear();
-            const MONTH = (d) => new Date(d).getMonth() + 1;
+            const TODAY = () => new Date().toISOString().split('T')[0];
+            const NOW = () => {
+                const d = new Date();
+                return d.toISOString().split('T')[0] + ' ' + d.toTimeString().split(' ')[0].slice(0,5);
+            };
+            const YEAR = (d) => d ? new Date(d).getFullYear() : new Date().getFullYear();
+            const MONTH = (d) => d ? new Date(d).getMonth() + 1 : new Date().getMonth() + 1;
+            const DAY = (d) => d ? new Date(d).getDate() : new Date().getDate();
+            const WEEKDAY = (d) => d ? new Date(d).getDay() : new Date().getDay();
+            const ADDDAYS = (d, days) => {
+                const date = new Date(d || new Date());
+                date.setDate(date.getDate() + Number(days));
+                return date.toISOString().split('T')[0];
+            };
             
-            const CONCAT = (...args) => args.join('');
+            // Conditional Functions
+            const IF = (c, t, f) => c ? t : f;
+            const IFS = (...args) => {
+                for(let i = 0; i < args.length - 1; i += 2) {
+                    if(args[i]) return args[i + 1];
+                }
+                return args.length % 2 === 1 ? args[args.length - 1] : null;
+            };
+            const SWITCH = (val, ...cases) => {
+                for(let i = 0; i < cases.length - 1; i += 2) {
+                    if(val === cases[i]) return cases[i + 1];
+                }
+                return cases.length % 2 === 1 ? cases[cases.length - 1] : null;
+            };
+            
+            // String Functions
+            const CONCAT = (...args) => args.filter(a => a !== null && a !== undefined).join('');
             const UPPER = (s) => String(s||'').toUpperCase();
             const LOWER = (s) => String(s||'').toLowerCase();
+            const TRIM = (s) => String(s||'').trim();
+            const LEFT = (s, n) => String(s||'').slice(0, n);
+            const RIGHT = (s, n) => String(s||'').slice(-n);
+            const MID = (s, start, len) => String(s||'').slice(start, start + len);
             const LEN = (s) => String(s||'').length;
-            const ISEMPTY = (v) => v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0);
+            const REPLACE = (s, old, newStr) => String(s||'').replace(old, newStr);
+            const CONTAINS = (s, sub) => String(s||'').includes(sub);
+            const STARTSWITH = (s, sub) => String(s||'').startsWith(sub);
+            const ENDSWITH = (s, sub) => String(s||'').endsWith(sub);
             
-            const MAX = (...args) => Math.max(...args);
-            const MIN = (...args) => Math.min(...args);
-            const ROUND = (n, d=0) => { const m=Math.pow(10,d); return Math.round(Number(n)*m)/m; };
+            // Validation Functions
+            const ISEMPTY = (v) => v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0);
+            const ISNUMBER = (v) => !isNaN(Number(v)) && v !== '' && v !== null;
+            const ISEMAIL = (v) => /^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$/.test(String(v||''));
+            const ISPHONE = (v) => /^[\\d\\-\\+\\s\\(\\)]{7,20}$/.test(String(v||''));
+            
+            // Math Functions
+            const SUM = (...args) => args.flat().reduce((a, b) => Number(a||0) + Number(b||0), 0);
+            const AVG = (...args) => {
+                const flat = args.flat().filter(v => v !== null && v !== undefined && !isNaN(Number(v)));
+                return flat.length ? SUM(...flat) / flat.length : 0;
+            };
+            const MAX = (...args) => Math.max(...args.flat().filter(v => !isNaN(Number(v))).map(Number));
+            const MIN = (...args) => Math.min(...args.flat().filter(v => !isNaN(Number(v))).map(Number));
+            const ROUND = (n, d=0) => { const m=Math.pow(10,d); return Math.round(Number(n||0)*m)/m; };
+            const FLOOR = (n) => Math.floor(Number(n||0));
+            const CEIL = (n) => Math.ceil(Number(n||0));
+            const ABS = (n) => Math.abs(Number(n||0));
             const RAND = () => Math.random();
+            const RANDBETWEEN = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+            const MOD = (n, d) => Number(n||0) % Number(d||1);
+            const POWER = (n, p) => Math.pow(Number(n||0), Number(p||1));
             
             // Mock API Lookup helper
             const MOCK_LOOKUP = (dataset, id, key) => {
-                 // In a real app, this would be an async call. Here we simulate it sync for "calculation",
-                 // but we will treat it specially in the effect hook.
                  return { __isApi: true, dataset, id, key };
             };
 
@@ -253,10 +303,40 @@ const evaluateExpression = (expr: string, data: any) => {
         // Safe-ish eval
         // eslint-disable-next-line
         return new Function(funcBody)();
-    } catch (error) {
+    } catch (error: any) {
+        if (returnError) {
+            return { __error: true, message: error.message || 'Expression error' };
+        }
         // console.warn('Logic Error:', error);
         return null;
     }
+};
+
+// Validate expression syntax without side effects
+const validateExpression = (expr: string, schema: any[]): { valid: boolean; error?: string } => {
+    if (!expr || !expr.trim()) return { valid: true };
+
+    // Check for valid field references
+    const fieldRefs = expr.match(/\{(\w+)\}/g) || [];
+    const schemaIds = schema.map(f => f.id);
+
+    for (const ref of fieldRefs) {
+        const fieldId = ref.slice(1, -1);
+        if (!schemaIds.includes(fieldId)) {
+            return { valid: false, error: `Field "{${fieldId}}" does not exist` };
+        }
+    }
+
+    // Test expression with mock data
+    const mockData: any = {};
+    schema.forEach(f => { mockData[f.id] = f.type === 'number' ? 0 : ''; });
+
+    const result = evaluateExpression(expr, mockData, true);
+    if (result && result.__error) {
+        return { valid: false, error: result.message };
+    }
+
+    return { valid: true };
 };
 
 // Signature Pad Component
@@ -774,6 +854,28 @@ const FieldEditor = ({
                                                 />
                                             </div>
                                         </div>
+
+                                        {/* New: Disabled Rule & Default Value */}
+                                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Disabled Rule</label>
+                                                <input
+                                                    value={field.logic?.disabledRule || ''}
+                                                    onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, disabledRule: e.target.value })}
+                                                    className="w-full text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
+                                                    placeholder="{status} == 'locked'"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Default Value Rule</label>
+                                                <input
+                                                    value={field.logic?.defaultValueRule || ''}
+                                                    onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, defaultValueRule: e.target.value })}
+                                                    className="w-full text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
+                                                    placeholder="TODAY() or 100"
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -838,6 +940,34 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
         return () => clearTimeout(timeoutId);
     }, [data, schema]); // Dependency on data triggers recalculation loop. React batches updates, but care needed.
 
+    // --- Initialize Default Values ---
+    useEffect(() => {
+        const newData = { ...data };
+        let hasChanges = false;
+
+        schema.forEach((field: any) => {
+            // Static default value
+            if (field.defaultValue !== undefined && (data[field.id] === undefined || data[field.id] === '')) {
+                newData[field.id] = field.defaultValue;
+                hasChanges = true;
+            }
+
+            // Dynamic default value rule
+            if (field.logic?.defaultValueRule && (data[field.id] === undefined || data[field.id] === '')) {
+                const result = evaluateExpression(field.logic.defaultValueRule, data);
+                if (result !== null && result !== undefined) {
+                    newData[field.id] = result;
+                    hasChanges = true;
+                }
+            }
+        });
+
+        if (hasChanges) {
+            setData(newData);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [schema]); // Only run on schema change, not data change
+
     const getVisibility = (field: any) => {
         if (!field.logic?.visibility) return true;
         const result = evaluateExpression(field.logic.visibility, data);
@@ -847,6 +977,11 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
     const getReadOnly = (field: any) => {
         if (!field.logic?.readOnly) return false;
         return evaluateExpression(field.logic.readOnly, data) === true;
+    };
+
+    const getDisabled = (field: any) => {
+        if (!field.logic?.disabledRule) return false;
+        return evaluateExpression(field.logic.disabledRule, data) === true;
     };
 
     const getRequired = (field: any) => {
@@ -969,10 +1104,11 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                     // Logic: Visibility Check
                     if (!getVisibility(field)) return null;
 
-                    // Logic: ReadOnly & Required
+                    // Logic: ReadOnly, Required & Disabled
                     const isReadOnly = getReadOnly(field);
                     const isRequired = getRequired(field);
-                    const commonInputClasses = `w-full border rounded-xl px-4 py-3 text-sm outline-none transition-all ${isError ? 'border-red-300 bg-red-50 focus:border-red-500' : isReadOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10'}`;
+                    const isDisabled = getDisabled(field);
+                    const commonInputClasses = `w-full border rounded-xl px-4 py-3 text-sm outline-none transition-all ${isError ? 'border-red-300 bg-red-50 focus:border-red-500' : (isReadOnly || isDisabled) ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10'}`;
 
                     if (field.type === 'divider') {
                         return (
@@ -1025,18 +1161,18 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                                     className={commonInputClasses}
                                     placeholder={field.placeholder}
                                     value={data[field.id] || ''}
-                                    disabled={isReadOnly}
+                                    disabled={isReadOnly || isDisabled}
                                     onChange={(e) => handleChange(field.id, e.target.value)}
                                 />
                             )}
 
                             {field.type === 'switch' && (
-                                <label className={`flex items-center gap-3 cursor-pointer w-fit ${isReadOnly ? 'opacity-50 pointer-events-none' : ''}`}>
+                                <label className={`flex items-center gap-3 cursor-pointer w-fit ${(isReadOnly || isDisabled) ? 'opacity-50 pointer-events-none' : ''}`}>
                                     <div className={`w-11 h-6 rounded-full transition-colors relative ${data[field.id] ? 'bg-indigo-600' : 'bg-slate-200'}`}>
                                         <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full shadow-sm transition-transform ${data[field.id] ? 'translate-x-5' : 'translate-x-0'}`}></div>
                                     </div>
                                     <span className="text-sm font-medium text-slate-700">{data[field.id] ? 'On' : 'Off'}</span>
-                                    <input type="checkbox" className="hidden" checked={!!data[field.id]} onChange={(e) => handleChange(field.id, e.target.checked)} disabled={isReadOnly} />
+                                    <input type="checkbox" className="hidden" checked={!!data[field.id]} onChange={(e) => handleChange(field.id, e.target.checked)} disabled={isReadOnly || isDisabled} />
                                 </label>
                             )}
 
@@ -1582,19 +1718,59 @@ const LogicGuide = () => {
                                                 <td className="px-4 py-3 font-mono text-xs text-gray-400">{`ROUND({total}, 2)`}</td>
                                             </tr>
                                             <tr className="bg-white">
-                                                <td className="px-4 py-3 font-mono font-bold text-indigo-600">NOW()</td>
+                                                <td className="px-4 py-3 font-mono font-bold text-emerald-600">SUM(...args)</td>
+                                                <td className="px-4 py-3 text-gray-600">Sum of all values</td>
+                                                <td className="px-4 py-3 font-mono text-xs text-gray-400">{`SUM({a}, {b}, {c})`}</td>
+                                            </tr>
+                                            <tr className="bg-white">
+                                                <td className="px-4 py-3 font-mono font-bold text-emerald-600">AVG(...args)</td>
+                                                <td className="px-4 py-3 text-gray-600">Average of all values</td>
+                                                <td className="px-4 py-3 font-mono text-xs text-gray-400">{`AVG({score1}, {score2}, {score3})`}</td>
+                                            </tr>
+                                            <tr className="bg-white">
+                                                <td className="px-4 py-3 font-mono font-bold text-emerald-600">TODAY()</td>
                                                 <td className="px-4 py-3 text-gray-600">Returns current date (YYYY-MM-DD)</td>
+                                                <td className="px-4 py-3 font-mono text-xs text-gray-400">{`TODAY()`}</td>
+                                            </tr>
+                                            <tr className="bg-white">
+                                                <td className="px-4 py-3 font-mono font-bold text-emerald-600">NOW()</td>
+                                                <td className="px-4 py-3 text-gray-600">Returns current date and time</td>
                                                 <td className="px-4 py-3 font-mono text-xs text-gray-400">{`NOW()`}</td>
                                             </tr>
                                             <tr className="bg-white">
-                                                <td className="px-4 py-3 font-mono font-bold text-indigo-600">YEAR / MONTH(d)</td>
-                                                <td className="px-4 py-3 text-gray-600">Extracts year or month from date</td>
+                                                <td className="px-4 py-3 font-mono font-bold text-indigo-600">YEAR / MONTH / DAY(d)</td>
+                                                <td className="px-4 py-3 text-gray-600">Extracts part from date</td>
                                                 <td className="px-4 py-3 font-mono text-xs text-gray-400">{`YEAR({start_date})`}</td>
                                             </tr>
                                             <tr className="bg-white">
-                                                <td className="px-4 py-3 font-mono font-bold text-indigo-600">RAND()</td>
-                                                <td className="px-4 py-3 text-gray-600">Random number (0-1)</td>
-                                                <td className="px-4 py-3 font-mono text-xs text-gray-400">{`RAND()`}</td>
+                                                <td className="px-4 py-3 font-mono font-bold text-emerald-600">ADDDAYS(date, n)</td>
+                                                <td className="px-4 py-3 text-gray-600">Adds n days to date</td>
+                                                <td className="px-4 py-3 font-mono text-xs text-gray-400">{`ADDDAYS(TODAY(), 7)`}</td>
+                                            </tr>
+                                            <tr className="bg-white">
+                                                <td className="px-4 py-3 font-mono font-bold text-emerald-600">IFS(cond1, val1, ...)</td>
+                                                <td className="px-4 py-3 text-gray-600">Multiple conditions check</td>
+                                                <td className="px-4 py-3 font-mono text-xs text-gray-400">{`IFS({x}>90,'A', {x}>60,'B', 'C')`}</td>
+                                            </tr>
+                                            <tr className="bg-white">
+                                                <td className="px-4 py-3 font-mono font-bold text-emerald-600">SWITCH(val, case1, result1, ...)</td>
+                                                <td className="px-4 py-3 text-gray-600">Switch case matching</td>
+                                                <td className="px-4 py-3 font-mono text-xs text-gray-400">{`SWITCH({status},'A','Active','Inactive')`}</td>
+                                            </tr>
+                                            <tr className="bg-white">
+                                                <td className="px-4 py-3 font-mono font-bold text-indigo-600">RAND() / RANDBETWEEN(min, max)</td>
+                                                <td className="px-4 py-3 text-gray-600">Random number</td>
+                                                <td className="px-4 py-3 font-mono text-xs text-gray-400">{`RANDBETWEEN(1, 100)`}</td>
+                                            </tr>
+                                            <tr className="bg-white">
+                                                <td className="px-4 py-3 font-mono font-bold text-emerald-600">CONTAINS / STARTSWITH / ENDSWITH</td>
+                                                <td className="px-4 py-3 text-gray-600">String contains/starts/ends with</td>
+                                                <td className="px-4 py-3 font-mono text-xs text-gray-400">{`CONTAINS({email}, '@gmail')`}</td>
+                                            </tr>
+                                            <tr className="bg-white">
+                                                <td className="px-4 py-3 font-mono font-bold text-emerald-600">ISEMAIL / ISPHONE / ISNUMBER</td>
+                                                <td className="px-4 py-3 text-gray-600">Validation helpers</td>
+                                                <td className="px-4 py-3 font-mono text-xs text-gray-400">{`ISEMAIL({email})`}</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -1643,6 +1819,9 @@ export const ERPManager: React.FC = () => {
     const [savedViews, setSavedViews] = useState<{ name: string, filters: any[] }[]>(() => loadFromStorage('erp_saved_views', [
         { name: '库存预警', filters: [{ id: 'demo_1', fieldId: 'f3', operator: 'lt', value: '10' }] }
     ]));
+
+    // Dataset Library State
+    const [savedDatasets, setSavedDatasets] = useState<{ id: string, name: string, timestamp: number, schema: any[], records: any[] }[]>(() => loadFromStorage('erp_saved_datasets', []));
     const [viewName, setViewName] = useState('');
 
     const [globalSearch, setGlobalSearch] = useState('');
@@ -1669,6 +1848,98 @@ export const ERPManager: React.FC = () => {
     // Drag from toolbox state
     const [isDraggingFromToolbox, setIsDraggingFromToolbox] = useState(false);
     const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+
+    // Dataset Library UI State
+    const [saveDatasetOpen, setSaveDatasetOpen] = useState(false);
+    const [datasetNameInput, setDatasetNameInput] = useState('');
+
+    // Persistence for Saved Datasets
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('erp_saved_datasets', JSON.stringify(savedDatasets));
+        }
+    }, [savedDatasets]);
+
+    const handleSaveDataset = () => {
+        if (!datasetNameInput.trim()) {
+            addToast('Please enter a dataset name', 'error');
+            return;
+        }
+
+        const name = datasetNameInput.trim();
+        const exists = savedDatasets.some(d => d.name === name);
+
+        const doSave = () => {
+            setSavedDatasets(prev => {
+                const filtered = prev.filter(d => d.name !== name);
+                return [{
+                    id: Date.now().toString(),
+                    name: name,
+                    timestamp: Date.now(),
+                    schema: [...schema],
+                    records: [...records]
+                }, ...filtered];
+            });
+            setCurrentFormName(name);
+            setSaveDatasetOpen(false);
+            setDatasetNameInput('');
+            addToast(`Dataset "${name}" saved successfully`, 'success');
+        };
+
+        if (exists) {
+            triggerConfirm('Overwrite Dataset', `Dataset "${name}" already exists. Overwrite?`, doSave, 'info', 'Overwrite');
+        } else {
+            doSave();
+        }
+    };
+
+    // Rename & Delete Logic
+    const [renameDialog, setRenameDialog] = useState<{ isOpen: boolean, id: string, name: string }>({ isOpen: false, id: '', name: '' });
+
+    const handleDeleteDataset = (e: React.MouseEvent, id: string, name: string) => {
+        e.stopPropagation(); // Prevent loading
+        triggerConfirm(
+            'Delete Dataset',
+            `Are you sure you want to delete "${name}"? This cannot be undone.`,
+            () => {
+                setSavedDatasets(prev => prev.filter(d => d.id !== id));
+                addToast(`Dataset "${name}" deleted`, 'success');
+            },
+            'danger',
+            'Delete'
+        );
+    };
+
+    const handleRenameSubmit = () => {
+        if (!renameDialog.name.trim()) return;
+
+        const newName = renameDialog.name.trim();
+        const exists = savedDatasets.some(d => d.name === newName && d.id !== renameDialog.id);
+
+        if (exists) {
+            addToast('A dataset with this name already exists', 'error');
+            return;
+        }
+
+        setSavedDatasets(prev => prev.map(d => d.id === renameDialog.id ? { ...d, name: newName } : d));
+
+        // If we are currently viewing this dataset, update the displayed name
+        const currentDataset = savedDatasets.find(d => d.id === renameDialog.id);
+        if (currentDataset && currentDataset.name === currentFormName) {
+            setCurrentFormName(newName);
+        }
+
+        setRenameDialog({ isOpen: false, id: '', name: '' });
+        addToast('Dataset renamed successfully', 'success');
+    };
+
+    const handleLoadDataset = (dataset: any) => {
+        setSchema(dataset.schema);
+        setRecords(dataset.records || []);
+        setCurrentFormName(dataset.name);
+        setSubView('table');
+        addToast(`Loaded dataset: ${dataset.name}`, 'success');
+    };
 
     // Confirmation Modal State
     const [confirmDialog, setConfirmDialog] = useState<{
@@ -2224,18 +2495,10 @@ export const ERPManager: React.FC = () => {
     const handleLoadForm = (formId: string, targetTab: 'builder' | 'data' = 'builder') => {
         const form = savedForms.find(f => f.id === formId);
         if (form) {
-            triggerConfirm(
-                'Load Template',
-                'Loading a new form will overwrite your current workspace. Continue?',
-                () => {
-                    setSchema([...form.schema]);
-                    addToast(`Loaded form: ${form.name}`, 'success');
-                    setActiveTab(targetTab);
-                    setTemplateSelectorOpen(false);
-                },
-                'info',
-                'Load Template'
-            );
+            setSchema([...form.schema]);
+            addToast(`Loaded form: ${form.name}`, 'success');
+            setActiveTab(targetTab);
+            setTemplateSelectorOpen(false);
         }
     };
 
@@ -2591,401 +2854,461 @@ export const ERPManager: React.FC = () => {
                 {/* === DATA MODE (Restored from previous turn) === */}
                 {
                     activeTab === 'data' && (
-                        <div className="flex flex-col h-full bg-white animate-in fade-in duration-300">
-                            {/* Data Toolbar */}
-                            <div className="bg-white border-b border-gray-200 px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-20 shadow-sm/50">
-                                {/* Sub-View Switcher (Left) */}
-                                <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-lg self-start md:self-auto">
-                                    <button onClick={() => setSubView('table')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                                        <TableIcon size={14} /> Grid View
-                                    </button>
-                                    <button onClick={() => setSubView('batch')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'batch' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                                        <Grid size={14} /> Batch Entry
-                                    </button>
-                                    <button onClick={() => setSubView('preview')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                                        <FormInput size={14} /> New Entry
-                                    </button>
+                        <div className="flex flex-row h-full bg-white animate-in fade-in duration-300">
+                            {/* 1. Database Library Sidebar */}
+                            <div className="w-64 border-r border-gray-200 flex flex-col bg-slate-50/50 shrink-0">
+                                <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                                    <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                        <Database size={14} /> Databases
+                                    </h3>
                                 </div>
-
-                                {/* Actions (Right) */}
-                                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                                    {/* Template Selector */}
-                                    <div className="relative">
-                                        <button
-                                            onClick={() => setTemplateSelectorOpen(!templateSelectorOpen)}
-                                            className="w-full sm:w-auto flex items-center justify-between gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                                    {savedDatasets.length === 0 && (
+                                        <div className="text-center p-8 text-slate-400">
+                                            <Database size={24} className="mx-auto mb-2 opacity-50" />
+                                            <p className="text-[10px]">No saved datasets</p>
+                                        </div>
+                                    )}
+                                    {savedDatasets.map(ds => (
+                                        <div
+                                            key={ds.id}
+                                            onDoubleClick={() => handleLoadDataset(ds)}
+                                            className="p-3 rounded-lg hover:bg-white hover:shadow-sm cursor-pointer transition-all border border-transparent hover:border-slate-100 group relative"
                                         >
-                                            <div className="flex items-center gap-2">
-                                                <Folder size={14} />
-                                                <span className="truncate max-w-[100px]">{currentFormName}</span>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <TableIcon size={14} className="text-indigo-500 shrink-0" />
+                                                <span className="text-sm font-bold text-slate-700 truncate pr-16">{ds.name}</span>
                                             </div>
-                                            <ChevronDown size={12} />
-                                        </button>
 
-                                        {templateSelectorOpen && (
-                                            <>
-                                                <div className="fixed inset-0 z-10" onClick={() => setTemplateSelectorOpen(false)}></div>
-                                                <div className="absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                                                    <div className="p-2 border-b border-gray-100 bg-gray-50">
-                                                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-2">Select Template</span>
-                                                    </div>
-                                                    <div className="max-h-60 overflow-y-auto p-1">
-                                                        {savedForms.length === 0 ? (
-                                                            <div className="text-xs text-gray-400 p-3 text-center italic">No saved templates</div>
-                                                        ) : (
-                                                            savedForms.map(form => (
-                                                                <div
-                                                                    key={form.id}
-                                                                    onClick={() => handleLoadForm(form.id, 'data')}
-                                                                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-indigo-50 cursor-pointer group"
-                                                                >
-                                                                    <div className="w-6 h-6 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold uppercase shrink-0">
-                                                                        {form.name.substring(0, 2)}
-                                                                    </div>
-                                                                    <div className="overflow-hidden">
-                                                                        <div className="text-xs font-bold text-gray-700 truncate group-hover:text-indigo-700">{form.name}</div>
-                                                                        <div className="text-[10px] text-gray-400 truncate">{new Date(form.timestamp).toLocaleDateString()}</div>
-                                                                    </div>
-                                                                </div>
-                                                            ))
-                                                        )}
-                                                    </div>
-                                                    <div className="p-2 border-t border-gray-100 bg-gray-50">
-                                                        <button
-                                                            onClick={() => { setActiveTab('library'); setTemplateSelectorOpen(false); }}
-                                                            className="w-full text-xs font-bold text-indigo-600 hover:underline text-center"
-                                                        >
-                                                            Manage Library
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
+                                            {/* Dataset Actions (Hover) */}
+                                            <div className="hidden group-hover:flex items-center gap-1 absolute right-2 top-2 bg-white/90 backdrop-blur rounded shadow-sm px-1 border border-gray-100">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setRenameDialog({ isOpen: true, id: ds.id, name: ds.name }); }}
+                                                    className="p-1.5 text-gray-400 hover:text-indigo-600 rounded hover:bg-indigo-50 transition-colors"
+                                                    title="Rename"
+                                                >
+                                                    <Edit3 size={12} />
+                                                </button>
+                                                <div className="w-px h-3 bg-gray-200"></div>
+                                                <button
+                                                    onClick={(e) => handleDeleteDataset(e, ds.id, ds.name)}
+                                                    className="p-1.5 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors"
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </div>
 
-                                    <div className="relative flex-1 sm:flex-none">
-                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                        <input
-                                            className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
-                                            placeholder="Search records..."
-                                            value={globalSearch}
-                                            onChange={(e) => setGlobalSearch(e.target.value)}
-                                        />
-                                    </div>
-
-                                    <div className="flex items-center gap-2">
-                                        {subView !== 'preview' && (
-                                            <button
-                                                onClick={() => setShowFilters(!showFilters)}
-                                                className={`p-2 rounded-lg border transition-colors ${showFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                                                title="Toggle Filters"
-                                            >
-                                                <Filter size={16} />
-                                            </button>
-                                        )}
-                                        <div className={`h-6 w-px bg-gray-200 mx-1 ${subView === 'preview' ? 'hidden' : 'hidden sm:block'}`}></div>
-                                        <button onClick={handleGenerateMock} className="hidden sm:flex items-center gap-2 px-3 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">
-                                            <RefreshCw size={14} /> Mock
-                                        </button>
-                                        <button onClick={handleExport} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors" title="Export CSV">
-                                            <Download size={16} />
-                                        </button>
-                                        <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors" title="Import CSV">
-                                            <Upload size={16} />
-                                        </button>
-                                        <input type="file" className="hidden" ref={fileInputRef} onChange={(e) => { /* Import Logic Here if simple */ addToast('Import simulated', 'info'); }} />
-                                    </div>
+                                            <div className="text-[10px] text-slate-400">
+                                                {new Date(ds.timestamp).toLocaleDateString()}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
 
-                            {/* Enhanced Filter Panel - Hide in New Entry mode */}
-                            {showFilters && subView !== 'preview' && (
-                                <div className="border-b border-gray-200 bg-white animate-in slide-in-from-top-2">
-                                    <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
+                            <div className="flex-1 flex flex-col overflow-hidden relative">
+                                {/* Data Toolbar */}
+                                <div className="bg-white border-b border-gray-200 px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-20 shadow-sm/50">
+                                    {/* Sub-View Switcher (Left) */}
+                                    <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-lg self-start md:self-auto">
+                                        <button onClick={() => setSubView('table')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                                            <TableIcon size={14} /> Grid View
+                                        </button>
+                                        <button onClick={() => setSubView('batch')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'batch' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                                            <Grid size={14} /> Batch Entry
+                                        </button>
+                                        <button onClick={() => setSubView('preview')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                                            <FormInput size={14} /> New Entry
+                                        </button>
+                                    </div>
 
-                                        {/* Left: Filter Builder */}
-                                        <div className="p-5 flex-1 space-y-4">
-                                            <div className="flex items-center gap-2 text-indigo-600 mb-2">
-                                                <Filter size={16} />
-                                                <span className="text-sm font-bold">添加筛选条件</span>
-                                            </div>
-
-                                            <div className="flex flex-wrap items-end gap-3">
-                                                <div className="flex-1 min-w-[140px]">
-                                                    <select
-                                                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-gray-50 focus:bg-white transition-all"
-                                                        value={pendingFilter.fieldId}
-                                                        onChange={(e) => {
-                                                            const field = schema.find(f => f.id === e.target.value);
-                                                            const defaultOp = field ? getOperatorsForType(field.type)[0].val : '';
-                                                            setPendingFilter({ ...pendingFilter, fieldId: e.target.value, operator: defaultOp });
-                                                        }}
-                                                    >
-                                                        <option value="">选择字段...</option>
-                                                        {allDataFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
-                                                    </select>
+                                    {/* Actions (Right) */}
+                                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                                        <button
+                                            onClick={() => setSaveDatasetOpen(true)}
+                                            className="flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs font-bold shadow-sm"
+                                        >
+                                            <Save size={14} /> Save
+                                        </button>
+                                        {/* Template Selector */}
+                                        <div className="relative">
+                                            <button
+                                                onClick={() => setTemplateSelectorOpen(!templateSelectorOpen)}
+                                                className="w-full sm:w-auto flex items-center justify-between gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <Folder size={14} />
+                                                    <span className="truncate max-w-[100px]">{currentFormName}</span>
                                                 </div>
+                                                <ChevronDown size={12} />
+                                            </button>
 
-                                                {pendingFilter.fieldId && (
-                                                    <div className="w-[120px]">
-                                                        <select
-                                                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-gray-50 focus:bg-white transition-all"
-                                                            value={pendingFilter.operator}
-                                                            onChange={(e) => setPendingFilter({ ...pendingFilter, operator: e.target.value })}
-                                                        >
-                                                            {getOperatorsForType(schema.find(f => f.id === pendingFilter.fieldId)?.type || 'text').map(op => (
-                                                                <option key={op.val} value={op.val}>{op.label}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                )}
-
-                                                <div className="flex-1 min-w-[140px]">
-                                                    <input
-                                                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-gray-50 focus:bg-white transition-all"
-                                                        placeholder="值..."
-                                                        value={pendingFilter.value}
-                                                        onChange={(e) => setPendingFilter({ ...pendingFilter, value: e.target.value })}
-                                                        onKeyDown={(e) => e.key === 'Enter' && handleAddPendingFilter()}
-                                                    />
-                                                </div>
-
-                                                <button
-                                                    onClick={handleAddPendingFilter}
-                                                    className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm"
-                                                >
-                                                    添加
-                                                </button>
-                                            </div>
-
-                                            {/* Active Filters Chips */}
-                                            <div className="flex flex-wrap gap-2 pt-2">
-                                                {filters.length === 0 && <span className="text-xs text-gray-400 italic">暂无筛选条件</span>}
-                                                {filters.map((f, i) => {
-                                                    const field = schema.find(s => s.id === f.fieldId);
-                                                    const opLabel = getOperatorsForType(field?.type || 'text').find(o => o.val === f.operator)?.label || f.operator;
-                                                    return (
-                                                        <div key={f.id} className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-full text-xs font-medium animate-in zoom-in-95">
-                                                            <span className="font-bold">{field?.label}</span>
-                                                            <span className="text-indigo-400">{opLabel}</span>
-                                                            <span className="font-bold">{f.value}</span>
-                                                            <button onClick={() => handleRemoveFilter(f.id)} className="hover:text-red-500 ml-1"><X size={12} /></button>
+                                            {templateSelectorOpen && (
+                                                <>
+                                                    <div className="fixed inset-0 z-10" onClick={() => setTemplateSelectorOpen(false)}></div>
+                                                    <div className="absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                                        <div className="p-2 border-b border-gray-100 bg-gray-50">
+                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-2">Select Template</span>
                                                         </div>
-                                                    );
-                                                })}
-                                                {filters.length > 0 && (
-                                                    <button onClick={() => setFilters([])} className="text-xs text-red-500 hover:underline self-center ml-2">
-                                                        清除所有
-                                                    </button>
-                                                )}
-                                            </div>
+                                                        <div className="max-h-60 overflow-y-auto p-1">
+                                                            {savedForms.length === 0 ? (
+                                                                <div className="text-xs text-gray-400 p-3 text-center italic">No saved templates</div>
+                                                            ) : (
+                                                                savedForms.map(form => (
+                                                                    <div
+                                                                        key={form.id}
+                                                                        onClick={() => handleLoadForm(form.id, 'data')}
+                                                                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-indigo-50 cursor-pointer group"
+                                                                    >
+                                                                        <div className="w-6 h-6 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold uppercase shrink-0">
+                                                                            {form.name.substring(0, 2)}
+                                                                        </div>
+                                                                        <div className="overflow-hidden">
+                                                                            <div className="text-xs font-bold text-gray-700 truncate group-hover:text-indigo-700">{form.name}</div>
+                                                                            <div className="text-[10px] text-gray-400 truncate">{new Date(form.timestamp).toLocaleDateString()}</div>
+                                                                        </div>
+                                                                    </div>
+                                                                ))
+                                                            )}
+                                                        </div>
+                                                        <div className="p-2 border-t border-gray-100 bg-gray-50">
+                                                            <button
+                                                                onClick={() => { setActiveTab('library'); setTemplateSelectorOpen(false); }}
+                                                                className="w-full text-xs font-bold text-indigo-600 hover:underline text-center"
+                                                            >
+                                                                Manage Library
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
 
-                                        {/* Right: View Presets */}
-                                        <div className="p-5 lg:w-80 space-y-4 bg-gray-50/50">
-                                            <div className="flex items-center gap-2 text-gray-600 mb-2">
-                                                <Bookmark size={16} />
-                                                <span className="text-sm font-bold">视图预设</span>
-                                            </div>
+                                        <div className="relative flex-1 sm:flex-none">
+                                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                            <input
+                                                className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                                                placeholder="Search records..."
+                                                value={globalSearch}
+                                                onChange={(e) => setGlobalSearch(e.target.value)}
+                                            />
+                                        </div>
 
-                                            <div className="space-y-2">
-                                                {savedViews.map((view, idx) => (
-                                                    <div
-                                                        key={idx}
-                                                        className="flex items-center justify-between text-sm group cursor-pointer hover:bg-white p-2 rounded-lg transition-colors border border-transparent hover:border-gray-200"
-                                                        onClick={() => handleLoadView(view.filters)}
-                                                    >
-                                                        <div className="flex items-center gap-2 text-gray-600 group-hover:text-indigo-600">
-                                                            <List size={14} />
-                                                            <span>{view.name}</span>
-                                                        </div>
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); setSavedViews(savedViews.filter((_, i) => i !== idx)); }}
-                                                            className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                                {savedViews.length === 0 && <div className="text-xs text-gray-400 italic px-2">暂无预设视图</div>}
-                                            </div>
-
-                                            <div className="pt-3 border-t border-gray-200 flex gap-2">
-                                                <input
-                                                    className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-indigo-500"
-                                                    placeholder="视图名称..."
-                                                    value={viewName}
-                                                    onChange={(e) => setViewName(e.target.value)}
-                                                />
+                                        <div className="flex items-center gap-2">
+                                            {subView !== 'preview' && (
                                                 <button
-                                                    onClick={handleSaveView}
-                                                    disabled={!viewName.trim() || filters.length === 0}
-                                                    className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    onClick={() => setShowFilters(!showFilters)}
+                                                    className={`p-2 rounded-lg border transition-colors ${showFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                                    title="Toggle Filters"
                                                 >
-                                                    保存
+                                                    <Filter size={16} />
                                                 </button>
-                                            </div>
+                                            )}
+                                            <div className={`h-6 w-px bg-gray-200 mx-1 ${subView === 'preview' ? 'hidden' : 'hidden sm:block'}`}></div>
+                                            <button onClick={handleGenerateMock} className="hidden sm:flex items-center gap-2 px-3 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">
+                                                <RefreshCw size={14} /> Mock
+                                            </button>
+                                            <button onClick={handleExport} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors" title="Export CSV">
+                                                <Download size={16} />
+                                            </button>
+                                            <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors" title="Import CSV">
+                                                <Upload size={16} />
+                                            </button>
+                                            <input type="file" className="hidden" ref={fileInputRef} onChange={(e) => { /* Import Logic Here if simple */ addToast('Import simulated', 'info'); }} />
                                         </div>
                                     </div>
                                 </div>
-                            )}
 
-                            {/* Content */}
-                            <div className="flex-1 overflow-hidden bg-slate-50 relative">
+                                {/* Enhanced Filter Panel - Hide in New Entry mode */}
+                                {showFilters && subView !== 'preview' && (
+                                    <div className="border-b border-gray-200 bg-white animate-in slide-in-from-top-2">
+                                        <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
 
-                                {/* TABLE VIEW */}
-                                {subView === 'table' && (
-                                    <div className="h-full overflow-auto custom-scrollbar p-6">
-                                        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto min-h-[400px]">
-                                            <table className="w-full text-left border-collapse">
-                                                <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-                                                    <tr>
-                                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase w-16 text-center bg-gray-50">#</th>
-                                                        {gridColumns.map(f => (
-                                                            <th key={f.id} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase whitespace-nowrap min-w-[150px] bg-gray-50 border-l border-gray-100">
-                                                                {f.label}
-                                                            </th>
-                                                        ))}
-                                                        <th className="px-6 py-4 w-20 text-center bg-gray-50 border-l border-gray-100">Actions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-100">
-                                                    {filteredRecords.length === 0 ? (
-                                                        <tr>
-                                                            <td colSpan={gridColumns.length + 2} className="px-6 py-16 text-center text-gray-400">
-                                                                <div className="flex flex-col items-center gap-3">
-                                                                    <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
-                                                                        <Search size={24} className="opacity-30" />
-                                                                    </div>
-                                                                    <p className="text-sm font-medium">No records found.</p>
-                                                                    <button onClick={() => setSubView('preview')} className="text-indigo-600 font-bold text-xs hover:underline mt-1">Add your first record</button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    ) : (
-                                                        filteredRecords.map((row, i) => (
-                                                            <tr key={row._id} className="hover:bg-indigo-50/30 transition-colors group">
-                                                                <td className="px-6 py-4 text-xs font-mono text-gray-400 text-center group-hover:text-indigo-400">{i + 1}</td>
-                                                                {gridColumns.map(f => (
-                                                                    <td key={f.id} className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap border-l border-transparent group-hover:border-indigo-100 max-w-xs truncate">
-                                                                        {f.type === 'checkbox' ? (
-                                                                            row[f.id] ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Yes</span> : <span className="text-gray-400 text-xs">No</span>
-                                                                        ) : (
-                                                                            safeRenderValue(row[f.id]) || <span className="text-gray-300">-</span>
-                                                                        )}
-                                                                    </td>
+                                            {/* Left: Filter Builder */}
+                                            <div className="p-5 flex-1 space-y-4">
+                                                <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                                                    <Filter size={16} />
+                                                    <span className="text-sm font-bold">添加筛选条件</span>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-end gap-3">
+                                                    <div className="flex-1 min-w-[140px]">
+                                                        <select
+                                                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-gray-50 focus:bg-white transition-all"
+                                                            value={pendingFilter.fieldId}
+                                                            onChange={(e) => {
+                                                                const field = schema.find(f => f.id === e.target.value);
+                                                                const defaultOp = field ? getOperatorsForType(field.type)[0].val : '';
+                                                                setPendingFilter({ ...pendingFilter, fieldId: e.target.value, operator: defaultOp });
+                                                            }}
+                                                        >
+                                                            <option value="">选择字段...</option>
+                                                            {allDataFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                                                        </select>
+                                                    </div>
+
+                                                    {pendingFilter.fieldId && (
+                                                        <div className="w-[120px]">
+                                                            <select
+                                                                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-gray-50 focus:bg-white transition-all"
+                                                                value={pendingFilter.operator}
+                                                                onChange={(e) => setPendingFilter({ ...pendingFilter, operator: e.target.value })}
+                                                            >
+                                                                {getOperatorsForType(schema.find(f => f.id === pendingFilter.fieldId)?.type || 'text').map(op => (
+                                                                    <option key={op.val} value={op.val}>{op.label}</option>
                                                                 ))}
-                                                                <td className="px-6 py-4 text-center border-l border-transparent group-hover:border-indigo-100">
-                                                                    <button
-                                                                        onClick={() => handleDeleteRecord(row._id)}
-                                                                        className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1.5 hover:bg-red-50 rounded"
-                                                                    >
-                                                                        <Trash2 size={16} />
-                                                                    </button>
-                                                                </td>
-                                                            </tr>
-                                                        ))
+                                                            </select>
+                                                        </div>
                                                     )}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        <div className="mt-4 flex justify-between items-center text-xs text-gray-500 px-2">
-                                            <span>Showing {filteredRecords.length} records</span>
-                                            <span>Page 1 of 1</span>
+
+                                                    <div className="flex-1 min-w-[140px]">
+                                                        <input
+                                                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-gray-50 focus:bg-white transition-all"
+                                                            placeholder="值..."
+                                                            value={pendingFilter.value}
+                                                            onChange={(e) => setPendingFilter({ ...pendingFilter, value: e.target.value })}
+                                                            onKeyDown={(e) => e.key === 'Enter' && handleAddPendingFilter()}
+                                                        />
+                                                    </div>
+
+                                                    <button
+                                                        onClick={handleAddPendingFilter}
+                                                        className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm"
+                                                    >
+                                                        添加
+                                                    </button>
+                                                </div>
+
+                                                {/* Active Filters Chips */}
+                                                <div className="flex flex-wrap gap-2 pt-2">
+                                                    {filters.length === 0 && <span className="text-xs text-gray-400 italic">暂无筛选条件</span>}
+                                                    {filters.map((f, i) => {
+                                                        const field = schema.find(s => s.id === f.fieldId);
+                                                        const opLabel = getOperatorsForType(field?.type || 'text').find(o => o.val === f.operator)?.label || f.operator;
+                                                        return (
+                                                            <div key={f.id} className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-full text-xs font-medium animate-in zoom-in-95">
+                                                                <span className="font-bold">{field?.label}</span>
+                                                                <span className="text-indigo-400">{opLabel}</span>
+                                                                <span className="font-bold">{f.value}</span>
+                                                                <button onClick={() => handleRemoveFilter(f.id)} className="hover:text-red-500 ml-1"><X size={12} /></button>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {filters.length > 0 && (
+                                                        <button onClick={() => setFilters([])} className="text-xs text-red-500 hover:underline self-center ml-2">
+                                                            清除所有
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Right: View Presets */}
+                                            <div className="p-5 lg:w-80 space-y-4 bg-gray-50/50">
+                                                <div className="flex items-center gap-2 text-gray-600 mb-2">
+                                                    <Bookmark size={16} />
+                                                    <span className="text-sm font-bold">视图预设</span>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    {savedViews.map((view, idx) => (
+                                                        <div
+                                                            key={idx}
+                                                            className="flex items-center justify-between text-sm group cursor-pointer hover:bg-white p-2 rounded-lg transition-colors border border-transparent hover:border-gray-200"
+                                                            onClick={() => handleLoadView(view.filters)}
+                                                        >
+                                                            <div className="flex items-center gap-2 text-gray-600 group-hover:text-indigo-600">
+                                                                <List size={14} />
+                                                                <span>{view.name}</span>
+                                                            </div>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); setSavedViews(savedViews.filter((_, i) => i !== idx)); }}
+                                                                className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            >
+                                                                <X size={12} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                    {savedViews.length === 0 && <div className="text-xs text-gray-400 italic px-2">暂无预设视图</div>}
+                                                </div>
+
+                                                <div className="pt-3 border-t border-gray-200 flex gap-2">
+                                                    <input
+                                                        className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-indigo-500"
+                                                        placeholder="视图名称..."
+                                                        value={viewName}
+                                                        onChange={(e) => setViewName(e.target.value)}
+                                                    />
+                                                    <button
+                                                        onClick={handleSaveView}
+                                                        disabled={!viewName.trim() || filters.length === 0}
+                                                        className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        保存
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* BATCH VIEW */}
-                                {subView === 'batch' && (
-                                    <div className="h-full flex flex-col p-6">
-                                        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col">
-                                            <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                                                <h3 className="font-bold text-gray-700 text-sm flex items-center gap-2"><Grid size={16} /> Batch Entry Mode</h3>
-                                                <div className="flex gap-2">
-                                                    <button onClick={() => setBatchRows([...batchRows, { tempId: Date.now(), data: {} }])} className="text-xs font-bold text-indigo-600 bg-white border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-50 transition-colors">+ Add Row</button>
-                                                    <button onClick={handleBatchSubmit} className="text-xs font-bold text-white bg-indigo-600 px-3 py-1.5 rounded hover:bg-indigo-700 transition-colors shadow-sm">Save All</button>
-                                                </div>
-                                            </div>
-                                            <div className="overflow-auto flex-1">
+                                {/* Content */}
+                                <div className="flex-1 overflow-hidden bg-slate-50 relative">
+
+                                    {/* TABLE VIEW */}
+                                    {subView === 'table' && (
+                                        <div className="h-full overflow-auto custom-scrollbar p-6">
+                                            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto min-h-[400px]">
                                                 <table className="w-full text-left border-collapse">
-                                                    <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                                                    <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10 shadow-sm">
                                                         <tr>
-                                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-12 text-center">#</th>
-                                                            {batchColumns.map(f => (
-                                                                <th key={f.id} className="px-4 py-3 text-xs font-bold text-gray-500 uppercase whitespace-nowrap min-w-[150px] border-l border-gray-100">
-                                                                    {f.label} {f.required && <span className="text-red-500">*</span>}
+                                                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase w-16 text-center bg-gray-50">#</th>
+                                                            {gridColumns.map(f => (
+                                                                <th key={f.id} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase whitespace-nowrap min-w-[150px] bg-gray-50 border-l border-gray-100">
+                                                                    {f.label}
                                                                 </th>
                                                             ))}
-                                                            <th className="px-4 py-3 w-10"></th>
+                                                            <th className="px-6 py-4 w-20 text-center bg-gray-50 border-l border-gray-100">Actions</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-gray-100">
-                                                        {batchRows.map((row, idx) => (
-                                                            <tr key={row.tempId} className="group hover:bg-indigo-50/10">
-                                                                <td className="px-4 py-2 text-center text-xs text-gray-400 font-mono">{idx + 1}</td>
-                                                                {batchColumns.map(f => (
-                                                                    <td key={f.id} className="p-0 border-l border-gray-100">
-                                                                        {f.type === 'select' ? (
-                                                                            <select
-                                                                                className="w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all h-full"
-                                                                                value={row.data[f.id] || ''}
-                                                                                onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
-                                                                            >
-                                                                                <option value="">Select...</option>
-                                                                                {f.options?.map((o: string) => <option key={o} value={o}>{o}</option>)}
-                                                                            </select>
-                                                                        ) : f.type === 'checkbox' ? (
-                                                                            <div className="flex items-center justify-center py-2">
-                                                                                <input
-                                                                                    type="checkbox"
-                                                                                    checked={!!row.data[f.id]}
-                                                                                    onChange={e => handleBatchUpdate(idx, f.id, e.target.checked)}
-                                                                                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                                                                                />
-                                                                            </div>
-                                                                        ) : (
-                                                                            <input
-                                                                                type={f.type === 'number' ? 'number' : 'text'}
-                                                                                className="w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-300"
-                                                                                placeholder={f.label}
-                                                                                value={row.data[f.id] || ''}
-                                                                                onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
-                                                                            />
-                                                                        )}
-                                                                    </td>
-                                                                ))}
-                                                                <td className="px-2 text-center">
-                                                                    <button onClick={() => setBatchRows(batchRows.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-500 p-1 rounded hover:bg-red-50">
-                                                                        <X size={14} />
-                                                                    </button>
+                                                        {filteredRecords.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan={gridColumns.length + 2} className="px-6 py-16 text-center text-gray-400">
+                                                                    <div className="flex flex-col items-center gap-3">
+                                                                        <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
+                                                                            <Search size={24} className="opacity-30" />
+                                                                        </div>
+                                                                        <p className="text-sm font-medium">No records found.</p>
+                                                                        <button onClick={() => setSubView('preview')} className="text-indigo-600 font-bold text-xs hover:underline mt-1">Add your first record</button>
+                                                                    </div>
                                                                 </td>
                                                             </tr>
-                                                        ))}
+                                                        ) : (
+                                                            filteredRecords.map((row, i) => (
+                                                                <tr key={row._id} className="hover:bg-indigo-50/30 transition-colors group">
+                                                                    <td className="px-6 py-4 text-xs font-mono text-gray-400 text-center group-hover:text-indigo-400">{i + 1}</td>
+                                                                    {gridColumns.map(f => (
+                                                                        <td key={f.id} className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap border-l border-transparent group-hover:border-indigo-100 max-w-xs truncate">
+                                                                            {f.type === 'checkbox' ? (
+                                                                                row[f.id] ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Yes</span> : <span className="text-gray-400 text-xs">No</span>
+                                                                            ) : (
+                                                                                safeRenderValue(row[f.id]) || <span className="text-gray-300">-</span>
+                                                                            )}
+                                                                        </td>
+                                                                    ))}
+                                                                    <td className="px-6 py-4 text-center border-l border-transparent group-hover:border-indigo-100">
+                                                                        <button
+                                                                            onClick={() => handleDeleteRecord(row._id)}
+                                                                            className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1.5 hover:bg-red-50 rounded"
+                                                                        >
+                                                                            <Trash2 size={16} />
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))
+                                                        )}
                                                     </tbody>
                                                 </table>
                                             </div>
+                                            <div className="mt-4 flex justify-between items-center text-xs text-gray-500 px-2">
+                                                <span>Showing {filteredRecords.length} records</span>
+                                                <span>Page 1 of 1</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
 
-                                {/* FORM VIEW (Single Entry) */}
-                                {subView === 'preview' && (
-                                    <div className="h-full overflow-y-auto custom-scrollbar p-8 flex justify-center">
-                                        <div className="w-full max-w-4xl animate-in slide-in-from-bottom-4 duration-300">
-                                            <FormPreview
-                                                schema={schema}
-                                                data={previewData}
-                                                setData={setPreviewData}
-                                                errors={errors}
-                                                setErrors={setErrors}
-                                                onSubmit={() => handleRecordSubmit(previewData)}
-                                                onCancel={() => setSubView('table')}
-                                                formName={currentFormName}
-                                            />
+                                    {/* BATCH VIEW */}
+                                    {subView === 'batch' && (
+                                        <div className="h-full flex flex-col p-6">
+                                            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col">
+                                                <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                                                    <h3 className="font-bold text-gray-700 text-sm flex items-center gap-2"><Grid size={16} /> Batch Entry Mode</h3>
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => setBatchRows([...batchRows, { tempId: Date.now(), data: {} }])} className="text-xs font-bold text-indigo-600 bg-white border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-50 transition-colors">+ Add Row</button>
+                                                        <button onClick={handleBatchSubmit} className="text-xs font-bold text-white bg-indigo-600 px-3 py-1.5 rounded hover:bg-indigo-700 transition-colors shadow-sm">Save All</button>
+                                                    </div>
+                                                </div>
+                                                <div className="overflow-auto flex-1">
+                                                    <table className="w-full text-left border-collapse">
+                                                        <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                                                            <tr>
+                                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-12 text-center">#</th>
+                                                                {batchColumns.map(f => (
+                                                                    <th key={f.id} className="px-4 py-3 text-xs font-bold text-gray-500 uppercase whitespace-nowrap min-w-[150px] border-l border-gray-100">
+                                                                        {f.label} {f.required && <span className="text-red-500">*</span>}
+                                                                    </th>
+                                                                ))}
+                                                                <th className="px-4 py-3 w-10"></th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100">
+                                                            {batchRows.map((row, idx) => (
+                                                                <tr key={row.tempId} className="group hover:bg-indigo-50/10">
+                                                                    <td className="px-4 py-2 text-center text-xs text-gray-400 font-mono">{idx + 1}</td>
+                                                                    {batchColumns.map(f => (
+                                                                        <td key={f.id} className="p-0 border-l border-gray-100">
+                                                                            {f.type === 'select' ? (
+                                                                                <select
+                                                                                    className="w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all h-full"
+                                                                                    value={row.data[f.id] || ''}
+                                                                                    onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
+                                                                                >
+                                                                                    <option value="">Select...</option>
+                                                                                    {f.options?.map((o: string) => <option key={o} value={o}>{o}</option>)}
+                                                                                </select>
+                                                                            ) : f.type === 'checkbox' ? (
+                                                                                <div className="flex items-center justify-center py-2">
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        checked={!!row.data[f.id]}
+                                                                                        onChange={e => handleBatchUpdate(idx, f.id, e.target.checked)}
+                                                                                        className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                                                                                    />
+                                                                                </div>
+                                                                            ) : (
+                                                                                <input
+                                                                                    type={f.type === 'number' ? 'number' : 'text'}
+                                                                                    className="w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-300"
+                                                                                    placeholder={f.label}
+                                                                                    value={row.data[f.id] || ''}
+                                                                                    onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
+                                                                                />
+                                                                            )}
+                                                                        </td>
+                                                                    ))}
+                                                                    <td className="px-2 text-center">
+                                                                        <button onClick={() => setBatchRows(batchRows.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-500 p-1 rounded hover:bg-red-50">
+                                                                            <X size={14} />
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+
+                                    {/* FORM VIEW (Single Entry) */}
+                                    {subView === 'preview' && (
+                                        <div className="h-full overflow-y-auto custom-scrollbar p-8 flex justify-center">
+                                            <div className="w-full max-w-4xl animate-in slide-in-from-bottom-4 duration-300">
+                                                <FormPreview
+                                                    schema={schema}
+                                                    data={previewData}
+                                                    setData={setPreviewData}
+                                                    errors={errors}
+                                                    setErrors={setErrors}
+                                                    onSubmit={() => handleRecordSubmit(previewData)}
+                                                    onCancel={() => setSubView('table')}
+                                                    formName={currentFormName}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )
@@ -3396,6 +3719,82 @@ export const ERPManager: React.FC = () => {
                 )
             }
 
+            {/* Save Dataset Dialog */}
+            {saveDatasetOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+                        <div className="mb-4">
+                            <h3 className="text-lg font-bold text-gray-800">Save Dataset</h3>
+                            <p className="text-xs text-gray-500 mt-1">
+                                Give your dataset a unique name to save it to the library.
+                            </p>
+                        </div>
+                        <div className="mb-6 space-y-3">
+                            <label className="text-xs font-bold text-gray-500 uppercase">Dataset Name</label>
+                            <input
+                                autoFocus
+                                value={datasetNameInput}
+                                onChange={(e) => setDatasetNameInput(e.target.value)}
+                                placeholder="E.g. Q4 Inventory Snapshot"
+                                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                onKeyDown={(e) => e.key === 'Enter' && handleSaveDataset()}
+                            />
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setSaveDatasetOpen(false)}
+                                className="px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveDataset}
+                                className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm"
+                            >
+                                Save Dataset
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Rename Dataset Dialog */}
+            {renameDialog.isOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+                        <div className="mb-4">
+                            <h3 className="text-lg font-bold text-gray-800">Rename Dataset</h3>
+                            <p className="text-xs text-gray-500 mt-1">
+                                Enter a new name for this dataset.
+                            </p>
+                        </div>
+                        <div className="mb-6 space-y-3">
+                            <label className="text-xs font-bold text-gray-500 uppercase">New Name</label>
+                            <input
+                                autoFocus
+                                value={renameDialog.name}
+                                onChange={(e) => setRenameDialog(prev => ({ ...prev, name: e.target.value }))}
+                                placeholder="Dataset Name"
+                                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                onKeyDown={(e) => e.key === 'Enter' && handleRenameSubmit()}
+                            />
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setRenameDialog(prev => ({ ...prev, isOpen: false }))}
+                                className="px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleRenameSubmit}
+                                className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm"
+                            >
+                                Rename
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };
