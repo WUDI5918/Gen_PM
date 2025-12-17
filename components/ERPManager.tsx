@@ -788,49 +788,54 @@ const FieldEditor = ({
 // 3. Right Side Live Preview
 const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCancel, formName }: any) => {
 
-    // --- Logic Engine Execution ---
+    // --- Logic Engine Execution (Debounced to avoid input interference) ---
     useEffect(() => {
-        const newData = { ...data };
-        let hasChanges = false;
+        const timeoutId = setTimeout(() => {
+            const newData = { ...data };
+            let hasChanges = false;
 
-        schema.forEach((field: any) => {
-            // 1. Calculation (Sync)
-            if (field.logic?.calculation) {
-                const result = evaluateExpression(field.logic.calculation, data);
-                if (result !== null && result !== undefined && !result.__isApi) {
-                    if (String(result) !== String(data[field.id])) {
-                        newData[field.id] = result;
-                        hasChanges = true;
+            schema.forEach((field: any) => {
+                // 1. Calculation (Sync) - Only for fields with calculations, skip user-editable fields
+                if (field.logic?.calculation) {
+                    const result = evaluateExpression(field.logic.calculation, data);
+                    if (result !== null && result !== undefined && !result.__isApi) {
+                        // Use loose comparison for numbers to avoid "10" !== 10 issues
+                        if (Number(result) !== Number(data[field.id]) || (isNaN(Number(result)) && String(result) !== String(data[field.id]))) {
+                            newData[field.id] = result;
+                            hasChanges = true;
+                        }
                     }
                 }
-            }
 
-            // 2. API Logic (Simulated Async)
-            if (field.logic?.apiRule) {
-                const meta = evaluateExpression(field.logic.apiRule, data);
-                // Check if we have a valid lookup instruction object
-                if (meta && meta.__isApi && meta.id) {
-                    // Check MOCK_DB
-                    const record = MOCK_DB[meta.dataset]?.[meta.id];
-                    const fetchedValue = record ? record[meta.key] : '';
+                // 2. API Logic (Simulated Async)
+                if (field.logic?.apiRule) {
+                    const meta = evaluateExpression(field.logic.apiRule, data);
+                    // Check if we have a valid lookup instruction object
+                    if (meta && meta.__isApi && meta.id) {
+                        // Check MOCK_DB
+                        const record = MOCK_DB[meta.dataset]?.[meta.id];
+                        const fetchedValue = record ? record[meta.key] : '';
 
-                    if (fetchedValue !== undefined && fetchedValue !== data[field.id]) {
-                        newData[field.id] = fetchedValue;
-                        hasChanges = true;
-                    }
-                } else if (data[field.id]) {
-                    // API Rule exists but invalid ID (e.g. empty), clear field
-                    if (data[field.id] !== '') {
-                        newData[field.id] = '';
-                        hasChanges = true;
+                        if (fetchedValue !== undefined && fetchedValue !== data[field.id]) {
+                            newData[field.id] = fetchedValue;
+                            hasChanges = true;
+                        }
+                    } else if (data[field.id]) {
+                        // API Rule exists but invalid ID (e.g. empty), clear field
+                        if (data[field.id] !== '') {
+                            newData[field.id] = '';
+                            hasChanges = true;
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        if (hasChanges) {
-            setData(newData);
-        }
+            if (hasChanges) {
+                setData(newData);
+            }
+        }, 100); // 100ms debounce
+
+        return () => clearTimeout(timeoutId);
     }, [data, schema]); // Dependency on data triggers recalculation loop. React batches updates, but care needed.
 
     const getVisibility = (field: any) => {
@@ -3368,8 +3373,8 @@ export const ERPManager: React.FC = () => {
                                         onClick={handleAIGenerate}
                                         disabled={!aiBuilderModal.prompt.trim() || aiBuilderModal.isLoading}
                                         className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-lg transition-all disabled:opacity-50 ${aiBuilderModal.mode === 'generate'
-                                                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:shadow-lg'
-                                                : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:shadow-lg'
+                                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:shadow-lg'
+                                            : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:shadow-lg'
                                             }`}
                                     >
                                         {aiBuilderModal.isLoading ? (
