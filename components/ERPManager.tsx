@@ -1801,7 +1801,7 @@ export const ERPManager: React.FC = () => {
     };
 
     // State
-    const [activeTab, setActiveTab] = useState<'builder' | 'data' | 'library' | 'guide'>(() => loadFromStorage('erp_active_tab', 'builder'));
+    const [activeTab, setActiveTab] = useState<'builder' | 'data' | 'library' | 'guide'>(() => loadFromStorage('erp_active_tab', 'data'));
     const [subView, setSubView] = useState<'table' | 'preview' | 'batch'>(() => loadFromStorage('erp_sub_view', 'table')); // Data sub-views
 
     // Schema State
@@ -2539,12 +2539,6 @@ export const ERPManager: React.FC = () => {
                 {/* Mode Switcher */}
                 <div className="bg-slate-100 p-1 rounded-lg border border-slate-200 flex">
                     <button
-                        onClick={() => setActiveTab('builder')}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'builder' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        <Settings2 size={14} /> Schema Builder
-                    </button>
-                    <button
                         onClick={() => setActiveTab('data')}
                         className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'data' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
@@ -2556,6 +2550,12 @@ export const ERPManager: React.FC = () => {
                         className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'library' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         <Folder size={14} /> Form Library
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('builder')}
+                        className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'builder' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <Settings2 size={14} /> Schema Builder
                     </button>
                     <div className="w-px bg-gray-200 mx-1 my-1"></div>
                     <button
