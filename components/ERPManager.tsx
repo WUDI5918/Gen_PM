@@ -1858,6 +1858,20 @@ export const ERPManager: React.FC = () => {
 
     const [errors, setErrors] = useState<Record<string, string>>({});
 
+    // Track unsaved changes
+    const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>(() => {
+        // Create a snapshot of initial state to compare against
+        const initialRecords = loadFromStorage('erp_records', []);
+        const initialSchema = loadFromStorage('erp_schema', InitialSchema);
+        return JSON.stringify({ records: initialRecords, schema: initialSchema });
+    });
+
+    // Compute isDirty by comparing current state with last saved snapshot
+    const isDirty = useMemo(() => {
+        const currentSnapshot = JSON.stringify({ records, schema });
+        return currentSnapshot !== lastSavedSnapshot;
+    }, [records, schema, lastSavedSnapshot]);
+
     // Preview Resizing Logic
     const [previewWidth, setPreviewWidth] = useState(450);
     const [showPreview, setShowPreview] = useState(true);
@@ -2019,9 +2033,12 @@ export const ERPManager: React.FC = () => {
                     records: recordsToSave
                 }, ...filtered];
             });
-            setCurrentFormName(name);
+            // Note: currentFormName shows the template, not the dataset name
             setSaveDatasetOpen(false);
             setDatasetNameInput('');
+
+            // Mark data as clean after saving
+            setLastSavedSnapshot(JSON.stringify({ records: recordsToSave, schema }));
 
             if (saveFilteredOnly && hasActiveFilters) {
                 addToast(`Dataset "${name}" saved with ${recordsToSave.length} filtered records`, 'success');
@@ -2081,16 +2098,33 @@ export const ERPManager: React.FC = () => {
     };
 
     const handleLoadDataset = (dataset: any) => {
-        setSchema(dataset.schema);
-        setRecords(dataset.records || []);
-        setCurrentFormName(dataset.name);
-        setSubView('table');
-        // Clear filter groups when switching datasets
-        setFilterGroups([{ id: Date.now().toString(), logic: 'AND', conditions: [] }]);
-        setActiveGroupId('');
-        setPendingFilter({ fieldId: '', operator: '', value: '', value2: '' });
-        setQuickFilters({});
-        addToast(`Loaded dataset: ${dataset.name}`, 'success');
+        const doLoad = () => {
+            setSchema(dataset.schema);
+            setRecords(dataset.records || []);
+            // Note: currentFormName is determined automatically by matching schema with saved forms
+            setSubView('table');
+            // Clear filter groups when switching datasets
+            setFilterGroups([{ id: Date.now().toString(), logic: 'AND', conditions: [] }]);
+            setActiveGroupId('');
+            setPendingFilter({ fieldId: '', operator: '', value: '', value2: '' });
+            setQuickFilters({});
+            // Update snapshot to mark new data as clean
+            setLastSavedSnapshot(JSON.stringify({ records: dataset.records || [], schema: dataset.schema }));
+            addToast(`Loaded dataset: ${dataset.name}`, 'success');
+        };
+
+        // Check if there are unsaved changes
+        if (isDirty) {
+            triggerConfirm(
+                '未保存的更改',
+                '当前数据有未保存的更改。切换数据集将丢失这些更改。是否继续？',
+                doLoad,
+                'danger',
+                '放弃更改并切换'
+            );
+        } else {
+            doLoad();
+        }
     };
 
     // Confirmation Modal State
