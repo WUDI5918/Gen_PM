@@ -2908,46 +2908,41 @@ export const ERPManager: React.FC = () => {
                             </div>
 
                             <div className="flex-1 flex flex-col overflow-hidden relative">
-                                {/* Data Toolbar */}
+                                {/* Data Toolbar Optimized */}
                                 <div className="bg-white border-b border-gray-200 px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-20 shadow-sm/50">
-                                    {/* Sub-View Switcher (Left) */}
-                                    <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-lg self-start md:self-auto">
-                                        <button onClick={() => setSubView('table')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                                            <TableIcon size={14} /> Grid View
-                                        </button>
-                                        <button onClick={() => setSubView('batch')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'batch' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                                            <Grid size={14} /> Batch Entry
-                                        </button>
-                                        <button onClick={() => setSubView('preview')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                                            <FormInput size={14} /> New Entry
-                                        </button>
-                                    </div>
 
-                                    {/* Actions (Right) */}
-                                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                                        <button
-                                            onClick={() => setSaveDatasetOpen(true)}
-                                            className="flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs font-bold shadow-sm"
-                                        >
-                                            <Save size={14} /> Save
-                                        </button>
+                                    {/* Left Group: Nav & Context */}
+                                    <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+                                        {/* View Switcher */}
+                                        <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-lg">
+                                            <button onClick={() => setSubView('table')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                                                <TableIcon size={14} /> Grid
+                                            </button>
+                                            <button onClick={() => setSubView('batch')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'batch' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                                                <Grid size={14} /> Batch
+                                            </button>
+                                            <button onClick={() => setSubView('preview')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${subView === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                                                <FormInput size={14} /> Entry
+                                            </button>
+                                        </div>
+
+                                        <div className="hidden sm:block h-6 w-px bg-gray-200"></div>
+
                                         {/* Template Selector */}
-                                        <div className="relative">
+                                        <div className="relative z-30">
                                             <button
                                                 onClick={() => setTemplateSelectorOpen(!templateSelectorOpen)}
-                                                className="w-full sm:w-auto flex items-center justify-between gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 hover:border-indigo-300 rounded-lg text-xs font-bold text-gray-700 hover:text-indigo-600 transition-all shadow-sm group min-w-[140px]"
                                             >
-                                                <div className="flex items-center gap-2">
-                                                    <Folder size={14} />
-                                                    <span className="truncate max-w-[100px]">{currentFormName}</span>
-                                                </div>
-                                                <ChevronDown size={12} />
+                                                <Folder size={14} className="text-gray-400 group-hover:text-indigo-500 transition-colors" />
+                                                <span className="truncate flex-1 text-left">{currentFormName}</span>
+                                                <ChevronDown size={12} className="text-gray-300 group-hover:text-indigo-500 transition-colors" />
                                             </button>
 
                                             {templateSelectorOpen && (
                                                 <>
                                                     <div className="fixed inset-0 z-10" onClick={() => setTemplateSelectorOpen(false)}></div>
-                                                    <div className="absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                                    <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                                                         <div className="p-2 border-b border-gray-100 bg-gray-50">
                                                             <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-2">Select Template</span>
                                                         </div>
@@ -2984,39 +2979,55 @@ export const ERPManager: React.FC = () => {
                                                 </>
                                             )}
                                         </div>
+                                    </div>
 
-                                        <div className="relative flex-1 sm:flex-none">
+                                    {/* Right Group: Search, Tools, Actions */}
+                                    <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+
+                                        {/* Search */}
+                                        <div className="relative w-full sm:w-48">
                                             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                             <input
-                                                className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
-                                                placeholder="Search records..."
+                                                className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-50 transition-all"
+                                                placeholder="Search..."
                                                 value={globalSearch}
                                                 onChange={(e) => setGlobalSearch(e.target.value)}
                                             />
                                         </div>
 
-                                        <div className="flex items-center gap-2">
+                                        {/* Tools Group */}
+                                        <div className="flex items-center gap-1 bg-white border border-gray-100 p-1 rounded-lg mr-2 shadow-sm">
                                             {subView !== 'preview' && (
                                                 <button
                                                     onClick={() => setShowFilters(!showFilters)}
-                                                    className={`p-2 rounded-lg border transition-colors ${showFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                                    className={`p-1.5 rounded-md transition-colors ${showFilters ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}
                                                     title="Toggle Filters"
                                                 >
                                                     <Filter size={16} />
                                                 </button>
                                             )}
-                                            <div className={`h-6 w-px bg-gray-200 mx-1 ${subView === 'preview' ? 'hidden' : 'hidden sm:block'}`}></div>
-                                            <button onClick={handleGenerateMock} className="hidden sm:flex items-center gap-2 px-3 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">
-                                                <RefreshCw size={14} /> Mock
+                                            <div className="w-px h-4 bg-gray-200 mx-1"></div>
+                                            <button onClick={handleGenerateMock} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Mock Data">
+                                                <RefreshCw size={16} />
                                             </button>
-                                            <button onClick={handleExport} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors" title="Export CSV">
-                                                <Download size={16} />
-                                            </button>
-                                            <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors" title="Import CSV">
+                                            <button onClick={() => fileInputRef.current?.click()} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Import CSV">
                                                 <Upload size={16} />
                                             </button>
-                                            <input type="file" className="hidden" ref={fileInputRef} onChange={(e) => { /* Import Logic Here if simple */ addToast('Import simulated', 'info'); }} />
+                                            <button onClick={handleExport} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Export CSV">
+                                                <Download size={16} />
+                                            </button>
+                                            <input type="file" className="hidden" ref={fileInputRef} onChange={(e) => { addToast('Import simulated', 'info'); }} />
                                         </div>
+
+                                        {/* Primary Action */}
+                                        {subView === 'table' && (
+                                            <button
+                                                onClick={() => setSaveDatasetOpen(true)}
+                                                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs font-bold shadow-sm hover:shadow hover:-translate-y-0.5 active:translate-y-0"
+                                            >
+                                                <Save size={14} /> Save
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 
