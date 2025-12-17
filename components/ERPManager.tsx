@@ -1993,7 +1993,7 @@ export const ERPManager: React.FC = () => {
         });
     }, [schema]);
 
-    const handleSaveDataset = () => {
+    const handleSaveDataset = (saveFilteredOnly: boolean = false) => {
         if (!datasetNameInput.trim()) {
             addToast('Please enter a dataset name', 'error');
             return;
@@ -2002,7 +2002,13 @@ export const ERPManager: React.FC = () => {
         const name = datasetNameInput.trim();
         const exists = savedDatasets.some(d => d.name === name);
 
+        // Check if there are active filters
+        const hasActiveFilters = filterGroups.some(g => g.conditions.length > 0);
+
         const doSave = () => {
+            // Use filtered records if user chose to save filtered only and there are active filters
+            const recordsToSave = (saveFilteredOnly && hasActiveFilters) ? [...filteredRecords] : [...records];
+
             setSavedDatasets(prev => {
                 const filtered = prev.filter(d => d.name !== name);
                 return [{
@@ -2010,13 +2016,18 @@ export const ERPManager: React.FC = () => {
                     name: name,
                     timestamp: Date.now(),
                     schema: [...schema],
-                    records: [...records]
+                    records: recordsToSave
                 }, ...filtered];
             });
             setCurrentFormName(name);
             setSaveDatasetOpen(false);
             setDatasetNameInput('');
-            addToast(`Dataset "${name}" saved successfully`, 'success');
+
+            if (saveFilteredOnly && hasActiveFilters) {
+                addToast(`Dataset "${name}" saved with ${recordsToSave.length} filtered records`, 'success');
+            } else {
+                addToast(`Dataset "${name}" saved with ${recordsToSave.length} records`, 'success');
+            }
         };
 
         if (exists) {
@@ -2025,6 +2036,9 @@ export const ERPManager: React.FC = () => {
             doSave();
         }
     };
+
+    // Check if there are active filters (for UI display)
+    const hasActiveFilters = useMemo(() => filterGroups.some(g => g.conditions.length > 0), [filterGroups]);
 
     // Rename & Delete Logic
     const [renameDialog, setRenameDialog] = useState<{ isOpen: boolean, id: string, name: string }>({ isOpen: false, id: '', name: '' });
@@ -4156,36 +4170,75 @@ export const ERPManager: React.FC = () => {
             {/* Save Dataset Dialog */}
             {saveDatasetOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
                         <div className="mb-4">
-                            <h3 className="text-lg font-bold text-gray-800">Save Dataset</h3>
+                            <h3 className="text-lg font-bold text-gray-800">保存数据集</h3>
                             <p className="text-xs text-gray-500 mt-1">
-                                Give your dataset a unique name to save it to the library.
+                                为您的数据集命名并保存到数据库
                             </p>
                         </div>
-                        <div className="mb-6 space-y-3">
-                            <label className="text-xs font-bold text-gray-500 uppercase">Dataset Name</label>
+                        <div className="mb-4 space-y-3">
+                            <label className="text-xs font-bold text-gray-500 uppercase">数据集名称</label>
                             <input
                                 autoFocus
                                 value={datasetNameInput}
                                 onChange={(e) => setDatasetNameInput(e.target.value)}
-                                placeholder="E.g. Q4 Inventory Snapshot"
+                                placeholder="例如：Q4 库存快照"
                                 className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                onKeyDown={(e) => e.key === 'Enter' && handleSaveDataset()}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSaveDataset(false)}
                             />
                         </div>
-                        <div className="flex justify-end gap-3">
+
+                        {/* Show filter info if filters are active */}
+                        {hasActiveFilters && (
+                            <div className="mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                                <div className="flex items-center gap-2 text-indigo-700 mb-2">
+                                    <Filter size={14} />
+                                    <span className="text-xs font-bold">筛选条件已激活</span>
+                                </div>
+                                <div className="flex items-center justify-between text-xs text-indigo-600">
+                                    <span>全部记录: <strong>{records.length}</strong> 条</span>
+                                    <span>筛选后: <strong>{filteredRecords.length}</strong> 条</span>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex flex-col gap-2">
+                            {/* If filters are active, show both options */}
+                            {hasActiveFilters ? (
+                                <>
+                                    <button
+                                        onClick={() => handleSaveDataset(true)}
+                                        disabled={!datasetNameInput.trim()}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <Filter size={14} />
+                                        仅保存筛选结果 ({filteredRecords.length} 条)
+                                    </button>
+                                    <button
+                                        onClick={() => handleSaveDataset(false)}
+                                        disabled={!datasetNameInput.trim()}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <Database size={14} />
+                                        保存全部数据 ({records.length} 条)
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    onClick={() => handleSaveDataset(false)}
+                                    disabled={!datasetNameInput.trim()}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <Save size={14} />
+                                    保存数据集 ({records.length} 条)
+                                </button>
+                            )}
                             <button
                                 onClick={() => setSaveDatasetOpen(false)}
-                                className="px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                                className="w-full px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
                             >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSaveDataset}
-                                className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm"
-                            >
-                                Save Dataset
+                                取消
                             </button>
                         </div>
                     </div>
