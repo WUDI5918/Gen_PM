@@ -5,7 +5,7 @@ import {
     Minus, AlertCircle, Info, Table as TableIcon,
     RefreshCw, X, MoveVertical, AlertTriangle, CheckCircle, Bell,
     Filter, Search, Bookmark, Download, Upload, Copy, Grid,
-    Settings2, LayoutTemplate, Circle as CircleIcon,
+    Settings2, LayoutTemplate, Circle as CircleIcon, SlidersHorizontal,
     ChevronRight, ChevronDown, MoreHorizontal, Database, ArrowRight,
     Maximize2, Columns, Edit3, Check, ChevronUp, Layers, BoxSelect,
     ToggleLeft, FileText, PenTool, Star, CreditCard, Clock, Link,
@@ -3156,9 +3156,14 @@ export const ERPManager: React.FC = () => {
                                                 {/* Top Controls: Root Logic & Add Group */}
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2">
-                                                        <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
-                                                            <Filter size={16} />
-                                                            <span className="text-sm font-bold">高级筛选</span>
+                                                        <div className="flex items-center gap-2 px-1 mr-4 border-r border-gray-100 pr-4">
+                                                            <div className="bg-indigo-50 p-1.5 rounded-lg text-indigo-600">
+                                                                <SlidersHorizontal size={16} />
+                                                            </div>
+                                                            <div className="flex flex-col">
+                                                                <span className="text-sm font-bold text-slate-800 leading-none">筛选配置</span>
+                                                                <span className="text-[10px] text-slate-400 font-medium">Filter Rules</span>
+                                                            </div>
                                                         </div>
 
                                                         {filterGroups.length > 1 && (
@@ -3193,9 +3198,9 @@ export const ERPManager: React.FC = () => {
                                                 </div>
 
                                                 {/* Common Filter Input (Adds to Active Group) */}
-                                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-wrap items-end gap-3 shadow-inner">
+                                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-wrap items-center gap-3 shadow-inner">
                                                     <div className="flex-1 min-w-[140px]">
-                                                        <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">字段 (Field)</label>
+
                                                         <select
                                                             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-white transition-all"
                                                             value={pendingFilter.fieldId}
@@ -3210,33 +3215,33 @@ export const ERPManager: React.FC = () => {
                                                         </select>
                                                     </div>
 
-                                                    {pendingFilter.fieldId && (
-                                                        <div className="w-[120px]">
-                                                            <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">条件 (Operator)</label>
-                                                            <select
-                                                                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-white transition-all"
-                                                                value={pendingFilter.operator}
-                                                                onChange={(e) => setPendingFilter({ ...pendingFilter, operator: e.target.value })}
-                                                            >
-                                                                {getOperatorsForType(schema.find(f => f.id === pendingFilter.fieldId)?.type || 'text').map(op => (
-                                                                    <option key={op.val} value={op.val}>{op.label}</option>
-                                                                ))}
-                                                            </select>
-                                                        </div>
-                                                    )}
+                                                    <div className="w-[120px]">
+                                                        <select
+                                                            disabled={!pendingFilter.fieldId}
+                                                            className={`w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-white transition-all ${!pendingFilter.fieldId ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
+                                                            value={pendingFilter.operator}
+                                                            onChange={(e) => setPendingFilter({ ...pendingFilter, operator: e.target.value })}
+                                                        >
+                                                            {!pendingFilter.fieldId && <option>条件...</option>}
+                                                            {pendingFilter.fieldId && getOperatorsForType(schema.find(f => f.id === pendingFilter.fieldId)?.type || 'text').map(op => (
+                                                                <option key={op.val} value={op.val}>{op.label}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
 
                                                     {/* Smart Value Input */}
                                                     {pendingFilter.operator !== 'isEmpty' && pendingFilter.operator !== 'isNotEmpty' && (
                                                         <div className="flex-1 min-w-[140px] flex gap-2">
                                                             {schema.find(f => f.id === pendingFilter.fieldId)?.type === 'select' || schema.find(f => f.id === pendingFilter.fieldId)?.type === 'radio' ? (
                                                                 <div className="w-full">
-                                                                    <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">值 (Value)</label>
+
                                                                     <select
-                                                                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-white transition-all"
+                                                                        disabled={!pendingFilter.fieldId}
+                                                                        className={`w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-white transition-all ${!pendingFilter.fieldId ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
                                                                         value={pendingFilter.value}
                                                                         onChange={(e) => setPendingFilter({ ...pendingFilter, value: e.target.value })}
                                                                     >
-                                                                        <option value="">Select...</option>
+                                                                        <option value="">请选择...</option>
                                                                         {schema.find(f => f.id === pendingFilter.fieldId)?.options?.map((opt: string) => (
                                                                             <option key={opt} value={opt}>{opt}</option>
                                                                         ))}
@@ -3245,11 +3250,12 @@ export const ERPManager: React.FC = () => {
                                                             ) : (
                                                                 <>
                                                                     <div className="w-full">
-                                                                        <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">值 (Value)</label>
+
                                                                         <input
+                                                                            disabled={!pendingFilter.fieldId}
                                                                             type={schema.find(f => f.id === pendingFilter.fieldId)?.type === 'date' ? 'date' : 'text'}
-                                                                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-white transition-all"
-                                                                            placeholder="Enter value..."
+                                                                            className={`w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-white transition-all ${!pendingFilter.fieldId ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
+                                                                            placeholder="请输入值..."
                                                                             value={pendingFilter.value}
                                                                             onChange={(e) => setPendingFilter({ ...pendingFilter, value: e.target.value })}
                                                                             onKeyDown={(e) => e.key === 'Enter' && handleAddPendingFilter()}
@@ -3257,7 +3263,7 @@ export const ERPManager: React.FC = () => {
                                                                     </div>
                                                                     {pendingFilter.operator === 'between' && (
                                                                         <div className="w-full">
-                                                                            <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">结束值 (End)</label>
+
                                                                             <input
                                                                                 type={schema.find(f => f.id === pendingFilter.fieldId)?.type === 'date' ? 'date' : 'text'}
                                                                                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-white transition-all"
@@ -3274,17 +3280,18 @@ export const ERPManager: React.FC = () => {
                                                     )}
 
                                                     <div className="flex items-center gap-2">
-                                                        <div className="flex flex-col">
-                                                            <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">目标组 (Target)</label>
-                                                            <select
-                                                                value={activeGroupId}
-                                                                onChange={(e) => setActiveGroupId(e.target.value)}
-                                                                className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-2.5 outline-none focus:border-indigo-500 font-mono"
-                                                            >
-                                                                {filterGroups.map((g, i) => <option key={g.id} value={g.id}>Group {i + 1}</option>)}
-                                                            </select>
-                                                        </div>
-                                                        <div className="flex flex-col justify-end h-full pt-5">
+                                                        {filterGroups.length > 1 && (
+                                                            <div className="flex flex-col">
+                                                                <select
+                                                                    value={activeGroupId}
+                                                                    onChange={(e) => setActiveGroupId(e.target.value)}
+                                                                    className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-2.5 outline-none focus:border-indigo-500 font-mono"
+                                                                >
+                                                                    {filterGroups.map((g, i) => <option key={g.id} value={g.id}>Group {i + 1}</option>)}
+                                                                </select>
+                                                            </div>
+                                                        )}
+                                                        <div className="flex flex-col justify-center h-full">
                                                             <button
                                                                 onClick={handleAddPendingFilter}
                                                                 className="bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm"
@@ -3302,70 +3309,88 @@ export const ERPManager: React.FC = () => {
                                                         <div
                                                             key={group.id}
                                                             onClick={() => setActiveGroupId(group.id)}
-                                                            className={`border rounded-xl p-4 transition-all cursor-pointer relative group/item ${activeGroupId === group.id ? 'border-indigo-400 bg-white shadow-md ring-1 ring-indigo-100' : 'border-gray-200 bg-white hover:border-indigo-200'}`}
+                                                            className={`relative rounded-xl border transition-all duration-200 cursor-default ${activeGroupId === group.id
+                                                                ? 'bg-white border-indigo-500 shadow-md ring-1 ring-indigo-500/20'
+                                                                : 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-sm'
+                                                                }`}
                                                         >
-                                                            {/* Group Header */}
-                                                            <div className="flex justify-between items-center mb-3 pb-3 border-b border-gray-100">
+                                                            {/* Group Header & Logic Toggle */}
+                                                            <div className="flex items-center justify-between p-3 border-b border-gray-50/50 bg-gray-50/30 rounded-t-xl">
                                                                 <div className="flex items-center gap-3">
-                                                                    <span className={`text-xs font-bold px-2 py-1 rounded bg-slate-100 text-slate-500`}>Group {groupIndex + 1}</span>
-                                                                    <div className="flex bg-slate-100 rounded p-0.5" onClick={(e) => e.stopPropagation()}>
+                                                                    <div className="flex items-center justify-center w-6 h-6 rounded-md bg-white border border-gray-100 shadow-sm text-xs font-bold text-slate-500">
+                                                                        {groupIndex + 1}
+                                                                    </div>
+
+                                                                    <div className="flex bg-gray-100/80 p-0.5 rounded-lg border border-gray-200/50">
                                                                         <button
-                                                                            onClick={() => setFilterGroups(prev => prev.map(g => g.id === group.id ? { ...g, logic: 'AND' } : g))}
-                                                                            className={`px-2 py-0.5 text-[10px] font-bold rounded transition-all ${group.logic === 'AND' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                                                                            onClick={(e) => { e.stopPropagation(); setFilterGroups(prev => prev.map(g => g.id === group.id ? { ...g, logic: 'AND' } : g)); }}
+                                                                            className={`px-3 py-0.5 text-[10px] font-bold rounded-md transition-all ${group.logic === 'AND' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                                                                         >
-                                                                            AND (All)
+                                                                            且 (AND)
                                                                         </button>
                                                                         <button
-                                                                            onClick={() => setFilterGroups(prev => prev.map(g => g.id === group.id ? { ...g, logic: 'OR' } : g))}
-                                                                            className={`px-2 py-0.5 text-[10px] font-bold rounded transition-all ${group.logic === 'OR' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                                                                            onClick={(e) => { e.stopPropagation(); setFilterGroups(prev => prev.map(g => g.id === group.id ? { ...g, logic: 'OR' } : g)); }}
+                                                                            className={`px-3 py-0.5 text-[10px] font-bold rounded-md transition-all ${group.logic === 'OR' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                                                                         >
-                                                                            OR (Any)
+                                                                            或 (OR)
                                                                         </button>
                                                                     </div>
                                                                 </div>
-                                                                <button
-                                                                    onClick={(e) => { e.stopPropagation(); handleRemoveGroup(group.id); }}
-                                                                    className="text-gray-300 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
-                                                                    title="Remove Group"
-                                                                >
-                                                                    <Trash2 size={14} />
-                                                                </button>
+
+                                                                <div className="flex items-center gap-2">
+                                                                    {activeGroupId === group.id && (
+                                                                        <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full animate-in fade-in">当前编辑组</span>
+                                                                    )}
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); handleRemoveGroup(group.id); }}
+                                                                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                                        title="删除组"
+                                                                    >
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                </div>
                                                             </div>
 
-                                                            {/* Conditions List */}
-                                                            <div className="flex flex-wrap gap-2">
-                                                                {group.conditions.length === 0 && <span className="text-xs text-gray-400 italic">此组为空</span>}
-                                                                {group.conditions.map((f, i) => {
-                                                                    const field = schema.find(s => s.id === f.fieldId);
-                                                                    const opLabel = getOperatorsForType(field?.type || 'text').find(o => o.val === f.operator)?.label || f.operator;
-                                                                    return (
-                                                                        <div key={f.id} className="flex items-center gap-2">
-                                                                            {i > 0 && (
-                                                                                <span className="text-[10px] font-bold text-slate-300 uppercase">
-                                                                                    {group.logic}
-                                                                                </span>
-                                                                            )}
-                                                                            <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-full text-xs font-medium animate-in zoom-in-95 shadow-sm hover:bg-indigo-100 transition-colors">
-                                                                                <span className="font-bold text-slate-700">{field?.label}</span>
-                                                                                <span className="text-indigo-400 font-mono">{opLabel}</span>
-                                                                                {(f.operator !== 'isEmpty' && f.operator !== 'isNotEmpty') && (
-                                                                                    <span className="font-bold bg-white px-1.5 rounded">{f.value} {f.value2 ? `- ${f.value2}` : ''}</span>
-                                                                                )}
-                                                                                <button
-                                                                                    onClick={(e) => { e.stopPropagation(); handleRemoveFilter(group.id, f.id); }}
-                                                                                    className="hover:text-red-500 ml-1 p-0.5 hover:bg-red-50 rounded"
-                                                                                >
-                                                                                    <X size={12} />
-                                                                                </button>
-                                                                            </div>
+                                                            {/* Group Content */}
+                                                            <div className="p-3 bg-white rounded-b-xl min-h-[60px]" onClick={() => setActiveGroupId(group.id)}>
+                                                                {group.conditions.length === 0 ? (
+                                                                    <div className="flex flex-col items-center justify-center py-4 text-center cursor-pointer opacity-60 hover:opacity-100 transition-opacity" onClick={() => setActiveGroupId(group.id)}>
+                                                                        <div className="p-2 bg-gray-50 rounded-full mb-1">
+                                                                            <Filter size={12} className="text-gray-300" />
                                                                         </div>
-                                                                    );
-                                                                })}
+                                                                        <span className="text-xs text-gray-300">此组为空</span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex flex-wrap items-center gap-2">
+                                                                        {group.conditions.map((f, i) => {
+                                                                            const field = schema.find(s => s.id === f.fieldId);
+                                                                            const opLabel = getOperatorsForType(field?.type || 'text').find(o => o.val === f.operator)?.label || f.operator;
+                                                                            return (
+                                                                                <React.Fragment key={f.id}>
+                                                                                    {i > 0 && (
+                                                                                        <div className={`relative px-1 text-[10px] font-bold uppercase ${group.logic === 'AND' ? 'text-emerald-300' : 'text-amber-300'}`}>
+                                                                                            {group.logic === 'AND' ? '+' : '/'}
+                                                                                        </div>
+                                                                                    )}
+                                                                                    <div className="group flex items-center gap-2 bg-white border border-gray-200 text-gray-700 pl-3 pr-1 py-1 rounded-full text-xs font-medium shadow-sm hover:border-indigo-300 hover:shadow-md transition-all cursor-default select-none">
+                                                                                        <span className="font-bold text-gray-600">{field?.label}</span>
+                                                                                        <span className="text-gray-400 font-mono text-[10px] uppercase">{opLabel}</span>
+                                                                                        {(f.operator !== 'isEmpty' && f.operator !== 'isNotEmpty') && (
+                                                                                            <span className="font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{f.value} {f.value2 ? `- ${f.value2}` : ''}</span>
+                                                                                        )}
+                                                                                        <button
+                                                                                            onClick={(e) => { e.stopPropagation(); handleRemoveFilter(group.id, f.id); }}
+                                                                                            className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors ml-1"
+                                                                                        >
+                                                                                            <X size={12} />
+                                                                                        </button>
+                                                                                    </div>
+                                                                                </React.Fragment>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                )}
                                                             </div>
-                                                            {/* Active Indicator */}
-                                                            {activeGroupId === group.id && (
-                                                                <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
-                                                            )}
                                                         </div>
                                                     ))}
                                                 </div>
