@@ -1833,7 +1833,7 @@ export const ERPManager: React.FC = () => {
     const [filterGroups, setFilterGroups] = useState<{ id: string, logic: 'AND' | 'OR', conditions: { id: string, fieldId: string, operator: string, value: string, value2?: string }[] }[]>(() =>
         loadFromStorage('erp_filter_groups', [{ id: 'g1', logic: 'AND', conditions: [] }])
     );
-    const [rootFilterMode, setRootFilterMode] = useState<'AND' | 'OR'>('AND');
+    const [rootFilterMode, setRootFilterMode] = useState<'AND' | 'OR'>(() => loadFromStorage('erp_root_filter_mode', 'AND'));
     const [activeGroupId, setActiveGroupId] = useState<string>('g1');
 
     const [pendingFilter, setPendingFilter] = useState({ fieldId: '', operator: '', value: '', value2: '' });
@@ -1851,7 +1851,7 @@ export const ERPManager: React.FC = () => {
     const [viewName, setViewName] = useState('');
 
     const [globalSearch, setGlobalSearch] = useState('');
-    const [showFilters, setShowFilters] = useState(false);
+    const [showFilters, setShowFilters] = useState(() => loadFromStorage('erp_show_filters', false));
 
     // Quick Filter State (column header filters)
     const [quickFilters, setQuickFilters] = useState<Record<string, { open: boolean, value: string }>>({});
@@ -1872,7 +1872,7 @@ export const ERPManager: React.FC = () => {
     const [formName, setFormName] = useState('');
     const [formDesc, setFormDesc] = useState('');
     const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
-    const [currentFormName, setCurrentFormName] = useState('Custom Form');
+    const [currentFormName, setCurrentFormName] = useState(() => loadFromStorage('erp_current_form_name', 'Custom Form'));
 
     // Drag from toolbox state
     const [isDraggingFromToolbox, setIsDraggingFromToolbox] = useState(false);
@@ -1882,12 +1882,84 @@ export const ERPManager: React.FC = () => {
     const [saveDatasetOpen, setSaveDatasetOpen] = useState(false);
     const [datasetNameInput, setDatasetNameInput] = useState('');
 
-    // Persistence for Saved Datasets
+    // === Comprehensive Data Persistence ===
+
+    // Persist active tab
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('erp_active_tab', JSON.stringify(activeTab));
+        }
+    }, [activeTab]);
+
+    // Persist sub view
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('erp_sub_view', JSON.stringify(subView));
+        }
+    }, [subView]);
+
+    // Persist schema
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('erp_schema', JSON.stringify(schema));
+        }
+    }, [schema]);
+
+    // Persist records
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('erp_records', JSON.stringify(records));
+        }
+    }, [records]);
+
+    // Persist filter groups
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('erp_filter_groups', JSON.stringify(filterGroups));
+        }
+    }, [filterGroups]);
+
+    // Persist saved views
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('erp_saved_views_v2', JSON.stringify(savedViews));
+        }
+    }, [savedViews]);
+
+    // Persist saved datasets
     useEffect(() => {
         if (typeof window !== 'undefined') {
             window.localStorage.setItem('erp_saved_datasets', JSON.stringify(savedDatasets));
         }
     }, [savedDatasets]);
+
+    // Persist saved forms
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('erp_saved_forms', JSON.stringify(savedForms));
+        }
+    }, [savedForms]);
+
+    // Persist root filter mode
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('erp_root_filter_mode', JSON.stringify(rootFilterMode));
+        }
+    }, [rootFilterMode]);
+
+    // Persist show filters state
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('erp_show_filters', JSON.stringify(showFilters));
+        }
+    }, [showFilters]);
+
+    // Persist current form name
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('erp_current_form_name', JSON.stringify(currentFormName));
+        }
+    }, [currentFormName]);
 
     // Sanitize filter groups when schema changes - remove conditions referencing non-existent fields
     useEffect(() => {
