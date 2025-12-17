@@ -1801,7 +1801,7 @@ const LogicGuide = () => {
 };
 
 // --- Main App Component ---
-export const ERPManager: React.FC = () => {
+export const SuperTable: React.FC = () => {
     const { addToast } = useToast();
 
     // Helper to load from localStorage
@@ -1847,7 +1847,65 @@ export const ERPManager: React.FC = () => {
     ]));
 
     // Dataset Library State
-    const [savedDatasets, setSavedDatasets] = useState<{ id: string, name: string, timestamp: number, schema: any[], records: any[] }[]>(() => loadFromStorage('erp_saved_datasets', []));
+    const [savedDatasets, setSavedDatasets] = useState<{ id: string, name: string, groupId?: string, timestamp: number, schema: any[], records: any[] }[]>(() => loadFromStorage('erp_saved_datasets', []));
+
+    // Dataset Groups State
+    const [datasetGroups, setDatasetGroups] = useState<{ id: string, name: string }[]>(() => loadFromStorage('erp_dataset_groups', []));
+
+    // Persist groups
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_dataset_groups', JSON.stringify(datasetGroups));
+    }, [datasetGroups]);
+
+    // Group Handlers
+    const handleAddDatasetGroup = () => {
+        const newName = `Folder ${datasetGroups.length + 1}`;
+        setDatasetGroups(prev => [...prev, { id: `g_${Date.now()}`, name: newName }]);
+    };
+
+    const [groupRenameState, setGroupRenameState] = useState<{ id: string, name: string } | null>(null);
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set(loadFromStorage('erp_collapsed_groups', [])));
+    const [deleteGroupDialog, setDeleteGroupDialog] = useState({ isOpen: false, groupId: '', groupName: '' });
+
+    const executeDeleteGroup = (action: 'delete_all' | 'move_to_root') => {
+        const { groupId } = deleteGroupDialog;
+        if (action === 'delete_all') {
+            setSavedDatasets(prev => prev.filter(d => d.groupId !== groupId));
+        } else {
+            setSavedDatasets(prev => prev.map(d => d.groupId === groupId ? { ...d, groupId: undefined } : d));
+        }
+        setDatasetGroups(prev => prev.filter(g => g.id !== groupId));
+        setDeleteGroupDialog({ isOpen: false, groupId: '', groupName: '' });
+        addToast('Folder deleted', 'info');
+    };
+
+    const handleMoveDataset = (datasetId: string, targetGroupId?: string) => {
+        setSavedDatasets(prev => prev.map(d => d.id === datasetId ? { ...d, groupId: targetGroupId } : d));
+        addToast('Dataset moved', 'success');
+    };
+
+    const handleCommitGroupRename = () => {
+        if (!groupRenameState) return;
+        setDatasetGroups(prev => prev.map(g => g.id === groupRenameState.id ? { ...g, name: groupRenameState.name } : g));
+        setGroupRenameState(null);
+    };
+
+    const toggleGroupCollapse = (groupId: string) => {
+        setCollapsedGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(groupId)) {
+                next.delete(groupId);
+            } else {
+                next.add(groupId);
+            }
+            return next;
+        });
+    };
+
+    const confirmDeleteGroup = (groupId: string, groupName: string) => {
+        setDeleteGroupDialog({ isOpen: true, groupId, groupName });
+    };
+
     const [viewName, setViewName] = useState('');
 
     const [globalSearch, setGlobalSearch] = useState('');
@@ -1974,6 +2032,13 @@ export const ERPManager: React.FC = () => {
             window.localStorage.setItem('erp_current_form_name', JSON.stringify(currentFormName));
         }
     }, [currentFormName]);
+
+    // Persist collapsed groups
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('erp_collapsed_groups', JSON.stringify(Array.from(collapsedGroups)));
+        }
+    }, [collapsedGroups]);
 
     // Sanitize filter groups when schema changes - remove conditions referencing non-existent fields
     useEffect(() => {
@@ -2803,7 +2868,7 @@ export const ERPManager: React.FC = () => {
                         <Database size={18} />
                     </div>
                     <div>
-                        <h1 className="font-extrabold text-lg text-gray-900 tracking-tight leading-none">ERP Data Manager</h1>
+                        <h1 className="font-extrabold text-lg text-gray-900 tracking-tight leading-none">Super Table</h1>
                         <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5 tracking-wider">Dynamic Schema Engine</p>
                     </div>
                 </div>
@@ -3109,48 +3174,135 @@ export const ERPManager: React.FC = () => {
                                     <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                                         <Database size={14} /> Databases
                                     </h3>
+                                    <button onClick={handleAddDatasetGroup} className="p-1 text-slate-400 hover:text-indigo-600 rounded transition-colors" title="New Folder">
+                                        <Plus size={14} />
+                                    </button>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                                    {savedDatasets.length === 0 && (
+                                    {savedDatasets.length === 0 && datasetGroups.length === 0 && (
                                         <div className="text-center p-8 text-slate-400">
                                             <Database size={24} className="mx-auto mb-2 opacity-50" />
                                             <p className="text-[10px]">No saved datasets</p>
                                         </div>
                                     )}
-                                    {savedDatasets.map(ds => (
+
+                                    {/* Groups */}
+                                    {datasetGroups.map(group => (
                                         <div
-                                            key={ds.id}
-                                            onDoubleClick={() => handleLoadDataset(ds)}
-                                            className="p-3 rounded-lg hover:bg-white hover:shadow-sm cursor-pointer transition-all border border-transparent hover:border-slate-100 group relative"
+                                            key={group.id}
+                                            className="mb-1"
+                                            onDragOver={e => e.preventDefault()}
+                                            onDrop={e => {
+                                                e.preventDefault();
+                                                const dsId = e.dataTransfer.getData('datasetId');
+                                                if (dsId) handleMoveDataset(dsId, group.id);
+                                            }}
                                         >
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <TableIcon size={14} className="text-indigo-500 shrink-0" />
-                                                <span className="text-sm font-bold text-slate-700 truncate pr-16">{ds.name}</span>
+                                            <div onClick={() => toggleGroupCollapse(group.id)} className="group/header flex items-center gap-1 px-2 py-1.5 rounded hover:bg-slate-100 text-sm font-medium text-slate-700 cursor-pointer relative">
+                                                <ChevronDown size={14} className={`text-slate-400 transition-transform ${collapsedGroups.has(group.id) ? '-rotate-90' : ''}`} />
+                                                <Folder size={14} className="text-indigo-400 shrink-0" />
+                                                {groupRenameState?.id === group.id ? (
+                                                    <input
+                                                        autoFocus
+                                                        className="flex-1 bg-white border border-indigo-300 rounded px-1 min-w-0 outline-none text-xs h-6"
+                                                        value={groupRenameState.name}
+                                                        onChange={e => setGroupRenameState({ ...groupRenameState, name: e.target.value })}
+                                                        onBlur={handleCommitGroupRename}
+                                                        onKeyDown={e => e.key === 'Enter' && handleCommitGroupRename()}
+                                                        onClick={e => e.stopPropagation()}
+                                                    />
+                                                ) : (
+                                                    <span className="truncate flex-1 text-xs font-bold" onDoubleClick={(e) => { e.stopPropagation(); setGroupRenameState(group); }}>{group.name}</span>
+                                                )}
+                                                <div className="hidden group-hover/header:flex items-center absolute right-2">
+                                                    <button onClick={(e) => { e.stopPropagation(); confirmDeleteGroup(group.id, group.name); }} className="p-1 text-gray-400 hover:text-red-500 rounded"><Trash2 size={12} /></button>
+                                                </div>
                                             </div>
 
-                                            {/* Dataset Actions (Hover) */}
-                                            <div className="hidden group-hover:flex items-center gap-1 absolute right-2 top-1/2 -translate-y-1/2">
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setRenameDialog({ isOpen: true, id: ds.id, name: ds.name }); }}
-                                                    className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
-                                                    title="Rename"
-                                                >
-                                                    <Edit3 size={12} />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => handleDeleteDataset(e, ds.id, ds.name)}
-                                                    className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 size={12} />
-                                                </button>
-                                            </div>
+                                            {/* Group Items */}
+                                            {!collapsedGroups.has(group.id) && (
+                                                <div className="pl-4 space-y-1 mt-1">
+                                                    {savedDatasets.filter(d => d.groupId === group.id).map(ds => (
+                                                        <div
+                                                            key={ds.id}
+                                                            draggable
+                                                            onDragStart={e => e.dataTransfer.setData('datasetId', ds.id)}
+                                                            onDoubleClick={() => handleLoadDataset(ds)}
+                                                            className="p-2 rounded-lg hover:bg-white hover:shadow-sm cursor-pointer transition-all border border-transparent hover:border-slate-100 group relative flex items-center gap-2"
+                                                        >
+                                                            <TableIcon size={14} className="text-indigo-500 shrink-0" />
+                                                            <span className="text-xs font-medium text-slate-700 truncate flex-1">{ds.name}</span>
 
-                                            <div className="text-[10px] text-slate-400">
-                                                {new Date(ds.timestamp).toLocaleDateString()}
-                                            </div>
+                                                            {/* Actions */}
+                                                            <div className="hidden group-hover:flex items-center gap-1 absolute right-2 top-1/2 -translate-y-1/2">
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); setRenameDialog({ isOpen: true, id: ds.id, name: ds.name }); }}
+                                                                    className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
+                                                                    title="Rename"
+                                                                >
+                                                                    <Edit3 size={12} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => handleDeleteDataset(e, ds.id, ds.name)}
+                                                                    className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                                                    title="Delete"
+                                                                >
+                                                                    <Trash2 size={12} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
+
+                                    {/* Root Items (Drop Zone) */}
+                                    <div
+                                        className="pt-2 space-y-1 min-h-[50px]"
+                                        onDragOver={e => e.preventDefault()}
+                                        onDrop={e => {
+                                            e.preventDefault();
+                                            const dsId = e.dataTransfer.getData('datasetId');
+                                            if (dsId) handleMoveDataset(dsId, undefined);
+                                        }}
+                                    >
+                                        {savedDatasets.filter(d => !d.groupId || !datasetGroups.find(g => g.id === d.groupId)).map(ds => (
+                                            <div
+                                                key={ds.id}
+                                                draggable
+                                                onDragStart={e => e.dataTransfer.setData('datasetId', ds.id)}
+                                                onDoubleClick={() => handleLoadDataset(ds)}
+                                                className="p-3 rounded-lg hover:bg-white hover:shadow-sm cursor-pointer transition-all border border-transparent hover:border-slate-100 group relative"
+                                            >
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <TableIcon size={14} className="text-indigo-500 shrink-0" />
+                                                    <span className="text-sm font-bold text-slate-700 truncate pr-16">{ds.name}</span>
+                                                </div>
+
+                                                <div className="hidden group-hover:flex items-center gap-1 absolute right-2 top-1/2 -translate-y-1/2">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setRenameDialog({ isOpen: true, id: ds.id, name: ds.name }); }}
+                                                        className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
+                                                        title="Rename"
+                                                    >
+                                                        <Edit3 size={12} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handleDeleteDataset(e, ds.id, ds.name)}
+                                                        className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
+
+                                                <div className="text-[10px] text-slate-400">
+                                                    {new Date(ds.timestamp).toLocaleDateString()}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
@@ -3868,7 +4020,7 @@ export const ERPManager: React.FC = () => {
                     activeTab === 'guide' && <LogicGuide />
                 }
 
-            </main>
+            </main >
 
             {/* --- Save Form Modal --- */}
             {
@@ -4177,120 +4329,173 @@ export const ERPManager: React.FC = () => {
             }
 
             {/* Save Dataset Dialog */}
-            {saveDatasetOpen && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
-                        <div className="mb-4">
-                            <h3 className="text-lg font-bold text-gray-800">保存数据集</h3>
-                            <p className="text-xs text-gray-500 mt-1">
-                                为您的数据集命名并保存到数据库
-                            </p>
-                        </div>
-                        <div className="mb-4 space-y-3">
-                            <label className="text-xs font-bold text-gray-500 uppercase">数据集名称</label>
-                            <input
-                                autoFocus
-                                value={datasetNameInput}
-                                onChange={(e) => setDatasetNameInput(e.target.value)}
-                                placeholder="例如：Q4 库存快照"
-                                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                onKeyDown={(e) => e.key === 'Enter' && handleSaveDataset(false)}
-                            />
-                        </div>
-
-                        {/* Show filter info if filters are active */}
-                        {hasActiveFilters && (
-                            <div className="mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
-                                <div className="flex items-center gap-2 text-indigo-700 mb-2">
-                                    <Filter size={14} />
-                                    <span className="text-xs font-bold">筛选条件已激活</span>
-                                </div>
-                                <div className="flex items-center justify-between text-xs text-indigo-600">
-                                    <span>全部记录: <strong>{records.length}</strong> 条</span>
-                                    <span>筛选后: <strong>{filteredRecords.length}</strong> 条</span>
-                                </div>
+            {
+                saveDatasetOpen && (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+                            <div className="mb-4">
+                                <h3 className="text-lg font-bold text-gray-800">保存数据集</h3>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    为您的数据集命名并保存到数据库
+                                </p>
                             </div>
-                        )}
+                            <div className="mb-4 space-y-3">
+                                <label className="text-xs font-bold text-gray-500 uppercase">数据集名称</label>
+                                <input
+                                    autoFocus
+                                    value={datasetNameInput}
+                                    onChange={(e) => setDatasetNameInput(e.target.value)}
+                                    placeholder="例如：Q4 库存快照"
+                                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSaveDataset(false)}
+                                />
+                            </div>
 
-                        <div className="flex flex-col gap-2">
-                            {/* If filters are active, show both options */}
-                            {hasActiveFilters ? (
-                                <>
-                                    <button
-                                        onClick={() => handleSaveDataset(true)}
-                                        disabled={!datasetNameInput.trim()}
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
+                            {/* Show filter info if filters are active */}
+                            {hasActiveFilters && (
+                                <div className="mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                                    <div className="flex items-center gap-2 text-indigo-700 mb-2">
                                         <Filter size={14} />
-                                        仅保存筛选结果 ({filteredRecords.length} 条)
-                                    </button>
+                                        <span className="text-xs font-bold">筛选条件已激活</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs text-indigo-600">
+                                        <span>全部记录: <strong>{records.length}</strong> 条</span>
+                                        <span>筛选后: <strong>{filteredRecords.length}</strong> 条</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex flex-col gap-2">
+                                {/* If filters are active, show both options */}
+                                {hasActiveFilters ? (
+                                    <>
+                                        <button
+                                            onClick={() => handleSaveDataset(true)}
+                                            disabled={!datasetNameInput.trim()}
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <Filter size={14} />
+                                            仅保存筛选结果 ({filteredRecords.length} 条)
+                                        </button>
+                                        <button
+                                            onClick={() => handleSaveDataset(false)}
+                                            disabled={!datasetNameInput.trim()}
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <Database size={14} />
+                                            保存全部数据 ({records.length} 条)
+                                        </button>
+                                    </>
+                                ) : (
                                     <button
                                         onClick={() => handleSaveDataset(false)}
                                         disabled={!datasetNameInput.trim()}
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        <Database size={14} />
-                                        保存全部数据 ({records.length} 条)
+                                        <Save size={14} />
+                                        保存数据集 ({records.length} 条)
                                     </button>
-                                </>
-                            ) : (
+                                )}
                                 <button
-                                    onClick={() => handleSaveDataset(false)}
-                                    disabled={!datasetNameInput.trim()}
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                    onClick={() => setSaveDatasetOpen(false)}
+                                    className="w-full px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
                                 >
-                                    <Save size={14} />
-                                    保存数据集 ({records.length} 条)
+                                    取消
                                 </button>
-                            )}
-                            <button
-                                onClick={() => setSaveDatasetOpen(false)}
-                                className="w-full px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                                取消
-                            </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
             {/* Rename Dataset Dialog */}
-            {renameDialog.isOpen && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
-                        <div className="mb-4">
-                            <h3 className="text-lg font-bold text-gray-800">Rename Dataset</h3>
-                            <p className="text-xs text-gray-500 mt-1">
-                                Enter a new name for this dataset.
-                            </p>
-                        </div>
-                        <div className="mb-6 space-y-3">
-                            <label className="text-xs font-bold text-gray-500 uppercase">New Name</label>
-                            <input
-                                autoFocus
-                                value={renameDialog.name}
-                                onChange={(e) => setRenameDialog(prev => ({ ...prev, name: e.target.value }))}
-                                placeholder="Dataset Name"
-                                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                onKeyDown={(e) => e.key === 'Enter' && handleRenameSubmit()}
-                            />
-                        </div>
-                        <div className="flex justify-end gap-3">
-                            <button
-                                onClick={() => setRenameDialog(prev => ({ ...prev, isOpen: false }))}
-                                className="px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleRenameSubmit}
-                                className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm"
-                            >
-                                Rename
-                            </button>
+            {
+                renameDialog.isOpen && (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+                            <div className="mb-4">
+                                <h3 className="text-lg font-bold text-gray-800">Rename Dataset</h3>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Enter a new name for this dataset.
+                                </p>
+                            </div>
+                            <div className="mb-6 space-y-3">
+                                <label className="text-xs font-bold text-gray-500 uppercase">New Name</label>
+                                <input
+                                    autoFocus
+                                    value={renameDialog.name}
+                                    onChange={(e) => setRenameDialog(prev => ({ ...prev, name: e.target.value }))}
+                                    placeholder="Dataset Name"
+                                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleRenameSubmit()}
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    onClick={() => setRenameDialog(prev => ({ ...prev, isOpen: false }))}
+                                    className="px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleRenameSubmit}
+                                    className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm"
+                                >
+                                    Rename
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
+            {
+                deleteGroupDialog.isOpen && (
+                    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+                            <div className="mb-4">
+                                <h3 className="text-lg font-bold text-red-600 flex items-center gap-2">
+                                    <Trash2 size={20} /> Delete Folder
+                                </h3>
+                                <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+                                    You are deleting <span className="font-bold text-gray-800">"{deleteGroupDialog.groupName}"</span>.
+                                    <br />What do you want to do with the datasets inside it?
+                                </p>
+                            </div>
+                            <div className="flex flex-col gap-3">
+                                <button
+                                    onClick={() => executeDeleteGroup('move_to_root')}
+                                    className="w-full px-4 py-3 text-sm font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl transition-colors text-left flex items-center gap-3 group"
+                                >
+                                    <div className="p-2 bg-white rounded-lg border border-gray-100 text-indigo-500 group-hover:border-indigo-200 group-hover:bg-indigo-50 transition-colors">
+                                        <Database size={16} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="font-bold text-gray-800">Move to Root</div>
+                                        <div className="text-[10px] text-gray-400 font-normal">Keep datasets, only delete folder</div>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => executeDeleteGroup('delete_all')}
+                                    className="w-full px-4 py-3 text-sm font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-100 rounded-xl transition-colors text-left flex items-center gap-3 group"
+                                >
+                                    <div className="p-2 bg-white rounded-lg border border-red-100 text-red-500 group-hover:border-red-200 group-hover:bg-red-50 transition-colors">
+                                        <Trash2 size={16} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="font-bold text-red-700">Delete Everything</div>
+                                        <div className="text-[10px] text-red-400 font-normal">Delete folder AND all its datasets</div>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => setDeleteGroupDialog({ isOpen: false, groupId: '', groupName: '' })}
+                                    className="w-full px-4 py-2 text-sm font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors mt-1"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
         </div >
     );
 };

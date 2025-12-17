@@ -16,7 +16,7 @@ import { TeamView } from './components/TeamView';
 import { CommandPalette } from './components/CommandPalette';
 import { NotificationCenter } from './components/NotificationCenter';
 import { db } from './services/db';
-import { ERPManager } from './components/ERPManager';
+import { SuperTable } from './components/SuperTable';
 import { parseDate } from './utils';
 
 import {
@@ -850,7 +850,7 @@ const AppContent: React.FC = () => {
                     <SidebarItem id="calendar" icon={CalendarDays} label={t('app.view.calendar')} />
                     <SidebarItem id="team" icon={Users} label={t('app.team')} />
                     <SidebarItem id="issues" icon={AlertCircle} label={t('app.view.issues')} />
-                    <SidebarItem id="erp" icon={Database} label="ERP Data" />
+                    <SidebarItem id="erp" icon={Database} label="Super Table" />
                 </nav>
 
                 <div className="p-3 mt-auto border-t border-gray-100 bg-white flex flex-col gap-2">
@@ -1144,7 +1144,7 @@ const AppContent: React.FC = () => {
 
                 {/* ERP MANAGER VIEW */}
                 {currentView === 'erp' && (
-                    <ERPManager />
+                    <SuperTable />
                 )}
 
                 {/* ISSUES VIEW */}
