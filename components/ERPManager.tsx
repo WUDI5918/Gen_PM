@@ -1889,6 +1889,38 @@ export const ERPManager: React.FC = () => {
         }
     }, [savedDatasets]);
 
+    // Sanitize filter groups when schema changes - remove conditions referencing non-existent fields
+    useEffect(() => {
+        const schemaFieldIds = new Set(schema.map(f => f.id));
+
+        setFilterGroups(prev => {
+            const sanitized = prev.map(group => ({
+                ...group,
+                conditions: group.conditions.filter(cond => schemaFieldIds.has(cond.fieldId))
+            }));
+
+            // Check if any changes were made
+            const hasChanged = prev.some((group, i) =>
+                group.conditions.length !== sanitized[i].conditions.length
+            );
+
+            return hasChanged ? sanitized : prev;
+        });
+
+        // Also clear pending filter if it references a non-existent field
+        setPendingFilter(prev =>
+            schemaFieldIds.has(prev.fieldId) ? prev : { fieldId: '', operator: '', value: '', value2: '' }
+        );
+
+        // Clear quick filters for non-existent fields
+        setQuickFilters(prev => {
+            const filtered = Object.fromEntries(
+                Object.entries(prev).filter(([fieldId]) => schemaFieldIds.has(fieldId))
+            );
+            return Object.keys(filtered).length !== Object.keys(prev).length ? filtered : prev;
+        });
+    }, [schema]);
+
     const handleSaveDataset = () => {
         if (!datasetNameInput.trim()) {
             addToast('Please enter a dataset name', 'error');
@@ -1967,6 +1999,11 @@ export const ERPManager: React.FC = () => {
         setRecords(dataset.records || []);
         setCurrentFormName(dataset.name);
         setSubView('table');
+        // Clear filter groups when switching datasets
+        setFilterGroups([{ id: Date.now().toString(), logic: 'AND', conditions: [] }]);
+        setActiveGroupId('');
+        setPendingFilter({ fieldId: '', operator: '', value: '', value2: '' });
+        setQuickFilters({});
         addToast(`Loaded dataset: ${dataset.name}`, 'success');
     };
 
@@ -3404,25 +3441,38 @@ export const ERPManager: React.FC = () => {
                                                 </div>
 
                                                 <div className="space-y-2">
-                                                    {savedViews.map((view, idx) => (
-                                                        <div
-                                                            key={idx}
-                                                            className="flex items-center justify-between text-sm group cursor-pointer hover:bg-white p-2 rounded-lg transition-colors border border-transparent hover:border-gray-200"
-                                                            onClick={() => handleLoadView(view)}
-                                                        >
-                                                            <div className="flex items-center gap-2 text-gray-600 group-hover:text-indigo-600">
-                                                                <List size={14} />
-                                                                <span>{view.name}</span>
-                                                            </div>
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); setSavedViews(savedViews.filter((_, i) => i !== idx)); }}
-                                                                className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    {savedViews
+                                                        .filter(view => {
+                                                            // Only show views whose conditions all reference fields in the current schema
+                                                            const schemaFieldIds = new Set(schema.map(f => f.id));
+                                                            return view.filterGroups.every(group =>
+                                                                group.conditions.every((cond: { fieldId: string }) => schemaFieldIds.has(cond.fieldId))
+                                                            );
+                                                        })
+                                                        .map((view, idx) => (
+                                                            <div
+                                                                key={idx}
+                                                                className="flex items-center justify-between text-sm group cursor-pointer hover:bg-white p-2 rounded-lg transition-colors border border-transparent hover:border-gray-200"
+                                                                onClick={() => handleLoadView(view)}
                                                             >
-                                                                <X size={12} />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                    {savedViews.length === 0 && <div className="text-xs text-gray-400 italic px-2">暂无预设视图</div>}
+                                                                <div className="flex items-center gap-2 text-gray-600 group-hover:text-indigo-600">
+                                                                    <List size={14} />
+                                                                    <span>{view.name}</span>
+                                                                </div>
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); setSavedViews(savedViews.filter((_, i) => i !== idx)); }}
+                                                                    className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                >
+                                                                    <X size={12} />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    {savedViews.filter(view => {
+                                                        const schemaFieldIds = new Set(schema.map(f => f.id));
+                                                        return view.filterGroups.every(group =>
+                                                            group.conditions.every((cond: { fieldId: string }) => schemaFieldIds.has(cond.fieldId))
+                                                        );
+                                                    }).length === 0 && <div className="text-xs text-gray-400 italic px-2">暂无适用于当前表单的预设视图</div>}
                                                 </div>
 
                                                 <div className="pt-3 border-t border-gray-200 flex gap-2">
