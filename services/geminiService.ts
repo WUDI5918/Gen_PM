@@ -824,3 +824,208 @@ export const generateFormSchemaFromData = async (
         throw new Error(error.message || "Failed to generate form schema.");
     }
 };
+
+// --- AI Form Generation from Natural Language Description ---
+export const generateFormFromDescription = async (
+    description: string,
+    config?: AIConfig
+): Promise<any[]> => {
+    const isDeepSeek = config?.provider === 'deepseek';
+    const apiKey = config?.apiKey || process.env.API_KEY;
+    if (!apiKey) throw new Error("API Key is missing");
+
+    const prompt = `
+        You are a form builder assistant. Based on the user's description, generate a form schema.
+        
+        User Description: "${description}"
+        
+        Return a JSON ARRAY of Field objects.
+        Field Properties:
+        - id: string (snake_case, unique, based on field purpose)
+        - label: string (Human readable, in the same language as the description)
+        - type: "text" | "number" | "date" | "select" | "radio" | "checkbox" | "textarea" | "email" | "divider" | "notice"
+        - width: "50%" | "100%"
+        - required: boolean (true for important fields)
+        - placeholder: string (helpful hint)
+        - helpText: string (optional explanation)
+        - options: string[] (if type is select/radio, provide sensible options)
+        
+        Rules:
+        - Use "divider" type with label for section headers
+        - Group related fields together
+        - Infer appropriate field types from context
+        - Use 50% width for short fields, 100% for long text
+        - Include validation hints in helpText when appropriate
+        - Match the language of labels to the input description
+        
+        Return ONLY a valid JSON array.
+    `;
+
+    try {
+        if (isDeepSeek && config) {
+            const baseUrl = config.baseUrl?.replace(/\/$/, '') || 'https://api.deepseek.com';
+            const model = config.model || 'deepseek-chat';
+
+            const response = await fetch(`${baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [
+                        { role: "system", content: "You are a form builder assistant that outputs strict JSON arrays." },
+                        { role: "user", content: prompt }
+                    ],
+                    response_format: { type: "json_object" },
+                    temperature: 0.5
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error?.message || 'API Request failed');
+            }
+
+            const data = await response.json();
+            const rawText = data.choices?.[0]?.message?.content || '[]';
+            const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+            const parsed = JSON.parse(cleaned);
+            return Array.isArray(parsed) ? parsed : (parsed.fields || parsed.schema || []);
+        } else {
+            const client = getGeminiClient(apiKey);
+            if (!client) throw new Error("Failed to initialize Gemini");
+
+            const response = await client.models.generateContent({
+                model: config?.model || 'gemini-2.5-flash',
+                contents: prompt,
+                config: {
+                    responseMimeType: 'application/json',
+                    responseSchema: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                id: { type: Type.STRING },
+                                label: { type: Type.STRING },
+                                type: { type: Type.STRING },
+                                width: { type: Type.STRING },
+                                required: { type: Type.BOOLEAN },
+                                placeholder: { type: Type.STRING },
+                                helpText: { type: Type.STRING },
+                                options: { type: Type.ARRAY, items: { type: Type.STRING } }
+                            }
+                        }
+                    }
+                }
+            });
+
+            return JSON.parse(response.text || '[]');
+        }
+    } catch (error: any) {
+        console.error("Form Description Generation Error:", error);
+        throw new Error(error.message || "Failed to generate form from description.");
+    }
+};
+
+// --- AI Logic Configuration from Natural Language ---
+export const generateFormLogic = async (
+    currentSchema: any[],
+    logicDescription: string,
+    config?: AIConfig
+): Promise<any[]> => {
+    const isDeepSeek = config?.provider === 'deepseek';
+    const apiKey = config?.apiKey || process.env.API_KEY;
+    if (!apiKey) throw new Error("API Key is missing");
+
+    const schemaContext = currentSchema.map(f => ({
+        id: f.id,
+        label: f.label,
+        type: f.type
+    }));
+
+    const prompt = `
+        You are a form logic configuration assistant. Based on the user's description, add logic to the existing form fields.
+        
+        Current Form Fields:
+        ${JSON.stringify(schemaContext, null, 2)}
+        
+        User's Logic Description: "${logicDescription}"
+        
+        Return the COMPLETE updated schema as a JSON ARRAY. For each field that needs logic, add a "logic" object with these possible properties:
+        
+        Logic Properties:
+        - visibility: string (expression like "{field_id} === 'value'" to show/hide this field)
+        - calculation: string (formula like "{price} * {quantity}" for auto-calculation)
+        - validation: string (regex pattern for validation)
+        - required: string (expression like "{other_field} !== ''" to make conditionally required)
+        - readOnly: string (expression like "{status} === 'approved'" to make conditionally read-only)
+        
+        Expression Syntax:
+        - Use {field_id} to reference other field values
+        - Supported operators: ===, !==, >, <, >=, <=, &&, ||, +, -, *, /
+        - String values should be in single quotes: 'value'
+        
+        Rules:
+        - Return ALL fields from the original schema
+        - Only add logic properties that are requested
+        - Keep all existing field properties unchanged except logic
+        - Match field references by id exactly
+        
+        Return ONLY a valid JSON array with the complete updated schema.
+    `;
+
+    try {
+        if (isDeepSeek && config) {
+            const baseUrl = config.baseUrl?.replace(/\/$/, '') || 'https://api.deepseek.com';
+            const model = config.model || 'deepseek-chat';
+
+            const response = await fetch(`${baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [
+                        { role: "system", content: "You are a form logic assistant that outputs strict JSON arrays." },
+                        { role: "user", content: prompt }
+                    ],
+                    response_format: { type: "json_object" },
+                    temperature: 0.3
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error?.message || 'API Request failed');
+            }
+
+            const data = await response.json();
+            const rawText = data.choices?.[0]?.message?.content || '[]';
+            const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+            const parsed = JSON.parse(cleaned);
+            return Array.isArray(parsed) ? parsed : (parsed.fields || parsed.schema || []);
+        } else {
+            const client = getGeminiClient(apiKey);
+            if (!client) throw new Error("Failed to initialize Gemini");
+
+            const response = await client.models.generateContent({
+                model: config?.model || 'gemini-2.5-flash',
+                contents: prompt,
+                config: {
+                    responseMimeType: 'application/json'
+                }
+            });
+
+            const text = response.text || '[]';
+            const parsed = JSON.parse(text);
+            return Array.isArray(parsed) ? parsed : (parsed.fields || parsed.schema || []);
+        }
+    } catch (error: any) {
+        console.error("Form Logic Generation Error:", error);
+        throw new Error(error.message || "Failed to generate form logic.");
+    }
+};

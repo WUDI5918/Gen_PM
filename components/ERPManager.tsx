@@ -12,7 +12,7 @@ import {
     ListOrdered, Folder, Sidebar, FormInput, BookOpen, Lightbulb, FunctionSquare, Calculator, Regex, Sparkles
 } from 'lucide-react';
 import { read, utils } from 'xlsx';
-import { generateFormSchemaFromData } from '../services/geminiService';
+import { generateFormSchemaFromData, generateFormFromDescription, generateFormLogic } from '../services/geminiService';
 import { useToast } from '../contexts/ToastContext';
 
 // --- Configuration Constants ---
@@ -1696,6 +1696,73 @@ export const ERPManager: React.FC = () => {
         error?: string;
     }>({ isOpen: false, step: 0, message: '' });
 
+    // AI Builder Modal State
+    const [aiBuilderModal, setAiBuilderModal] = useState<{
+        isOpen: boolean;
+        mode: 'generate' | 'logic';
+        prompt: string;
+        isLoading: boolean;
+        error?: string;
+    }>({ isOpen: false, mode: 'generate', prompt: '', isLoading: false });
+
+    const handleAIGenerate = async () => {
+        if (!aiBuilderModal.prompt.trim()) return;
+
+        setAiBuilderModal(prev => ({ ...prev, isLoading: true, error: undefined }));
+
+        try {
+            const savedConfig = localStorage.getItem('project_ai_config');
+            const config = savedConfig ? JSON.parse(savedConfig) : {};
+
+            if (!config.apiKey) {
+                throw new Error("Please configure your AI API Key in Settings first.");
+            }
+
+            let result: any[];
+
+            if (aiBuilderModal.mode === 'generate') {
+                result = await generateFormFromDescription(aiBuilderModal.prompt, {
+                    provider: config.provider || 'gemini',
+                    apiKey: config.apiKey,
+                    baseUrl: config.baseUrl,
+                    model: config.model
+                });
+            } else {
+                // Logic mode - merge with existing schema
+                result = await generateFormLogic(schema, aiBuilderModal.prompt, {
+                    provider: config.provider || 'gemini',
+                    apiKey: config.apiKey,
+                    baseUrl: config.baseUrl,
+                    model: config.model
+                });
+            }
+
+            if (result && result.length > 0) {
+                if (aiBuilderModal.mode === 'generate') {
+                    setSchema(result);
+                    addToast(`Generated ${result.length} fields!`, 'success');
+                } else {
+                    // Merge logic into existing schema
+                    const updatedSchema = schema.map(field => {
+                        const updatedField = result.find(f => f.id === field.id);
+                        if (updatedField && updatedField.logic) {
+                            return { ...field, logic: updatedField.logic };
+                        }
+                        return field;
+                    });
+                    setSchema(updatedSchema);
+                    addToast('Logic configuration updated!', 'success');
+                }
+                setAiBuilderModal({ isOpen: false, mode: 'generate', prompt: '', isLoading: false });
+            } else {
+                throw new Error("AI could not generate the requested content");
+            }
+        } catch (error: any) {
+            console.error(error);
+            setAiBuilderModal(prev => ({ ...prev, isLoading: false, error: error.message }));
+        }
+    };
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -2310,6 +2377,38 @@ export const ERPManager: React.FC = () => {
                                         <ToolboxItem type="switch" label="Switch" icon={ToggleLeft} onClick={addField} colorClass="text-indigo-500 group-hover:text-indigo-600" />
                                         <ToolboxItem type="steps" label="Steps Flow" icon={ListOrdered} onClick={addField} colorClass="text-slate-500 group-hover:text-slate-600" />
                                     </div>
+
+                                    {/* Group: AI Assistant */}
+                                    <div className="space-y-1 pt-4 border-t border-gray-100">
+                                        <h4 className="px-3 text-[10px] font-extrabold text-purple-500 uppercase tracking-wider mb-2 hidden lg:flex items-center gap-1">
+                                            <Sparkles size={10} /> AI Assistant
+                                        </h4>
+                                        <button
+                                            onClick={() => setAiBuilderModal({ isOpen: true, mode: 'generate', prompt: '', isLoading: false })}
+                                            className="w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm font-medium rounded-lg transition-all group bg-gradient-to-r from-purple-50 to-indigo-50 hover:from-purple-100 hover:to-indigo-100 border border-purple-100"
+                                        >
+                                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white shadow-sm">
+                                                <Sparkles size={14} />
+                                            </div>
+                                            <div className="hidden lg:block">
+                                                <span className="text-xs font-bold text-purple-700">AI Generate</span>
+                                                <p className="text-[10px] text-purple-400">From description</p>
+                                            </div>
+                                        </button>
+                                        <button
+                                            onClick={() => setAiBuilderModal({ isOpen: true, mode: 'logic', prompt: '', isLoading: false })}
+                                            disabled={schema.length === 0}
+                                            className="w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm font-medium rounded-lg transition-all group bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 border border-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-sm">
+                                                <FunctionSquare size={14} />
+                                            </div>
+                                            <div className="hidden lg:block">
+                                                <span className="text-xs font-bold text-emerald-700">AI Logic</span>
+                                                <p className="text-[10px] text-emerald-400">Configure rules</p>
+                                            </div>
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Sidebar Footer */}
@@ -2570,14 +2669,16 @@ export const ERPManager: React.FC = () => {
                                     </div>
 
                                     <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => setShowFilters(!showFilters)}
-                                            className={`p-2 rounded-lg border transition-colors ${showFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                                            title="Toggle Filters"
-                                        >
-                                            <Filter size={16} />
-                                        </button>
-                                        <div className="h-6 w-px bg-gray-200 mx-1 hidden sm:block"></div>
+                                        {subView !== 'preview' && (
+                                            <button
+                                                onClick={() => setShowFilters(!showFilters)}
+                                                className={`p-2 rounded-lg border transition-colors ${showFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                                title="Toggle Filters"
+                                            >
+                                                <Filter size={16} />
+                                            </button>
+                                        )}
+                                        <div className={`h-6 w-px bg-gray-200 mx-1 ${subView === 'preview' ? 'hidden' : 'hidden sm:block'}`}></div>
                                         <button onClick={handleGenerateMock} className="hidden sm:flex items-center gap-2 px-3 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">
                                             <RefreshCw size={14} /> Mock
                                         </button>
@@ -2592,8 +2693,8 @@ export const ERPManager: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Enhanced Filter Panel */}
-                            {showFilters && (
+                            {/* Enhanced Filter Panel - Hide in New Entry mode */}
+                            {showFilters && subView !== 'preview' && (
                                 <div className="border-b border-gray-200 bg-white animate-in slide-in-from-top-2">
                                     <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
 
@@ -3113,8 +3214,8 @@ export const ERPManager: React.FC = () => {
                                             ].map(s => (
                                                 <div key={s.num} className={`flex items-center gap-3 p-3 rounded-lg transition-all ${importProgress.step >= s.num ? 'bg-indigo-50' : 'bg-gray-50'}`}>
                                                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${importProgress.step > s.num ? 'bg-green-500 text-white' :
-                                                            importProgress.step === s.num ? 'bg-indigo-500 text-white animate-pulse' :
-                                                                'bg-gray-200 text-gray-400'
+                                                        importProgress.step === s.num ? 'bg-indigo-500 text-white animate-pulse' :
+                                                            'bg-gray-200 text-gray-400'
                                                         }`}>
                                                         {importProgress.step > s.num ? <Check size={14} /> : s.num}
                                                     </div>
@@ -3135,6 +3236,155 @@ export const ERPManager: React.FC = () => {
                                         </p>
                                     </div>
                                 )}
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* --- AI Builder Modal --- */}
+            {
+                aiBuilderModal.isOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
+                            <div className="p-6">
+                                {/* Header */}
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${aiBuilderModal.mode === 'generate'
+                                        ? 'bg-gradient-to-br from-purple-500 to-indigo-600'
+                                        : 'bg-gradient-to-br from-emerald-500 to-teal-600'
+                                        }`}>
+                                        {aiBuilderModal.mode === 'generate'
+                                            ? <Sparkles size={24} className="text-white" />
+                                            : <FunctionSquare size={24} className="text-white" />
+                                        }
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900">
+                                            {aiBuilderModal.mode === 'generate' ? 'AI Form Generator' : 'AI Logic Configuration'}
+                                        </h3>
+                                        <p className="text-xs text-gray-500">
+                                            {aiBuilderModal.mode === 'generate'
+                                                ? 'Describe the form you need and AI will create it'
+                                                : 'Describe the logic rules in natural language'
+                                            }
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setAiBuilderModal({ isOpen: false, mode: 'generate', prompt: '', isLoading: false })}
+                                        className="ml-auto p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                    >
+                                        <X size={20} className="text-gray-400" />
+                                    </button>
+                                </div>
+
+                                {/* Mode Toggle */}
+                                <div className="flex gap-2 p-1 bg-gray-100 rounded-lg mb-4">
+                                    <button
+                                        onClick={() => setAiBuilderModal(prev => ({ ...prev, mode: 'generate', prompt: '' }))}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-xs font-bold transition-all ${aiBuilderModal.mode === 'generate' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-500'}`}
+                                    >
+                                        <Sparkles size={14} /> Generate Form
+                                    </button>
+                                    <button
+                                        onClick={() => setAiBuilderModal(prev => ({ ...prev, mode: 'logic', prompt: '' }))}
+                                        disabled={schema.length === 0}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-xs font-bold transition-all ${aiBuilderModal.mode === 'logic' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'} disabled:opacity-50`}
+                                    >
+                                        <FunctionSquare size={14} /> Configure Logic
+                                    </button>
+                                </div>
+
+                                {/* Prompt Input */}
+                                <div className="mb-4">
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                                        {aiBuilderModal.mode === 'generate' ? 'Form Description' : 'Logic Description'}
+                                    </label>
+                                    <textarea
+                                        value={aiBuilderModal.prompt}
+                                        onChange={(e) => setAiBuilderModal(prev => ({ ...prev, prompt: e.target.value }))}
+                                        placeholder={aiBuilderModal.mode === 'generate'
+                                            ? 'E.g., Create a customer feedback form with name, email, satisfaction rating, and comments...'
+                                            : 'E.g., When status is "approved", make the approval_date field required and quantity multiplied by price equals total...'
+                                        }
+                                        className="w-full h-32 border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        disabled={aiBuilderModal.isLoading}
+                                    />
+                                </div>
+
+                                {/* Example Prompts */}
+                                <div className="mb-4">
+                                    <p className="text-[10px] text-gray-400 uppercase font-bold mb-2">Example prompts:</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {(aiBuilderModal.mode === 'generate' ? [
+                                            'Employee registration form',
+                                            'Product inventory form',
+                                            'Customer survey with rating',
+                                            '订单录入表单包含商品、数量、价格'
+                                        ] : [
+                                            'Total = quantity × unit_price',
+                                            'Show discount field when total > 1000',
+                                            'Make email required when contact_method is email',
+                                            '当状态为已批准时，审批日期必填'
+                                        ]).map((example, i) => (
+                                            <button
+                                                key={i}
+                                                onClick={() => setAiBuilderModal(prev => ({ ...prev, prompt: example }))}
+                                                className="text-[10px] px-2 py-1 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-full transition-colors"
+                                            >
+                                                {example}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Error Message */}
+                                {aiBuilderModal.error && (
+                                    <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600 flex items-center gap-2">
+                                        <AlertCircle size={16} />
+                                        {aiBuilderModal.error}
+                                    </div>
+                                )}
+
+                                {/* Current Schema Info (for Logic mode) */}
+                                {aiBuilderModal.mode === 'logic' && schema.length > 0 && (
+                                    <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 rounded-lg">
+                                        <p className="text-xs text-emerald-700 font-medium">
+                                            Current form has {schema.length} fields: {schema.slice(0, 5).map(f => f.label || f.id).join(', ')}{schema.length > 5 ? '...' : ''}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Actions */}
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setAiBuilderModal({ isOpen: false, mode: 'generate', prompt: '', isLoading: false })}
+                                        className="px-4 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                        disabled={aiBuilderModal.isLoading}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleAIGenerate}
+                                        disabled={!aiBuilderModal.prompt.trim() || aiBuilderModal.isLoading}
+                                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-lg transition-all disabled:opacity-50 ${aiBuilderModal.mode === 'generate'
+                                                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:shadow-lg'
+                                                : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:shadow-lg'
+                                            }`}
+                                    >
+                                        {aiBuilderModal.isLoading ? (
+                                            <>
+                                                <RefreshCw size={16} className="animate-spin" />
+                                                Processing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Sparkles size={16} />
+                                                {aiBuilderModal.mode === 'generate' ? 'Generate Form' : 'Apply Logic'}
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
