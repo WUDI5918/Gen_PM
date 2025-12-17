@@ -2838,30 +2838,6 @@ export const ERPManager: React.FC = () => {
                     </button>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={handleGenerateMock}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 transition-colors text-xs font-bold"
-                    >
-                        <ListOrdered size={14} /> Mock Data
-                    </button>
-                    <button
-                        onClick={handleExport}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-md hover:bg-indigo-100 transition-colors text-xs font-bold"
-                    >
-                        <ArrowDown size={14} /> Export CSV
-                    </button>
-
-                    <div className="h-6 w-px bg-gray-200 mx-1"></div>
-
-                    <button className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                        <Bell size={18} />
-                    </button>
-                    <div className="w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center text-xs font-bold text-indigo-700">
-                        JS
-                    </div>
-                </div>
             </header>
 
             {/* Main Content Area */}
@@ -3153,18 +3129,17 @@ export const ERPManager: React.FC = () => {
                                             </div>
 
                                             {/* Dataset Actions (Hover) */}
-                                            <div className="hidden group-hover:flex items-center gap-1 absolute right-2 top-2 bg-white/90 backdrop-blur rounded shadow-sm px-1 border border-gray-100">
+                                            <div className="hidden group-hover:flex items-center gap-1 absolute right-2 top-1/2 -translate-y-1/2">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); setRenameDialog({ isOpen: true, id: ds.id, name: ds.name }); }}
-                                                    className="p-1.5 text-gray-400 hover:text-indigo-600 rounded hover:bg-indigo-50 transition-colors"
+                                                    className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
                                                     title="Rename"
                                                 >
                                                     <Edit3 size={12} />
                                                 </button>
-                                                <div className="w-px h-3 bg-gray-200"></div>
                                                 <button
                                                     onClick={(e) => handleDeleteDataset(e, ds.id, ds.name)}
-                                                    className="p-1.5 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors"
+                                                    className="p-1 text-gray-400 hover:text-red-500 transition-colors"
                                                     title="Delete"
                                                 >
                                                     <Trash2 size={12} />
