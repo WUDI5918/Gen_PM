@@ -1847,8 +1847,9 @@ export const SuperTable: React.FC = () => {
     ]));
 
     // Dataset Library State
-    const [savedDatasets, setSavedDatasets] = useState<{ id: string, name: string, groupId?: string, timestamp: number, schema: any[], records: any[] }[]>(() => loadFromStorage('erp_saved_datasets', []));
+    const [savedDatasets, setSavedDatasets] = useState<{ id: string, name: string, groupId?: string, timestamp: number, schema: any[], records: any[], formId?: string }[]>(() => loadFromStorage('erp_saved_datasets', []));
     const [activeDatasetId, setActiveDatasetId] = useState<string | null>(() => loadFromStorage('erp_active_dataset_id', null));
+    const [activeFormId, setActiveFormId] = useState<string | null>(() => loadFromStorage('erp_active_form_id', 'form_default'));
 
     // Dataset Groups State
     const [datasetGroups, setDatasetGroups] = useState<{ id: string, name: string }[]>(() => loadFromStorage('erp_dataset_groups', []));
@@ -2050,6 +2051,15 @@ export const SuperTable: React.FC = () => {
         }
     }, [activeDatasetId]);
 
+    const hasActiveFilters = useMemo(() => filterGroups.some(g => g.conditions.length > 0), [filterGroups]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('erp_active_form_id', JSON.stringify(activeFormId));
+            window.localStorage.setItem('erp_current_form_name', JSON.stringify(currentFormName));
+        }
+    }, [activeFormId, currentFormName]);
+
     // Sanitize filter groups when schema changes - remove conditions referencing non-existent fields
     useEffect(() => {
         const schemaFieldIds = new Set(schema.map(f => f.id));
@@ -2094,7 +2104,8 @@ export const SuperTable: React.FC = () => {
                     ...d,
                     schema: [...schema],
                     records: [...records],
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    formId: activeFormId || undefined
                 }
                 : d
         ));
@@ -2113,9 +2124,6 @@ export const SuperTable: React.FC = () => {
         const name = datasetNameInput.trim();
         const exists = savedDatasets.some(d => d.name === name);
 
-        // Check if there are active filters
-        const hasActiveFilters = filterGroups.some(g => g.conditions.length > 0);
-
         const doSave = () => {
             // Use filtered records if user chose to save filtered only and there are active filters
             const recordsToSave = (saveFilteredOnly && hasActiveFilters) ? [...filteredRecords] : [...records];
@@ -2128,12 +2136,20 @@ export const SuperTable: React.FC = () => {
                     name: name,
                     timestamp: Date.now(),
                     schema: [...schema],
-                    records: recordsToSave
+                    records: recordsToSave,
+                    formId: activeFormId || undefined
                 }, ...filtered];
             });
 
+            // Update current app state to reflect the saved dataset
+            setRecords(recordsToSave);
+            if (saveFilteredOnly && hasActiveFilters) {
+                // Clear filters when switching to a subset dataset as the new "root"
+                setFilterGroups([{ id: Date.now().toString(), logic: 'AND', conditions: [] }]);
+                setQuickFilters({});
+            }
+
             setActiveDatasetId(newId);
-            // Note: currentFormName shows the template, not the dataset name
             setSaveDatasetOpen(false);
             setDatasetNameInput('');
 
@@ -2154,8 +2170,6 @@ export const SuperTable: React.FC = () => {
         }
     };
 
-    // Check if there are active filters (for UI display)
-    const hasActiveFilters = useMemo(() => filterGroups.some(g => g.conditions.length > 0), [filterGroups]);
 
     // Rename & Delete Logic
     const [renameDialog, setRenameDialog] = useState<{
@@ -2220,13 +2234,28 @@ export const SuperTable: React.FC = () => {
             setRecords(dataset.records || []);
             setActiveDatasetId(dataset.id);
 
-            // Try to match the schema with an existing template to show the correct template name
-            const matchedTemplate = savedForms.find(f => JSON.stringify(f.schema) === JSON.stringify(dataset.schema));
-            if (matchedTemplate) {
-                setCurrentFormName(matchedTemplate.name);
-            } else {
-                setCurrentFormName('Custom Form');
+            // 1. Try to restore by stored formId
+            let formNameFound = 'Custom Form';
+            if (dataset.formId) {
+                const form = savedForms.find(f => f.id === dataset.formId);
+                if (form) {
+                    formNameFound = form.name;
+                    setActiveFormId(form.id);
+                }
             }
+
+            // 2. Fallback: Schema matching (if no formId or form was deleted)
+            if (formNameFound === 'Custom Form') {
+                const matchedTemplate = savedForms.find(f => JSON.stringify(f.schema) === JSON.stringify(dataset.schema));
+                if (matchedTemplate) {
+                    formNameFound = matchedTemplate.name;
+                    setActiveFormId(matchedTemplate.id);
+                } else {
+                    setActiveFormId(null);
+                }
+            }
+
+            setCurrentFormName(formNameFound);
 
             setSubView('table');
             // Clear filter groups when switching datasets
@@ -2971,6 +3000,7 @@ export const SuperTable: React.FC = () => {
             setSchema([...form.schema]);
             setRecords([]); // Clear records when loading a new template
             setActiveDatasetId(null); // Clear active dataset as we are now on a template
+            setActiveFormId(form.id);
             setCurrentFormName(form.name);
 
             // Clear filters
@@ -3575,7 +3605,10 @@ export const SuperTable: React.FC = () => {
                                         {subView === 'table' && (
                                             <button
                                                 onClick={() => {
-                                                    if (activeDatasetId) {
+                                                    // If there are filters, we must show the modal to ask for save scope
+                                                    if (hasActiveFilters) {
+                                                        setSaveDatasetOpen(true);
+                                                    } else if (activeDatasetId) {
                                                         handleUpdateActiveDataset();
                                                     } else {
                                                         setSaveDatasetOpen(true);
@@ -3583,7 +3616,7 @@ export const SuperTable: React.FC = () => {
                                                 }}
                                                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs font-bold shadow-sm hover:shadow hover:-translate-y-0.5 active:translate-y-0"
                                             >
-                                                <Save size={14} /> {activeDatasetId ? 'Save' : 'Save As'}
+                                                <Save size={14} /> {hasActiveFilters ? 'Save Options' : (activeDatasetId ? 'Save' : 'Save As')}
                                             </button>
                                         )}
                                     </div>
@@ -4219,7 +4252,7 @@ export const SuperTable: React.FC = () => {
                     activeTab === 'guide' && <LogicGuide />
                 }
 
-            </main >
+            </main>
 
             {/* --- Save Form Modal --- */}
             {
@@ -4527,80 +4560,124 @@ export const SuperTable: React.FC = () => {
                 )
             }
 
-            {/* Save Dataset Dialog */}
+            {/* --- Save Dataset Modal --- */}
             {
                 saveDatasetOpen && (
-                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
-                            <div className="mb-4">
-                                <h3 className="text-lg font-bold text-gray-800">保存数据集</h3>
-                                <p className="text-xs text-gray-500 mt-1">
-                                    为您的数据集命名并保存到数据库
-                                </p>
-                            </div>
-                            <div className="mb-4 space-y-3">
-                                <label className="text-xs font-bold text-gray-500 uppercase">数据集名称</label>
-                                <input
-                                    autoFocus
-                                    value={datasetNameInput}
-                                    onChange={(e) => setDatasetNameInput(e.target.value)}
-                                    placeholder="例如：Q4 库存快照"
-                                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSaveDataset(false)}
-                                />
-                            </div>
-
-                            {/* Show filter info if filters are active */}
-                            {hasActiveFilters && (
-                                <div className="mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
-                                    <div className="flex items-center gap-2 text-indigo-700 mb-2">
-                                        <Filter size={14} />
-                                        <span className="text-xs font-bold">筛选条件已激活</span>
-                                    </div>
-                                    <div className="flex items-center justify-between text-xs text-indigo-600">
-                                        <span>全部记录: <strong>{records.length}</strong> 条</span>
-                                        <span>筛选后: <strong>{filteredRecords.length}</strong> 条</span>
-                                    </div>
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+                            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-800">保存数据选项</h3>
+                                    <p className="text-xs text-gray-500 mt-1">选择如何保存当前数据</p>
                                 </div>
-                            )}
+                                <button onClick={() => setSaveDatasetOpen(false)} className="p-2 hover:bg-gray-100 rounded-full text-gray-400"><X size={20} /></button>
+                            </div>
 
-                            <div className="flex flex-col gap-2">
-                                {/* If filters are active, show both options */}
+                            <div className="p-6 space-y-6">
+                                {/* Context Info */}
                                 {hasActiveFilters ? (
-                                    <>
+                                    <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
+                                        <div className="flex items-center gap-2 text-indigo-700 mb-2 font-bold text-xs uppercase tracking-wider">
+                                            <Filter size={14} /> 筛选模式已开启
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-[11px]">
+                                            <div className="bg-white/60 p-2 rounded-lg border border-indigo-200/50">
+                                                <span className="text-gray-500 block">全部数据</span>
+                                                <span className="text-indigo-600 font-bold text-sm">{records.length} 条</span>
+                                            </div>
+                                            <div className="bg-white/60 p-2 rounded-lg border border-indigo-200/50">
+                                                <span className="text-gray-500 block">当前筛选</span>
+                                                <span className="text-indigo-600 font-bold text-sm">{filteredRecords.length} 条</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : activeDatasetId && (
+                                    <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600"><Database size={20} /></div>
+                                        <div>
+                                            <span className="text-[10px] font-bold text-emerald-600 uppercase">当前表格</span>
+                                            <div className="text-sm font-bold text-gray-800">{savedDatasets.find(d => d.id === activeDatasetId)?.name}</div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Name Input - Only show if user might save as new */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center justify-between">
+                                        <span>新表格名称</span>
+                                        {datasetNameInput.trim() === '' && <span className="text-red-400 capitalize normal-case font-medium">另存为必填</span>}
+                                    </label>
+                                    <input
+                                        autoFocus
+                                        value={datasetNameInput}
+                                        onChange={(e) => setDatasetNameInput(e.target.value)}
+                                        placeholder="例如：测试数据 2.0"
+                                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm"
+                                    />
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="space-y-3">
+                                    {/* Option 1: Save Filtered as NEW (Only if filters active) */}
+                                    {hasActiveFilters && (
+                                        <div className="space-y-1">
+                                            <button
+                                                onClick={() => handleSaveDataset(true)}
+                                                disabled={!datasetNameInput.trim()}
+                                                className="w-full group relative flex items-center gap-4 p-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:bg-gray-400 text-white rounded-xl transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+                                            >
+                                                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                                                    <Filter size={18} />
+                                                </div>
+                                                <div className="text-left flex-1 min-w-0">
+                                                    <div className="text-xs font-bold leading-none mb-1">仅保存筛选结果 (另存为)</div>
+                                                    <div className="text-[10px] text-white/70 truncate">将 {filteredRecords.length} 条记录保存为新数据集</div>
+                                                </div>
+                                                <ArrowRight size={16} className="text-white/50 group-hover:translate-x-1 transition-transform" />
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Option 2: Save All to CURRENT (Only if activeDatasetId) */}
+                                    {activeDatasetId && (
                                         <button
-                                            onClick={() => handleSaveDataset(true)}
-                                            disabled={!datasetNameInput.trim()}
-                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                            onClick={() => { handleUpdateActiveDataset(); setSaveDatasetOpen(false); }}
+                                            className="w-full group flex items-center gap-4 p-4 border-2 border-slate-100 hover:border-emerald-200 hover:bg-emerald-50/30 text-slate-700 rounded-xl transition-all"
                                         >
-                                            <Filter size={14} />
-                                            仅保存筛选结果 ({filteredRecords.length} 条)
+                                            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                                                <Save size={18} />
+                                            </div>
+                                            <div className="text-left flex-1">
+                                                <div className="text-xs font-bold leading-none mb-1 text-slate-800">更新到当前表格</div>
+                                                <div className="text-[10px] text-slate-500">仅保存全部 {records.length} 条原始数据</div>
+                                            </div>
+                                            <Check size={16} className="text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                                         </button>
-                                        <button
-                                            onClick={() => handleSaveDataset(false)}
-                                            disabled={!datasetNameInput.trim()}
-                                            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            <Database size={14} />
-                                            保存全部数据 ({records.length} 条)
-                                        </button>
-                                    </>
-                                ) : (
+                                    )}
+
+                                    {/* Option 3: Save All as NEW */}
                                     <button
                                         onClick={() => handleSaveDataset(false)}
                                         disabled={!datasetNameInput.trim()}
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="w-full group flex items-center gap-4 p-4 border-2 border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 text-slate-700 rounded-xl transition-all disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:border-slate-100"
                                     >
-                                        <Save size={14} />
-                                        保存数据集 ({records.length} 条)
+                                        <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600 flex items-center justify-center shrink-0 transition-colors">
+                                            <Plus size={18} />
+                                        </div>
+                                        <div className="text-left flex-1">
+                                            <div className="text-xs font-bold leading-none mb-1 text-slate-800">保存全部数据为新表格</div>
+                                            <div className="text-[10px] text-slate-500">将全部 {records.length} 条记录另存为</div>
+                                        </div>
+                                        <ArrowRight size={16} className="text-slate-300 group-hover:text-indigo-400 group-hover:translate-x-1 transition-transform" />
                                     </button>
-                                )}
-                                <button
-                                    onClick={() => setSaveDatasetOpen(false)}
-                                    className="w-full px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
-                                >
-                                    取消
-                                </button>
+
+                                    <button
+                                        onClick={() => setSaveDatasetOpen(false)}
+                                        className="w-full py-2 text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors"
+                                    >
+                                        取消
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -4695,6 +4772,6 @@ export const SuperTable: React.FC = () => {
                     </div>
                 )
             }
-        </div >
+        </div>
     );
 };
