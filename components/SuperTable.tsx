@@ -1830,7 +1830,7 @@ export const SuperTable: React.FC = () => {
     const [batchRows, setBatchRows] = useState<any[]>([]);
 
     // Advanced Filter State
-    const [filterGroups, setFilterGroups] = useState<{ id: string, logic: 'AND' | 'OR', conditions: { id: string, fieldId: string, operator: string, value: string, value2?: string }[] }[]>(() =>
+    const [filterGroups, setFilterGroups] = useState<{ id: string, logic: 'AND' | 'OR', conditions: { id: string, fieldId: string, operator: string, value: string, value2?: string }[], fromPreset?: string }[]>(() =>
         loadFromStorage('erp_filter_groups', [{ id: 'g1', logic: 'AND', conditions: [] }])
     );
     const [rootFilterMode, setRootFilterMode] = useState<'AND' | 'OR'>(() => loadFromStorage('erp_root_filter_mode', 'AND'));
@@ -2773,11 +2773,49 @@ export const SuperTable: React.FC = () => {
         addToast('View saved successfully', 'success');
     };
 
-    const handleLoadView = (view: { filterGroups: any[], rootFilterMode?: 'AND' | 'OR' }) => {
-        setFilterGroups(JSON.parse(JSON.stringify(view.filterGroups || [])));
-        if (view.rootFilterMode) setRootFilterMode(view.rootFilterMode);
-        if (view.filterGroups && view.filterGroups.length > 0) setActiveGroupId(view.filterGroups[0].id);
-        addToast('View loaded', 'info');
+    const handleLoadView = (view: { name: string, filterGroups: any[], rootFilterMode?: 'AND' | 'OR' }, isAdditive: boolean = false) => {
+        if (!isAdditive) {
+            // Standard replacement logic
+            const newGroups = view.filterGroups.map(g => ({
+                ...JSON.parse(JSON.stringify(g)),
+                id: `g-${Date.now()}-${Math.random()}`,
+                fromPreset: view.name
+            }));
+            setFilterGroups(newGroups);
+            if (view.rootFilterMode) setRootFilterMode(view.rootFilterMode);
+            if (newGroups.length > 0) setActiveGroupId(newGroups[0].id);
+            addToast(`Applied view: ${view.name}`, 'info');
+        } else {
+            // Additive/Toggle logic
+            const isAlreadyActive = filterGroups.some(g => g.fromPreset === view.name);
+
+            if (isAlreadyActive) {
+                // Remove groups from this preset
+                const nextGroups = filterGroups.filter(g => g.fromPreset !== view.name);
+                // If we removed everything and it's empty, add a default group
+                if (nextGroups.length === 0) {
+                    nextGroups.push({ id: `g-${Date.now()}`, logic: 'AND', conditions: [] });
+                }
+                setFilterGroups(nextGroups);
+                addToast(`Removed view: ${view.name}`, 'info');
+            } else {
+                // Add groups from this preset
+                const newGroupsToAdd = view.filterGroups.map(g => ({
+                    ...JSON.parse(JSON.stringify(g)),
+                    id: `g-${Date.now()}-${Math.random()}`,
+                    fromPreset: view.name
+                }));
+
+                setFilterGroups(prev => {
+                    // Filter out any default empty groups first
+                    const existing = prev.filter(g => g.conditions.length > 0 || g.fromPreset);
+                    return [...existing, ...newGroupsToAdd];
+                });
+
+                if (newGroupsToAdd.length > 0) setActiveGroupId(newGroupsToAdd[0].id);
+                addToast(`Added view: ${view.name}`, 'success');
+            }
+        }
     };
 
     // --- Enhanced Filtering Logic ---
@@ -3585,14 +3623,34 @@ export const SuperTable: React.FC = () => {
                                                     </div>
 
                                                     <div className="flex items-center gap-3">
-                                                        <div className="text-xs font-bold text-gray-500">
-                                                            共 {filterGroups.length} 个组, {filterGroups.reduce((acc, g) => acc + g.conditions.length, 0)} 个条件
+                                                        <div className="text-[10px] font-bold text-gray-400 hidden sm:block">
+                                                            {filterGroups.length} 组 / {filterGroups.reduce((acc, g) => acc + g.conditions.length, 0)} 条件
                                                         </div>
+
+                                                        {/* Inline Save View */}
+                                                        {filterGroups.some(g => g.conditions.length > 0) && (
+                                                            <div className="flex items-center gap-2 pl-3 ml-1 border-l border-gray-100 animate-in fade-in slide-in-from-right-2">
+                                                                <input
+                                                                    className="w-32 lg:w-48 text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-indigo-400 bg-gray-50/50 focus:bg-white transition-all"
+                                                                    placeholder="预设名称..."
+                                                                    value={viewName}
+                                                                    onChange={(e) => setViewName(e.target.value)}
+                                                                />
+                                                                <button
+                                                                    onClick={handleSaveView}
+                                                                    disabled={!viewName.trim()}
+                                                                    className="flex items-center gap-1 text-[11px] font-bold text-white bg-indigo-600 px-3 py-1.5 rounded-lg hover:bg-indigo-700 disabled:opacity-30 disabled:grayscale transition-all shadow-sm"
+                                                                >
+                                                                    <Bookmark size={12} /> 保存
+                                                                </button>
+                                                            </div>
+                                                        )}
+
                                                         <button
                                                             onClick={handleAddGroup}
-                                                            className="flex items-center gap-1 text-xs font-bold text-indigo-600 border border-indigo-200 bg-white px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+                                                            className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 border border-indigo-100 bg-white px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors shadow-sm"
                                                         >
-                                                            <Plus size={14} /> 新增组
+                                                            <Plus size={12} /> 新增组
                                                         </button>
                                                     </div>
                                                 </div>
@@ -3803,7 +3861,7 @@ export const SuperTable: React.FC = () => {
                                                     <span className="text-sm font-bold">视图预设</span>
                                                 </div>
 
-                                                <div className="space-y-2">
+                                                <div className="space-y-1">
                                                     {savedViews
                                                         .filter(view => {
                                                             // Only show views whose conditions all reference fields in the current schema
@@ -3812,47 +3870,50 @@ export const SuperTable: React.FC = () => {
                                                                 group.conditions.every((cond: { fieldId: string }) => schemaFieldIds.has(cond.fieldId))
                                                             );
                                                         })
-                                                        .map((view, idx) => (
-                                                            <div
-                                                                key={idx}
-                                                                className="flex items-center justify-between text-sm group cursor-pointer hover:bg-white p-2 rounded-lg transition-colors border border-transparent hover:border-gray-200"
-                                                                onClick={() => handleLoadView(view)}
-                                                            >
-                                                                <div className="flex items-center gap-2 text-gray-600 group-hover:text-indigo-600">
-                                                                    <List size={14} />
-                                                                    <span>{view.name}</span>
-                                                                </div>
-                                                                <button
-                                                                    onClick={(e) => { e.stopPropagation(); setSavedViews(savedViews.filter((_, i) => i !== idx)); }}
-                                                                    className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        .map((view, idx) => {
+                                                            const isActive = filterGroups.some(g => g.fromPreset === view.name);
+                                                            return (
+                                                                <div
+                                                                    key={idx}
+                                                                    className={`flex items-center justify-between group cursor-pointer p-2 rounded-lg transition-all border ${isActive
+                                                                            ? 'bg-indigo-50 border-indigo-200 shadow-sm'
+                                                                            : 'hover:bg-white border-transparent hover:border-gray-200'
+                                                                        }`}
                                                                 >
-                                                                    <X size={12} />
-                                                                </button>
-                                                            </div>
-                                                        ))}
+                                                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={isActive}
+                                                                            onChange={() => handleLoadView(view, true)}
+                                                                            className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                        />
+                                                                        <div
+                                                                            className="flex items-center gap-2 text-sm flex-1 truncate"
+                                                                            onClick={() => handleLoadView(view)}
+                                                                        >
+                                                                            <List size={14} className={isActive ? 'text-indigo-600' : 'text-gray-400'} />
+                                                                            <span className={`truncate font-medium ${isActive ? 'text-indigo-700' : 'text-gray-600'}`}>{view.name}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); setSavedViews(savedViews.filter((_, i) => i !== idx)); }}
+                                                                        className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 ml-1"
+                                                                    >
+                                                                        <X size={12} />
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     {savedViews.filter(view => {
                                                         const schemaFieldIds = new Set(schema.map(f => f.id));
                                                         return view.filterGroups.every(group =>
                                                             group.conditions.every((cond: { fieldId: string }) => schemaFieldIds.has(cond.fieldId))
                                                         );
-                                                    }).length === 0 && <div className="text-xs text-gray-400 italic px-2">暂无适用于当前表单的预设视图</div>}
+                                                    }).length === 0 && <div className="text-xs text-gray-400 italic px-2 py-4 text-center">暂无适用于当前表单的预设视图</div>}
                                                 </div>
 
-                                                <div className="pt-3 border-t border-gray-200 flex gap-2">
-                                                    <input
-                                                        className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-indigo-500"
-                                                        placeholder="视图名称..."
-                                                        value={viewName}
-                                                        onChange={(e) => setViewName(e.target.value)}
-                                                    />
-                                                    <button
-                                                        onClick={handleSaveView}
-                                                        disabled={!viewName.trim() || filterGroups.every(g => g.conditions.length === 0)}
-                                                        className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    >
-                                                        保存
-                                                    </button>
-                                                </div>
+                                                {/* Save functionality moved to left column */}
                                             </div>
                                         </div>
                                     </div>
