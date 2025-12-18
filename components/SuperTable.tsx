@@ -1838,7 +1838,7 @@ export const SuperTable: React.FC = () => {
 
     const [pendingFilter, setPendingFilter] = useState({ fieldId: '', operator: '', value: '', value2: '' });
 
-    const [savedViews, setSavedViews] = useState<{ name: string, filterGroups: any[], rootFilterMode: 'AND' | 'OR' }[]>(() => loadFromStorage('erp_saved_views_v2', [
+    const [savedViews, setSavedViews] = useState<{ name: string, filterGroups: any[], rootFilterMode: 'AND' | 'OR', datasetId?: string | null }[]>(() => loadFromStorage('erp_saved_views_v2', [
         {
             name: '示例视图 (Example)',
             filterGroups: [{ id: 'g1', logic: 'AND', conditions: [{ id: 'demo_1', fieldId: 'f3', operator: 'lt', value: '10' }] }],
@@ -2768,9 +2768,14 @@ export const SuperTable: React.FC = () => {
 
     const handleSaveView = () => {
         if (!viewName.trim()) return;
-        setSavedViews([...savedViews, { name: viewName, filterGroups: [...filterGroups], rootFilterMode }]);
+        setSavedViews([...savedViews, {
+            name: viewName,
+            filterGroups: [...filterGroups],
+            rootFilterMode,
+            datasetId: activeDatasetId // Associate with current dataset
+        }]);
         setViewName('');
-        addToast('View saved successfully', 'success');
+        addToast(`View "${viewName}" saved to current table`, 'success');
     };
 
     const handleLoadView = (view: { name: string, filterGroups: any[], rootFilterMode?: 'AND' | 'OR' }, isAdditive: boolean = false) => {
@@ -3586,11 +3591,11 @@ export const SuperTable: React.FC = () => {
 
                                 {/* Enhanced Filter Panel - Hide in New Entry mode */}
                                 {showFilters && subView !== 'preview' && (
-                                    <div className="border-b border-gray-200 bg-white animate-in slide-in-from-top-2">
-                                        <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
+                                    <div className="border-x border-b border-gray-200 bg-white animate-in slide-in-from-top-2 rounded-b-3xl shadow-xl z-20 mx-6 mb-6 overflow-hidden">
+                                        <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-gray-100 items-stretch">
 
                                             {/* Left: Filter Builder & Groups */}
-                                            <div className="p-5 flex-1 space-y-4">
+                                            <div className="p-6 flex-1 space-y-4">
                                                 {/* Top Controls: Root Logic & Add Group */}
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2">
@@ -3855,18 +3860,27 @@ export const SuperTable: React.FC = () => {
                                             </div>
 
                                             {/* Right: View Presets */}
-                                            <div className="p-5 lg:w-80 space-y-4 bg-gray-50/50">
-                                                <div className="flex items-center gap-2 text-gray-600 mb-2">
-                                                    <Bookmark size={16} />
-                                                    <span className="text-sm font-bold">视图预设</span>
+                                            <div className="p-6 lg:w-80 space-y-4 bg-white flex flex-col">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="flex items-center gap-2 text-slate-600">
+                                                        <Bookmark size={16} className="text-indigo-500" />
+                                                        <span className="text-sm font-bold">视图预设</span>
+                                                    </div>
+                                                    <div className="bg-white px-2 py-0.5 rounded-full border border-slate-200 text-[10px] font-bold text-slate-400">
+                                                        PRESETS
+                                                    </div>
                                                 </div>
 
-                                                <div className="space-y-1">
+                                                <div className="space-y-1 flex-1 min-h-[160px] bg-white/50 rounded-xl border border-slate-200/60 p-2 shadow-inner">
                                                     {savedViews
                                                         .filter(view => {
-                                                            // Only show views whose conditions all reference fields in the current schema
+                                                            // Match by datasetId specifically
+                                                            if (activeDatasetId) {
+                                                                return (view as any).datasetId === activeDatasetId;
+                                                            }
+                                                            // For templates without activeDatasetId, use schema matching fallback
                                                             const schemaFieldIds = new Set(schema.map(f => f.id));
-                                                            return view.filterGroups.every(group =>
+                                                            return !(view as any).datasetId && view.filterGroups.every(group =>
                                                                 group.conditions.every((cond: { fieldId: string }) => schemaFieldIds.has(cond.fieldId))
                                                             );
                                                         })
@@ -3876,8 +3890,8 @@ export const SuperTable: React.FC = () => {
                                                                 <div
                                                                     key={idx}
                                                                     className={`flex items-center justify-between group cursor-pointer p-2 rounded-lg transition-all border ${isActive
-                                                                            ? 'bg-indigo-50 border-indigo-200 shadow-sm'
-                                                                            : 'hover:bg-white border-transparent hover:border-gray-200'
+                                                                        ? 'bg-indigo-50 border-indigo-200 shadow-sm'
+                                                                        : 'hover:bg-white border-transparent hover:border-gray-200'
                                                                         }`}
                                                                 >
                                                                     <div className="flex items-center gap-3 flex-1 min-w-0">
