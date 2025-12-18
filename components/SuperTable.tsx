@@ -1848,6 +1848,7 @@ export const SuperTable: React.FC = () => {
 
     // Dataset Library State
     const [savedDatasets, setSavedDatasets] = useState<{ id: string, name: string, groupId?: string, timestamp: number, schema: any[], records: any[] }[]>(() => loadFromStorage('erp_saved_datasets', []));
+    const [activeDatasetId, setActiveDatasetId] = useState<string | null>(() => loadFromStorage('erp_active_dataset_id', null));
 
     // Dataset Groups State
     const [datasetGroups, setDatasetGroups] = useState<{ id: string, name: string }[]>(() => loadFromStorage('erp_dataset_groups', []));
@@ -1870,6 +1871,8 @@ export const SuperTable: React.FC = () => {
     const executeDeleteGroup = (action: 'delete_all' | 'move_to_root') => {
         const { groupId } = deleteGroupDialog;
         if (action === 'delete_all') {
+            const datasetsToDelete = savedDatasets.filter(d => d.groupId === groupId);
+            if (datasetsToDelete.some(d => d.id === activeDatasetId)) setActiveDatasetId(null);
             setSavedDatasets(prev => prev.filter(d => d.groupId !== groupId));
         } else {
             setSavedDatasets(prev => prev.map(d => d.groupId === groupId ? { ...d, groupId: undefined } : d));
@@ -2040,6 +2043,13 @@ export const SuperTable: React.FC = () => {
         }
     }, [collapsedGroups]);
 
+    // Persist active dataset id
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('erp_active_dataset_id', JSON.stringify(activeDatasetId));
+        }
+    }, [activeDatasetId]);
+
     // Sanitize filter groups when schema changes - remove conditions referencing non-existent fields
     useEffect(() => {
         const schemaFieldIds = new Set(schema.map(f => f.id));
@@ -2072,6 +2082,28 @@ export const SuperTable: React.FC = () => {
         });
     }, [schema]);
 
+    const handleUpdateActiveDataset = () => {
+        if (!activeDatasetId) return;
+
+        const currentDataset = savedDatasets.find(d => d.id === activeDatasetId);
+        if (!currentDataset) return;
+
+        setSavedDatasets(prev => prev.map(d =>
+            d.id === activeDatasetId
+                ? {
+                    ...d,
+                    schema: [...schema],
+                    records: [...records],
+                    timestamp: Date.now()
+                }
+                : d
+        ));
+
+        // Mark data as clean
+        setLastSavedSnapshot(JSON.stringify({ records: [...records], schema: [...schema] }));
+        addToast(`Changes saved to "${currentDataset.name}"`, 'success');
+    };
+
     const handleSaveDataset = (saveFilteredOnly: boolean = false) => {
         if (!datasetNameInput.trim()) {
             addToast('Please enter a dataset name', 'error');
@@ -2087,17 +2119,20 @@ export const SuperTable: React.FC = () => {
         const doSave = () => {
             // Use filtered records if user chose to save filtered only and there are active filters
             const recordsToSave = (saveFilteredOnly && hasActiveFilters) ? [...filteredRecords] : [...records];
+            const newId = Date.now().toString();
 
             setSavedDatasets(prev => {
                 const filtered = prev.filter(d => d.name !== name);
                 return [{
-                    id: Date.now().toString(),
+                    id: newId,
                     name: name,
                     timestamp: Date.now(),
                     schema: [...schema],
                     records: recordsToSave
                 }, ...filtered];
             });
+
+            setActiveDatasetId(newId);
             // Note: currentFormName shows the template, not the dataset name
             setSaveDatasetOpen(false);
             setDatasetNameInput('');
@@ -2123,7 +2158,12 @@ export const SuperTable: React.FC = () => {
     const hasActiveFilters = useMemo(() => filterGroups.some(g => g.conditions.length > 0), [filterGroups]);
 
     // Rename & Delete Logic
-    const [renameDialog, setRenameDialog] = useState<{ isOpen: boolean, id: string, name: string }>({ isOpen: false, id: '', name: '' });
+    const [renameDialog, setRenameDialog] = useState<{
+        isOpen: boolean,
+        id: string,
+        name: string,
+        type?: 'dataset' | 'form'
+    }>({ isOpen: false, id: '', name: '', type: 'dataset' });
 
     const handleDeleteDataset = (e: React.MouseEvent, id: string, name: string) => {
         e.stopPropagation(); // Prevent loading
@@ -2132,6 +2172,7 @@ export const SuperTable: React.FC = () => {
             `Are you sure you want to delete "${name}"? This cannot be undone.`,
             () => {
                 setSavedDatasets(prev => prev.filter(d => d.id !== id));
+                if (id === activeDatasetId) setActiveDatasetId(null);
                 addToast(`Dataset "${name}" deleted`, 'success');
             },
             'danger',
@@ -2143,29 +2184,40 @@ export const SuperTable: React.FC = () => {
         if (!renameDialog.name.trim()) return;
 
         const newName = renameDialog.name.trim();
-        const exists = savedDatasets.some(d => d.name === newName && d.id !== renameDialog.id);
 
-        if (exists) {
-            addToast('A dataset with this name already exists', 'error');
-            return;
+        if (renameDialog.type === 'form') {
+            const exists = savedForms.some(f => f.name === newName && f.id !== renameDialog.id);
+            if (exists) {
+                addToast('A form template with this name already exists', 'error');
+                return;
+            }
+            setSavedForms(prev => prev.map(f => f.id === renameDialog.id ? { ...f, name: newName } : f));
+            addToast('Form template renamed successfully', 'success');
+        } else {
+            const exists = savedDatasets.some(d => d.name === newName && d.id !== renameDialog.id);
+            if (exists) {
+                addToast('A dataset with this name already exists', 'error');
+                return;
+            }
+
+            setSavedDatasets(prev => prev.map(d => d.id === renameDialog.id ? { ...d, name: newName } : d));
+
+            // If we are currently viewing this dataset, update the displayed name
+            const currentDataset = savedDatasets.find(d => d.id === renameDialog.id);
+            if (currentDataset && currentDataset.name === currentFormName) {
+                setCurrentFormName(newName);
+            }
+            addToast('Dataset renamed successfully', 'success');
         }
 
-        setSavedDatasets(prev => prev.map(d => d.id === renameDialog.id ? { ...d, name: newName } : d));
-
-        // If we are currently viewing this dataset, update the displayed name
-        const currentDataset = savedDatasets.find(d => d.id === renameDialog.id);
-        if (currentDataset && currentDataset.name === currentFormName) {
-            setCurrentFormName(newName);
-        }
-
-        setRenameDialog({ isOpen: false, id: '', name: '' });
-        addToast('Dataset renamed successfully', 'success');
+        setRenameDialog({ isOpen: false, id: '', name: '', type: 'dataset' });
     };
 
     const handleLoadDataset = (dataset: any) => {
         const doLoad = () => {
             setSchema(dataset.schema);
             setRecords(dataset.records || []);
+            setActiveDatasetId(dataset.id);
             // Note: currentFormName is determined automatically by matching schema with saved forms
             setSubView('table');
             // Clear filter groups when switching datasets
@@ -3228,15 +3280,18 @@ export const SuperTable: React.FC = () => {
                                                             draggable
                                                             onDragStart={e => e.dataTransfer.setData('datasetId', ds.id)}
                                                             onDoubleClick={() => handleLoadDataset(ds)}
-                                                            className="p-2 rounded-lg hover:bg-white hover:shadow-sm cursor-pointer transition-all border border-transparent hover:border-slate-100 group relative flex items-center gap-2"
+                                                            className={`p-2 rounded-lg cursor-pointer transition-all border group relative flex items-center gap-2 ${ds.id === activeDatasetId
+                                                                ? 'bg-indigo-50/80 border-transparent shadow-sm'
+                                                                : 'bg-transparent border-transparent hover:bg-white hover:shadow-sm hover:border-slate-100'
+                                                                }`}
                                                         >
-                                                            <TableIcon size={14} className="text-indigo-500 shrink-0" />
-                                                            <span className="text-xs font-medium text-slate-700 truncate flex-1">{ds.name}</span>
+                                                            <TableIcon size={14} className={`${ds.id === activeDatasetId ? 'text-indigo-600' : 'text-indigo-400'} shrink-0`} />
+                                                            <span className={`text-xs font-medium truncate flex-1 ${ds.id === activeDatasetId ? 'text-indigo-900 font-bold' : 'text-slate-700'}`}>{ds.name}</span>
 
                                                             {/* Actions */}
                                                             <div className="hidden group-hover:flex items-center gap-1 absolute right-2 top-1/2 -translate-y-1/2">
                                                                 <button
-                                                                    onClick={(e) => { e.stopPropagation(); setRenameDialog({ isOpen: true, id: ds.id, name: ds.name }); }}
+                                                                    onClick={(e) => { e.stopPropagation(); setRenameDialog({ isOpen: true, id: ds.id, name: ds.name, type: 'dataset' }); }}
                                                                     className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
                                                                     title="Rename"
                                                                 >
@@ -3273,16 +3328,19 @@ export const SuperTable: React.FC = () => {
                                                 draggable
                                                 onDragStart={e => e.dataTransfer.setData('datasetId', ds.id)}
                                                 onDoubleClick={() => handleLoadDataset(ds)}
-                                                className="p-3 rounded-lg hover:bg-white hover:shadow-sm cursor-pointer transition-all border border-transparent hover:border-slate-100 group relative"
+                                                className={`p-3 rounded-lg cursor-pointer transition-all border group relative ${ds.id === activeDatasetId
+                                                    ? 'bg-indigo-50/80 border-transparent shadow-sm'
+                                                    : 'bg-transparent border-transparent hover:bg-white hover:shadow-sm hover:border-slate-100'
+                                                    }`}
                                             >
                                                 <div className="flex items-center gap-2 mb-1">
-                                                    <TableIcon size={14} className="text-indigo-500 shrink-0" />
-                                                    <span className="text-sm font-bold text-slate-700 truncate pr-16">{ds.name}</span>
+                                                    <TableIcon size={14} className={`${ds.id === activeDatasetId ? 'text-indigo-600' : 'text-indigo-400'} shrink-0`} />
+                                                    <span className={`text-sm truncate pr-16 ${ds.id === activeDatasetId ? 'text-indigo-900 font-extrabold' : 'text-slate-700 font-bold'}`}>{ds.name}</span>
                                                 </div>
 
                                                 <div className="hidden group-hover:flex items-center gap-1 absolute right-2 top-1/2 -translate-y-1/2">
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); setRenameDialog({ isOpen: true, id: ds.id, name: ds.name }); }}
+                                                        onClick={(e) => { e.stopPropagation(); setRenameDialog({ isOpen: true, id: ds.id, name: ds.name, type: 'dataset' }); }}
                                                         className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
                                                         title="Rename"
                                                     >
@@ -3421,10 +3479,16 @@ export const SuperTable: React.FC = () => {
                                         {/* Primary Action */}
                                         {subView === 'table' && (
                                             <button
-                                                onClick={() => setSaveDatasetOpen(true)}
+                                                onClick={() => {
+                                                    if (activeDatasetId) {
+                                                        handleUpdateActiveDataset();
+                                                    } else {
+                                                        setSaveDatasetOpen(true);
+                                                    }
+                                                }}
                                                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs font-bold shadow-sm hover:shadow hover:-translate-y-0.5 active:translate-y-0"
                                             >
-                                                <Save size={14} /> Save
+                                                <Save size={14} /> {activeDatasetId ? 'Save' : 'Save As'}
                                             </button>
                                         )}
                                     </div>
@@ -3963,6 +4027,7 @@ export const SuperTable: React.FC = () => {
                                     <div
                                         onClick={() => {
                                             setSchema([]);
+                                            setActiveDatasetId(null);
                                             setActiveTab('builder');
                                             addToast('Created new blank form', 'info');
                                         }}
@@ -3977,7 +4042,14 @@ export const SuperTable: React.FC = () => {
 
                                     {savedForms.map(form => (
                                         <div key={form.id} className="bg-white p-6 rounded-2xl border border-gray-100 hover:border-indigo-200 hover:shadow-lg transition-all group relative flex flex-col h-48">
-                                            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center gap-1">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setRenameDialog({ isOpen: true, id: form.id, name: form.name, type: 'form' }); }}
+                                                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                    title="Rename Template"
+                                                >
+                                                    <Edit3 size={16} />
+                                                </button>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handleDeleteForm(form.id); }}
                                                     className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -4413,9 +4485,9 @@ export const SuperTable: React.FC = () => {
                     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                         <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
                             <div className="mb-4">
-                                <h3 className="text-lg font-bold text-gray-800">Rename Dataset</h3>
+                                <h3 className="text-lg font-bold text-gray-800">Rename {renameDialog.type === 'form' ? 'Template' : 'Dataset'}</h3>
                                 <p className="text-xs text-gray-500 mt-1">
-                                    Enter a new name for this dataset.
+                                    Enter a new name for this {renameDialog.type === 'form' ? 'form template' : 'dataset'}.
                                 </p>
                             </div>
                             <div className="mb-6 space-y-3">
