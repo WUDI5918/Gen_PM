@@ -328,6 +328,53 @@ const evaluateExpression = (expr: string, data: any, returnError = false): any =
     }
 };
 
+/**
+ * Applies all calculations defined in the schema to a data record.
+ * Supports multiple passes to resolve dependencies between calculated fields.
+ */
+const applyRowLogic = (data: any, schema: any[]): any => {
+    const newData = { ...data };
+    let hasChanges = true;
+    let iterations = 0;
+    const maxIterations = 3; // Usually 1-2 is enough for most dependencies
+
+    while (hasChanges && iterations < maxIterations) {
+        hasChanges = false;
+        iterations++;
+        schema.forEach(field => {
+            // 1. Calculation Logic
+            if (field.logic?.calculation) {
+                const result = evaluateExpression(field.logic.calculation, newData);
+                if (result !== null && result !== undefined && !result.__isApi) {
+                    const currentVal = newData[field.id];
+                    const valChanged =
+                        (typeof result === 'number' && Number(currentVal) !== result) ||
+                        (typeof result !== 'number' && String(currentVal) !== String(result));
+
+                    if (valChanged) {
+                        newData[field.id] = result;
+                        hasChanges = true;
+                    }
+                }
+            }
+
+            // 2. Options Logic - Cascading Reset
+            // If the field has an optionsRule, and the options change such that the current value is no longer valid, we clear it.
+            if (field.logic?.optionsRule) {
+                const rawOptions = evaluateExpression(field.logic.optionsRule, newData);
+                const currentOptions = Array.isArray(rawOptions) ? rawOptions.map(String) : [];
+                const currentVal = newData[field.id];
+
+                if (currentVal && currentVal !== '' && !currentOptions.includes(String(currentVal))) {
+                    newData[field.id] = ''; // Clear value because it's no longer a valid option
+                    hasChanges = true;
+                }
+            }
+        });
+    }
+    return newData;
+};
+
 // Validate expression syntax without side effects
 const validateExpression = (expr: string, schema: any[]): { valid: boolean; error?: string } => {
     if (!expr || !expr.trim()) return { valid: true };
@@ -1016,8 +1063,10 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
     };
 
     const handleChange = (id: string, value: any) => {
-        // ... (Update local data)
-        const updatedData = { ...data, [id]: value };
+        const rawUpdatedData = { ...data, [id]: value };
+
+        // Pass through central logic engine to handle cascading updates (like City clearing when Region changes)
+        const updatedData = applyRowLogic(rawUpdatedData, schema);
 
         // Inline Validation Logic
         const newErrors = { ...errors };
@@ -1049,8 +1098,7 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
             }
         }
 
-        // 2. Dynamic Required Check (Simulated for feedback)
-        // In a real form library like React Hook Form, this would be cleaner.
+        // 3. Dynamic Required Check (Simulated for feedback)
         const isReq = field.logic?.requiredRule ? (evaluateExpression(field.logic.requiredRule, updatedData) === true) : field.required;
         if (isReq && !value) {
             newErrors[id] = 'This field is required';
@@ -1058,7 +1106,6 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
             delete newErrors[id];
         }
 
-        setErrors(newErrors);
         setErrors(newErrors);
         setData(updatedData);
     };
@@ -1828,6 +1875,7 @@ export const SuperTable: React.FC = () => {
     const [records, setRecords] = useState<any[]>(() => loadFromStorage('erp_records', []));
     const [previewData, setPreviewData] = useState<any>({});
     const [batchRows, setBatchRows] = useState<any[]>([]);
+    const [editingCell, setEditingCell] = useState<{ rowId: any; fieldId: string } | null>(null);
 
     // Advanced Filter State
     const [filterGroups, setFilterGroups] = useState<{ id: string, logic: 'AND' | 'OR', conditions: { id: string, fieldId: string, operator: string, value: string, value2?: string }[], fromPreset?: string }[]>(() =>
@@ -2710,9 +2758,74 @@ export const SuperTable: React.FC = () => {
         setSubView('table');
     };
 
+    const isCellReadOnly = (row: any, field: any) => {
+        if (!field.logic?.readOnly) return false;
+        // evaluateExpression handles {field_id} markers using the row's data
+        return evaluateExpression(field.logic.readOnly, row) === true;
+    };
+
+    const isCellVisible = (row: any, field: any) => {
+        if (!field.logic?.visibility) return true;
+        return evaluateExpression(field.logic.visibility, row) === true;
+    };
+
+    const getFieldOptions = (field: any, rowData: any) => {
+        if (field.logic?.optionsRule) {
+            const result = evaluateExpression(field.logic.optionsRule, rowData);
+            if (Array.isArray(result)) return result.map(String);
+            if (result && typeof result === 'string') return result.split(',').map(s => s.trim());
+        }
+        return field.options || [];
+    };
+
+    const validateField = (field: any, value: any, rowData: any): string | null => {
+        const id = field.id;
+
+        // 1. Required Check
+        const isReq = field.logic?.requiredRule ? (evaluateExpression(field.logic.requiredRule, rowData) === true) : field.required;
+        if (isReq && (value === undefined || value === null || value === '')) {
+            return 'Required';
+        }
+
+        // 2. Regex Validation
+        if (field.logic?.regex && value) {
+            try {
+                const re = new RegExp(field.logic.regex);
+                if (!re.test(String(value))) {
+                    return field.logic.errorMsg || 'Invalid format';
+                }
+            } catch (e) {
+                console.error("Invalid regex", e);
+            }
+        }
+
+        // 3. Custom Rule
+        if (field.logic?.customRule) {
+            const isValid = evaluateExpression(field.logic.customRule, { ...rowData, [id]: value });
+            if (isValid === false) {
+                return field.logic.customErrorMsg || 'Invalid';
+            }
+        }
+
+        return null;
+    };
+
+    const handleGridUpdate = (recordId: any, fieldId: string, value: any) => {
+        setRecords(prev => prev.map(row => {
+            if (row._id === recordId) {
+                const updatedRowData = { ...row, [fieldId]: value };
+                // Apply calculations and logic automatically
+                return applyRowLogic(updatedRowData, schema);
+            }
+            return row;
+        }));
+    };
+
     const handleBatchUpdate = (index: number, fieldId: string, value: any) => {
         const newRows = [...batchRows];
-        newRows[index].data = { ...newRows[index].data, [fieldId]: value };
+        const updatedRowData = { ...newRows[index].data, [fieldId]: value };
+        // Apply calculations and logic
+        newRows[index].data = applyRowLogic(updatedRowData, schema);
         setBatchRows(newRows);
     };
 
@@ -4021,15 +4134,79 @@ export const SuperTable: React.FC = () => {
                                                             filteredRecords.map((row, i) => (
                                                                 <tr key={row._id} className="hover:bg-indigo-50/30 transition-colors group">
                                                                     <td className="px-6 py-4 text-xs font-mono text-gray-400 text-center group-hover:text-indigo-400">{i + 1}</td>
-                                                                    {gridColumns.map(f => (
-                                                                        <td key={f.id} className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap border-l border-transparent group-hover:border-indigo-100 max-w-xs truncate">
-                                                                            {f.type === 'checkbox' ? (
-                                                                                row[f.id] ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Yes</span> : <span className="text-gray-400 text-xs">No</span>
-                                                                            ) : (
-                                                                                safeRenderValue(row[f.id]) || <span className="text-gray-300">-</span>
-                                                                            )}
-                                                                        </td>
-                                                                    ))}
+                                                                    {gridColumns.map(f => {
+                                                                        const isEditing = editingCell?.rowId === row._id && editingCell?.fieldId === f.id;
+                                                                        const isReadOnly = isCellReadOnly(row, f);
+                                                                        const hasCalculation = !!f.logic?.calculation;
+
+                                                                        return (
+                                                                            <td
+                                                                                key={f.id}
+                                                                                onClick={() => !isReadOnly && setEditingCell({ rowId: row._id, fieldId: f.id })}
+                                                                                className={`px-6 py-4 text-sm border-l border-transparent group-hover:border-indigo-100 max-w-xs transition-all duration-200 
+                                                                                    ${isEditing ? 'bg-white p-2 relative z-10' :
+                                                                                        `whitespace-nowrap truncate ${!isCellVisible(row, f) ? 'bg-slate-100/30' :
+                                                                                            isReadOnly ? 'bg-slate-50/50 cursor-not-allowed' :
+                                                                                                'cursor-pointer hover:bg-white'}`} 
+                                                                                    ${hasCalculation && isReadOnly ? 'font-medium text-indigo-600' : 'text-gray-700'}`}
+                                                                            >
+                                                                                {!isCellVisible(row, f) ? (
+                                                                                    <span className="text-gray-300 italic text-[11px]">- Hidden -</span>
+                                                                                ) : isEditing ? (
+                                                                                    f.type === 'select' || f.type === 'radio' ? (
+                                                                                        <select
+                                                                                            autoFocus
+                                                                                            className="w-full bg-white border-2 border-indigo-500 rounded-lg px-2 py-1 outline-none shadow-lg z-20"
+                                                                                            value={row[f.id] || ''}
+                                                                                            onChange={(e) => handleGridUpdate(row._id, f.id, e.target.value)}
+                                                                                            onBlur={() => setEditingCell(null)}
+                                                                                        >
+                                                                                            <option value="">Select...</option>
+                                                                                            {getFieldOptions(f, row).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                                                                                        </select>
+                                                                                    ) : f.type === 'checkbox' ? (
+                                                                                        <div className="flex items-center justify-center">
+                                                                                            <input
+                                                                                                type="checkbox"
+                                                                                                autoFocus
+                                                                                                checked={!!row[f.id]}
+                                                                                                onChange={(e) => { handleGridUpdate(row._id, f.id, e.target.checked); setEditingCell(null); }}
+                                                                                                onBlur={() => setEditingCell(null)}
+                                                                                                className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
+                                                                                            />
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="relative w-full">
+                                                                                            <input
+                                                                                                autoFocus
+                                                                                                type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
+                                                                                                className={`w-full bg-white border-2 rounded-lg px-2 py-1 outline-none shadow-lg z-20 ${validateField(f, row[f.id], row) ? 'border-red-500' : 'border-indigo-500'}`}
+                                                                                                value={row[f.id] || ''}
+                                                                                                onChange={(e) => handleGridUpdate(row._id, f.id, e.target.value)}
+                                                                                                onBlur={() => setEditingCell(null)}
+                                                                                                onKeyDown={(e) => e.key === 'Enter' && setEditingCell(null)}
+                                                                                            />
+                                                                                            {validateField(f, row[f.id], row) && (
+                                                                                                <div className="absolute top-full left-0 mt-1 bg-red-600 text-white text-[10px] px-2 py-1 rounded shadow-xl z-30 animate-in fade-in slide-in-from-top-1 whitespace-normal min-w-[120px]">
+                                                                                                    {validateField(f, row[f.id], row)}
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )
+                                                                                ) : (
+                                                                                    <>
+                                                                                        {f.type === 'checkbox' ? (
+                                                                                            row[f.id] ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Yes</span> : <span className="text-gray-400 text-xs">No</span>
+                                                                                        ) : (
+                                                                                            <span className={isReadOnly ? 'opacity-70' : ''}>
+                                                                                                {safeRenderValue(row[f.id]) || <span className="text-gray-300 italic">-</span>}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </>
+                                                                                )}
+                                                                            </td>
+                                                                        );
+                                                                    })}
                                                                     <td className="px-6 py-4 text-center border-l border-transparent group-hover:border-indigo-100">
                                                                         <button
                                                                             onClick={() => handleDeleteRecord(row._id)}
@@ -4079,37 +4256,57 @@ export const SuperTable: React.FC = () => {
                                                             {batchRows.map((row, idx) => (
                                                                 <tr key={row.tempId} className="group hover:bg-indigo-50/10">
                                                                     <td className="px-4 py-2 text-center text-xs text-gray-400 font-mono">{idx + 1}</td>
-                                                                    {batchColumns.map(f => (
-                                                                        <td key={f.id} className="p-0 border-l border-gray-100">
-                                                                            {f.type === 'select' ? (
-                                                                                <select
-                                                                                    className="w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all h-full"
-                                                                                    value={row.data[f.id] || ''}
-                                                                                    onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
-                                                                                >
-                                                                                    <option value="">Select...</option>
-                                                                                    {f.options?.map((o: string) => <option key={o} value={o}>{o}</option>)}
-                                                                                </select>
-                                                                            ) : f.type === 'checkbox' ? (
-                                                                                <div className="flex items-center justify-center py-2">
-                                                                                    <input
-                                                                                        type="checkbox"
-                                                                                        checked={!!row.data[f.id]}
-                                                                                        onChange={e => handleBatchUpdate(idx, f.id, e.target.checked)}
-                                                                                        className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                                                                                    />
-                                                                                </div>
-                                                                            ) : (
-                                                                                <input
-                                                                                    type={f.type === 'number' ? 'number' : 'text'}
-                                                                                    className="w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-300"
-                                                                                    placeholder={f.label}
-                                                                                    value={row.data[f.id] || ''}
-                                                                                    onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
-                                                                                />
-                                                                            )}
-                                                                        </td>
-                                                                    ))}
+                                                                    {batchColumns.map(f => {
+                                                                        const isVisible = isCellVisible(row.data, f);
+                                                                        const isReadOnly = isCellReadOnly(row.data, f);
+
+                                                                        return (
+                                                                            <td key={f.id} className={`p-0 border-l border-gray-100 relative ${!isVisible ? 'bg-slate-50/50' : isReadOnly ? 'bg-slate-50' : ''}`}>
+                                                                                {!isVisible ? (
+                                                                                    <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-300 font-medium italic bg-slate-100/20">
+                                                                                        Hidden
+                                                                                    </div>
+                                                                                ) : isReadOnly ? (
+                                                                                    <div className="px-4 py-2 text-sm text-slate-400 italic flex items-center justify-between group/calc">
+                                                                                        <span className="truncate">{row.data[f.id] || '-'}</span>
+                                                                                    </div>
+                                                                                ) : f.type === 'select' ? (
+                                                                                    <select
+                                                                                        className="w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all h-full"
+                                                                                        value={row.data[f.id] || ''}
+                                                                                        onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
+                                                                                    >
+                                                                                        <option value="">Select...</option>
+                                                                                        {getFieldOptions(f, row.data).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                                                                                    </select>
+                                                                                ) : f.type === 'checkbox' ? (
+                                                                                    <div className="flex items-center justify-center py-2 h-full">
+                                                                                        <input
+                                                                                            type="checkbox"
+                                                                                            checked={!!row.data[f.id]}
+                                                                                            onChange={e => handleBatchUpdate(idx, f.id, e.target.checked)}
+                                                                                            className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                                                                                        />
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <div className="relative w-full">
+                                                                                        <input
+                                                                                            type={f.type === 'number' ? 'number' : (f.type === 'date' ? 'date' : 'text')}
+                                                                                            className={`w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 transition-all placeholder-gray-300 ${validateField(f, row.data[f.id], row.data) ? 'focus:ring-red-500/20 text-red-600' : 'focus:ring-indigo-500/20'}`}
+                                                                                            placeholder={f.label}
+                                                                                            value={row.data[f.id] || ''}
+                                                                                            onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
+                                                                                        />
+                                                                                        {validateField(f, row.data[f.id], row.data) && (
+                                                                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-red-500" title={validateField(f, row.data[f.id], row.data) || ''}>
+                                                                                                <AlertCircle size={14} />
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+                                                                            </td>
+                                                                        );
+                                                                    })}
                                                                     <td className="px-2 text-center">
                                                                         <button onClick={() => setBatchRows(batchRows.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-500 p-1 rounded hover:bg-red-50">
                                                                             <X size={14} />
