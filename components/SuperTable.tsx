@@ -2191,6 +2191,13 @@ export const SuperTable: React.FC = () => {
                 addToast('A form template with this name already exists', 'error');
                 return;
             }
+
+            // If the renamed form was our active template, update the label
+            const oldForm = savedForms.find(f => f.id === renameDialog.id);
+            if (oldForm && oldForm.name === currentFormName) {
+                setCurrentFormName(newName);
+            }
+
             setSavedForms(prev => prev.map(f => f.id === renameDialog.id ? { ...f, name: newName } : f));
             addToast('Form template renamed successfully', 'success');
         } else {
@@ -2201,12 +2208,6 @@ export const SuperTable: React.FC = () => {
             }
 
             setSavedDatasets(prev => prev.map(d => d.id === renameDialog.id ? { ...d, name: newName } : d));
-
-            // If we are currently viewing this dataset, update the displayed name
-            const currentDataset = savedDatasets.find(d => d.id === renameDialog.id);
-            if (currentDataset && currentDataset.name === currentFormName) {
-                setCurrentFormName(newName);
-            }
             addToast('Dataset renamed successfully', 'success');
         }
 
@@ -2218,7 +2219,15 @@ export const SuperTable: React.FC = () => {
             setSchema(dataset.schema);
             setRecords(dataset.records || []);
             setActiveDatasetId(dataset.id);
-            // Note: currentFormName is determined automatically by matching schema with saved forms
+
+            // Try to match the schema with an existing template to show the correct template name
+            const matchedTemplate = savedForms.find(f => JSON.stringify(f.schema) === JSON.stringify(dataset.schema));
+            if (matchedTemplate) {
+                setCurrentFormName(matchedTemplate.name);
+            } else {
+                setCurrentFormName('Custom Form');
+            }
+
             setSubView('table');
             // Clear filter groups when switching datasets
             setFilterGroups([{ id: Date.now().toString(), logic: 'AND', conditions: [] }]);
@@ -2560,6 +2569,38 @@ export const SuperTable: React.FC = () => {
 
         setSchema(updatedSchema);
 
+        // Update currently active filters
+        setFilterGroups(prev => prev.map(group => ({
+            ...group,
+            conditions: group.conditions.map(cond =>
+                cond.fieldId === id ? { ...cond, fieldId: newId } : cond
+            )
+        })));
+
+        // Update saved view presets
+        setSavedViews(prev => prev.map(view => ({
+            ...view,
+            filterGroups: view.filterGroups.map(group => ({
+                ...group,
+                conditions: group.conditions.map(cond =>
+                    cond.fieldId === id ? { ...cond, fieldId: newId } : cond
+                )
+            }))
+        })));
+
+        // Update pending filter
+        setPendingFilter(prev => prev.fieldId === id ? { ...prev, fieldId: newId } : prev);
+
+        // Update quick filters
+        setQuickFilters(prev => {
+            if (prev[id]) {
+                const next = { ...prev, [newId]: prev[id] };
+                delete next[id];
+                return next;
+            }
+            return prev;
+        });
+
         // Update Active Selection
         if (activeFieldId === id) setActiveFieldId(newId);
 
@@ -2885,8 +2926,19 @@ export const SuperTable: React.FC = () => {
         const form = savedForms.find(f => f.id === formId);
         if (form) {
             setSchema([...form.schema]);
-            addToast(`Loaded form: ${form.name}`, 'success');
-            setActiveTab(targetTab);
+            setRecords([]); // Clear records when loading a new template
+            setActiveDatasetId(null); // Clear active dataset as we are now on a template
+            setCurrentFormName(form.name);
+
+            // Clear filters
+            setFilterGroups([{ id: Date.now().toString(), logic: 'AND', conditions: [] }]);
+            setQuickFilters({});
+
+            // Update snapshot to mark as clean (empty data)
+            setLastSavedSnapshot(JSON.stringify({ records: [], schema: form.schema }));
+
+            addToast(`Loaded template: ${form.name}`, 'success');
+            if (targetTab) setActiveTab(targetTab);
             setTemplateSelectorOpen(false);
         }
     };
