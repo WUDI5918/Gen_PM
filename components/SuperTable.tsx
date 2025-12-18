@@ -1876,6 +1876,8 @@ export const SuperTable: React.FC = () => {
     const [previewData, setPreviewData] = useState<any>({});
     const [batchRows, setBatchRows] = useState<any[]>([]);
     const [editingCell, setEditingCell] = useState<{ rowId: any; fieldId: string } | null>(null);
+    const [hiddenColumnIds, setHiddenColumnIds] = useState<string[]>(() => loadFromStorage('erp_hidden_columns', []));
+    const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
 
     // Advanced Filter State
     const [filterGroups, setFilterGroups] = useState<{ id: string, logic: 'AND' | 'OR', conditions: { id: string, fieldId: string, operator: string, value: string, value2?: string }[], fromPreset?: string }[]>(() =>
@@ -2043,12 +2045,15 @@ export const SuperTable: React.FC = () => {
         }
     }, [filterGroups]);
 
-    // Persist saved views
+    // Persist View Settings
     useEffect(() => {
         if (typeof window !== 'undefined') {
             window.localStorage.setItem('erp_saved_views_v2', JSON.stringify(savedViews));
+            window.localStorage.setItem('erp_saved_forms', JSON.stringify(savedForms));
+            window.localStorage.setItem('erp_root_filter_mode', JSON.stringify(rootFilterMode));
+            window.localStorage.setItem('erp_hidden_columns', JSON.stringify(hiddenColumnIds));
         }
-    }, [savedViews]);
+    }, [savedViews, savedForms, rootFilterMode, hiddenColumnIds]);
 
     // Persist saved datasets
     useEffect(() => {
@@ -2056,20 +2061,6 @@ export const SuperTable: React.FC = () => {
             window.localStorage.setItem('erp_saved_datasets', JSON.stringify(savedDatasets));
         }
     }, [savedDatasets]);
-
-    // Persist saved forms
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            window.localStorage.setItem('erp_saved_forms', JSON.stringify(savedForms));
-        }
-    }, [savedForms]);
-
-    // Persist root filter mode
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            window.localStorage.setItem('erp_root_filter_mode', JSON.stringify(rootFilterMode));
-        }
-    }, [rootFilterMode]);
 
     // Persist show filters state
     useEffect(() => {
@@ -3145,7 +3136,7 @@ export const SuperTable: React.FC = () => {
     // Data columns only
     const layoutTypes = ['divider', 'notice', 'spacer'];
     const allDataFields = schema.filter(f => !layoutTypes.includes(f.type));
-    const gridColumns = allDataFields.filter(f => f.showInGrid !== false);
+    const gridColumns = allDataFields.filter(f => f.showInGrid !== false && !hiddenColumnIds.includes(f.id));
     const batchColumns = allDataFields.filter(f => f.showInBatch !== false);
 
     return (
@@ -3705,6 +3696,51 @@ export const SuperTable: React.FC = () => {
                                             <button onClick={handleGenerateMock} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Mock Data">
                                                 <RefreshCw size={16} />
                                             </button>
+
+                                            {/* Columns Toggle */}
+                                            <div className="relative">
+                                                <button
+                                                    onClick={() => setColumnsMenuOpen(!columnsMenuOpen)}
+                                                    className={`p-1.5 rounded-md transition-colors ${columnsMenuOpen ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                                                    title="Toggle Columns"
+                                                >
+                                                    <Columns size={16} />
+                                                </button>
+                                                {columnsMenuOpen && (
+                                                    <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-80">
+                                                        {/* Backdrop to close */}
+                                                        <div className="fixed inset-0 z-40" onClick={() => setColumnsMenuOpen(false)}></div>
+                                                        <div className="relative z-50 flex flex-col max-h-80">
+                                                            <div className="p-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center ">
+                                                                <span className="text-xs font-bold text-gray-500 uppercase">Columns</span>
+                                                                <button onClick={() => setHiddenColumnIds([])} className="text-[10px] font-bold text-indigo-600 hover:underline">Reset</button>
+                                                            </div>
+                                                            <div className="overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                                                                {schema.filter((f: any) => !['divider', 'notice', 'spacer'].includes(f.type)).map((f: any) => (
+                                                                    <label key={f.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded-lg cursor-pointer">
+                                                                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${!hiddenColumnIds.includes(f.id) ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-300'}`}>
+                                                                            {!hiddenColumnIds.includes(f.id) && <Check size={10} className="text-white" />}
+                                                                        </div>
+                                                                        <span className={`text-xs font-medium truncate ${!hiddenColumnIds.includes(f.id) ? 'text-gray-700' : 'text-gray-400'}`}>{f.label}</span>
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            className="hidden"
+                                                                            checked={!hiddenColumnIds.includes(f.id)}
+                                                                            onChange={() => {
+                                                                                if (hiddenColumnIds.includes(f.id)) {
+                                                                                    setHiddenColumnIds(prev => prev.filter(id => id !== f.id));
+                                                                                } else {
+                                                                                    setHiddenColumnIds(prev => [...prev, f.id]);
+                                                                                }
+                                                                            }}
+                                                                        />
+                                                                    </label>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                             <button onClick={() => fileInputRef.current?.click()} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Import CSV">
                                                 <Upload size={16} />
                                             </button>
@@ -4092,26 +4128,7 @@ export const SuperTable: React.FC = () => {
                                                             <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase w-16 text-center bg-gray-50">#</th>
                                                             {gridColumns.map(f => (
                                                                 <th key={f.id} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase whitespace-nowrap min-w-[150px] bg-gray-50 border-l border-gray-100 group">
-                                                                    <div className="flex flex-col gap-2">
-                                                                        <div className="flex items-center justify-between">
-                                                                            <span>{f.label}</span>
-                                                                            <button
-                                                                                onClick={() => setQuickFilters(prev => ({ ...prev, [f.id]: { open: !prev[f.id]?.open, value: prev[f.id]?.value || '' } }))}
-                                                                                className={`p-1 rounded hover:bg-gray-200 ${quickFilters[f.id]?.value ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 opacity-0 group-hover:opacity-100'}`}
-                                                                            >
-                                                                                <Filter size={10} />
-                                                                            </button>
-                                                                        </div>
-                                                                        {quickFilters[f.id]?.open && (
-                                                                            <input
-                                                                                className="w-full text-[10px] font-normal border border-gray-200 rounded px-2 py-1 outline-none focus:border-indigo-500 animate-in slide-in-from-top-1"
-                                                                                placeholder={`Filter ${f.label}...`}
-                                                                                value={quickFilters[f.id]?.value || ''}
-                                                                                onClick={(e) => e.stopPropagation()}
-                                                                                onChange={(e) => setQuickFilters(prev => ({ ...prev, [f.id]: { ...prev[f.id], value: e.target.value } }))}
-                                                                            />
-                                                                        )}
-                                                                    </div>
+                                                                    <span>{f.label}</span>
                                                                 </th>
                                                             ))}
                                                             <th className="px-6 py-4 w-20 text-center bg-gray-50 border-l border-gray-100">Actions</th>
