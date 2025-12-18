@@ -9,7 +9,8 @@ import {
     ChevronRight, ChevronDown, MoreHorizontal, Database, ArrowRight,
     Maximize2, Columns, Edit3, Check, ChevronUp, Layers, BoxSelect,
     ToggleLeft, FileText, PenTool, Star, CreditCard, Clock, Link,
-    ListOrdered, Folder, Sidebar, FormInput, BookOpen, Lightbulb, FunctionSquare, Calculator, Regex, Sparkles
+    ListOrdered, Folder, Sidebar, FormInput, BookOpen, Lightbulb, FunctionSquare, Calculator, Regex, Sparkles,
+    ArrowDownUp, ArrowDownAZ, ArrowUpAZ
 } from 'lucide-react';
 import { read, utils } from 'xlsx';
 import { generateFormSchemaFromData, generateFormFromDescription, generateFormLogic } from '../services/geminiService';
@@ -1938,6 +1939,50 @@ export const SuperTable: React.FC = () => {
         addToast('Dataset moved', 'success');
     };
 
+    const handleReorderDataset = (draggedId: string, targetId: string) => {
+        if (draggedId === targetId) return;
+        setSavedDatasets(prev => {
+            const draggedItem = prev.find(d => d.id === draggedId);
+            if (!draggedItem) return prev;
+
+            // Remove dragged item
+            const listDisplaced = prev.filter(d => d.id !== draggedId);
+
+            // Find target index
+            const targetIndex = listDisplaced.findIndex(d => d.id === targetId);
+            if (targetIndex === -1) return prev; // Should not happen
+
+            // Get target item to inherit its group (if any) or validation
+            const targetItem = listDisplaced[targetIndex];
+
+            // Should dragging onto an item adopt its group? 
+            // Yes, standard filesystems do this if mixed. But here we have visual groups.
+            // If we drag onto an item, we likely want to be neighbors. So yes, adopt group.
+            const updatedDraggedItem = { ...draggedItem, groupId: targetItem.groupId };
+
+            const newList = [...listDisplaced];
+            newList.splice(targetIndex, 0, updatedDraggedItem);
+            return newList;
+        });
+    };
+
+    const [datasetSortMenuOpen, setDatasetSortMenuOpen] = useState(false);
+
+    const handleSortDatasets = (type: 'name_asc' | 'name_desc' | 'date_new' | 'date_old') => {
+        setSavedDatasets(prev => {
+            const sorted = [...prev].sort((a, b) => {
+                if (type === 'name_asc') return a.name.localeCompare(b.name);
+                if (type === 'name_desc') return b.name.localeCompare(a.name);
+                if (type === 'date_new') return b.timestamp - a.timestamp;
+                if (type === 'date_old') return a.timestamp - b.timestamp;
+                return 0;
+            });
+            return sorted;
+        });
+        setDatasetSortMenuOpen(false);
+        addToast('Datasets sorted', 'info');
+    };
+
     const handleCommitGroupRename = () => {
         if (!groupRenameState) return;
         setDatasetGroups(prev => prev.map(g => g.id === groupRenameState.id ? { ...g, name: groupRenameState.name } : g));
@@ -3451,13 +3496,45 @@ export const SuperTable: React.FC = () => {
                         <div className="flex flex-row h-full bg-white animate-in fade-in duration-300">
                             {/* 1. Database Library Sidebar */}
                             <div className="w-64 border-r border-gray-200 flex flex-col bg-slate-50/50 shrink-0">
-                                <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                                <div className="p-4 border-b border-gray-100 flex items-center justify-between relative">
                                     <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                                         <Database size={14} /> Databases
                                     </h3>
-                                    <button onClick={handleAddDatasetGroup} className="p-1 text-slate-400 hover:text-indigo-600 rounded transition-colors" title="New Folder">
-                                        <Plus size={14} />
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        {/* Sort Menu */}
+                                        <div className="relative">
+                                            <button
+                                                onClick={() => setDatasetSortMenuOpen(!datasetSortMenuOpen)}
+                                                className={`p-1 rounded transition-colors ${datasetSortMenuOpen ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-indigo-600'}`}
+                                                title="Sort Datasets"
+                                            >
+                                                <ArrowDownUp size={14} />
+                                            </button>
+                                            {datasetSortMenuOpen && (
+                                                <>
+                                                    <div className="fixed inset-0 z-30" onClick={() => setDatasetSortMenuOpen(false)}></div>
+                                                    <div className="absolute right-0 top-full mt-2 w-40 bg-white border border-gray-200 rounded-lg shadow-xl z-40 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+                                                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase">Sort By</div>
+                                                        <button onClick={() => handleSortDatasets('name_asc')} className="w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2">
+                                                            <ArrowDownAZ size={12} /> Name (A-Z)
+                                                        </button>
+                                                        <button onClick={() => handleSortDatasets('name_desc')} className="w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2">
+                                                            <ArrowUpAZ size={12} /> Name (Z-A)
+                                                        </button>
+                                                        <button onClick={() => handleSortDatasets('date_new')} className="w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2">
+                                                            <Calendar size={12} /> Date (Newest)
+                                                        </button>
+                                                        <button onClick={() => handleSortDatasets('date_old')} className="w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2">
+                                                            <Clock size={12} /> Date (Oldest)
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                        <button onClick={handleAddDatasetGroup} className="p-1 text-slate-400 hover:text-indigo-600 rounded transition-colors" title="New Folder">
+                                            <Plus size={14} />
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
                                     {savedDatasets.length === 0 && datasetGroups.length === 0 && (
@@ -3508,6 +3585,13 @@ export const SuperTable: React.FC = () => {
                                                             key={ds.id}
                                                             draggable
                                                             onDragStart={e => e.dataTransfer.setData('datasetId', ds.id)}
+                                                            onDragOver={e => e.preventDefault()}
+                                                            onDrop={e => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                const draggedId = e.dataTransfer.getData('datasetId');
+                                                                if (draggedId) handleReorderDataset(draggedId, ds.id);
+                                                            }}
                                                             onDoubleClick={() => handleLoadDataset(ds)}
                                                             className={`p-2 rounded-lg cursor-pointer transition-all border group relative flex items-center gap-2 ${ds.id === activeDatasetId
                                                                 ? 'bg-indigo-50/80 border-transparent shadow-sm'
@@ -3556,6 +3640,13 @@ export const SuperTable: React.FC = () => {
                                                 key={ds.id}
                                                 draggable
                                                 onDragStart={e => e.dataTransfer.setData('datasetId', ds.id)}
+                                                onDragOver={e => e.preventDefault()}
+                                                onDrop={e => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    const draggedId = e.dataTransfer.getData('datasetId');
+                                                    if (draggedId) handleReorderDataset(draggedId, ds.id);
+                                                }}
                                                 onDoubleClick={() => handleLoadDataset(ds)}
                                                 className={`p-3 rounded-lg cursor-pointer transition-all border group relative ${ds.id === activeDatasetId
                                                     ? 'bg-indigo-50/80 border-transparent shadow-sm'
