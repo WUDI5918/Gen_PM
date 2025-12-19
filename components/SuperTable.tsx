@@ -10,7 +10,7 @@ import {
     Maximize2, Columns, Edit3, Check, ChevronUp, Layers, BoxSelect,
     ToggleLeft, FileText, PenTool, Star, CreditCard, Clock, Link,
     ListOrdered, Folder, Sidebar, FormInput, BookOpen, Lightbulb, FunctionSquare, Calculator, Regex, Sparkles,
-    ArrowDownUp, ArrowDownAZ, ArrowUpAZ
+    ArrowDownUp, ArrowDownAZ, ArrowUpAZ, ArrowUp
 } from 'lucide-react';
 import { read, utils } from 'xlsx';
 import { generateFormSchemaFromData, generateFormFromDescription, generateFormLogic } from '../services/geminiService';
@@ -1877,8 +1877,42 @@ export const SuperTable: React.FC = () => {
     const [previewData, setPreviewData] = useState<any>({});
     const [batchRows, setBatchRows] = useState<any[]>([]);
     const [editingCell, setEditingCell] = useState<{ rowId: any; fieldId: string } | null>(null);
+    const [selectedCell, setSelectedCell] = useState<{ rowId: any; fieldId: string } | null>(null);
+    const [selectedCells, setSelectedCells] = useState<{ rowId: any; fieldId: string }[]>([]);
+    const [selectionAnchor, setSelectionAnchor] = useState<{ rowId: any; fieldId: string } | null>(null);
     const [hiddenColumnIds, setHiddenColumnIds] = useState<string[]>(() => loadFromStorage('erp_hidden_columns', []));
     const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
+    const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => loadFromStorage('erp_column_widths', {}));
+    const resizingColumnRef = useRef<{ id: string, startX: number, startWidth: number } | null>(null);
+
+    // Sorting State
+    const [sortConfig, setSortConfig] = useState<{ fieldId: string; direction: 'asc' | 'desc' }[]>([]);
+
+    // Auto-fill State
+    const [isDraggingFill, setIsDraggingFill] = useState(false);
+    const [isDraggingSelection, setIsDraggingSelection] = useState(false);
+    const [isDraggingRowSelection, setIsDraggingRowSelection] = useState(false);
+    const [isDraggingColumnSelection, setIsDraggingColumnSelection] = useState(false);
+    const [fillRange, setFillRange] = useState<{ startRowIndex: number; endRowIndex: number; minColIndex: number; maxColIndex: number } | null>(null);
+    const [fillConfirmMenu, setFillConfirmMenu] = useState<{ x: number, y: number, recordsToUpdate: any[] } | null>(null);
+    const lastLogicRef = useRef('');
+
+    // --- Real-time Logic Update ---
+    useEffect(() => {
+        // Only trigger if the logic part of the schema changed (to avoid loops and unnecessary work)
+        const currentLogicStr = JSON.stringify(schema.map(f => ({ id: f.id, logic: f.logic })));
+        if (currentLogicStr === lastLogicRef.current) return;
+        lastLogicRef.current = currentLogicStr;
+
+        if (records.length === 0) return;
+
+        setRecords(prev => {
+            const updated = prev.map(r => applyRowLogic(r, schema));
+            // Only update if something actually changed to avoid render cycles
+            const isChanged = JSON.stringify(updated) !== JSON.stringify(prev);
+            return isChanged ? updated : prev;
+        });
+    }, [schema]);
 
     // Advanced Filter State
     const [filterGroups, setFilterGroups] = useState<{ id: string, logic: 'AND' | 'OR', conditions: { id: string, fieldId: string, operator: string, value: string, value2?: string }[], fromPreset?: string }[]>(() =>
@@ -2176,6 +2210,53 @@ export const SuperTable: React.FC = () => {
         });
     }, [schema]);
 
+    // Resizing Logics
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!resizingColumnRef.current) return;
+            const { id, startX, startWidth } = resizingColumnRef.current;
+            const diff = e.clientX - startX;
+            const newWidth = Math.max(80, startWidth + diff);
+            setColumnWidths(prev => ({ ...prev, [id]: newWidth }));
+        };
+
+        const handleMouseUp = () => {
+            if (resizingColumnRef.current) {
+                const finalId = resizingColumnRef.current.id;
+                setColumnWidths(currentWidths => {
+                    const latestWidth = currentWidths[finalId];
+                    if (typeof window !== 'undefined') {
+                        const existing = loadFromStorage('erp_column_widths', {});
+                        window.localStorage.setItem('erp_column_widths', JSON.stringify({
+                            ...existing,
+                            [finalId]: latestWidth
+                        }));
+                    }
+                    return currentWidths;
+                });
+                resizingColumnRef.current = null;
+                document.body.style.cursor = 'default';
+            }
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, []);
+
+    const handleResizeStart = (e: React.MouseEvent, fieldId: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const header = (e.target as HTMLElement).closest('th');
+        if (!header) return;
+        const width = header.offsetWidth;
+        resizingColumnRef.current = { id: fieldId, startX: e.clientX, startWidth: width };
+        document.body.style.cursor = 'col-resize';
+    };
+
     const handleUpdateActiveDataset = () => {
         if (!activeDatasetId) return;
 
@@ -2388,6 +2469,7 @@ export const SuperTable: React.FC = () => {
     };
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const dataImportInputRef = useRef<HTMLInputElement>(null);
 
     // AI Import Progress State
     const [importProgress, setImportProgress] = useState<{
@@ -2462,6 +2544,73 @@ export const SuperTable: React.FC = () => {
         } catch (error: any) {
             console.error(error);
             setAiBuilderModal(prev => ({ ...prev, isLoading: false, error: error.message }));
+        }
+    };
+
+    const handleDataImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        addToast('Processing import...', 'info');
+
+        try {
+            const buffer = await file.arrayBuffer();
+            const wb = read(buffer);
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const data: any[] = utils.sheet_to_json(ws, { defval: '', raw: false });
+
+            if (data.length === 0) {
+                addToast('No data found in file', 'warning');
+                return;
+            }
+
+            const normalize = (s: string) => s.toLowerCase().replace(/[*]/g, '').trim();
+
+            // Map keys based on schema
+            const newRecords = data.map((item, rowIdx) => {
+                const record: any = { _id: Date.now() + Math.random() + rowIdx };
+                schema.forEach(field => {
+                    if (['divider', 'notice', 'spacer'].includes(field.type)) return;
+
+                    const normalizedFieldLabel = normalize(field.label);
+                    const normalizedFieldId = normalize(field.id);
+
+                    // Try to find a matching key in the imported object
+                    const sourceKey = Object.keys(item).find(k => {
+                        const normalizedK = normalize(k);
+                        return normalizedK === normalizedFieldLabel ||
+                            normalizedK === normalizedFieldId ||
+                            normalizedK === normalizedFieldLabel.replace(/\s+/g, '') ||
+                            normalizedK === normalizedFieldId.replace(/\s+/g, '');
+                    });
+
+                    if (sourceKey !== undefined) {
+                        record[field.id] = item[sourceKey];
+                    }
+                });
+                return applyRowLogic(record, schema);
+            }).filter(r => {
+                // Filter out records where all schema-defined fields are empty
+                return schema.some(field => {
+                    if (['divider', 'notice', 'spacer'].includes(field.type)) return false;
+                    const val = r[field.id];
+                    return val !== undefined && val !== null && val !== '';
+                });
+            });
+
+            if (subView === 'batch') {
+                const newBatchRows = newRecords.map(r => ({ tempId: Date.now() + Math.random(), data: r }));
+                setBatchRows(prev => [...prev.filter(r => Object.keys(r.data).length > 0), ...newBatchRows]);
+                addToast(`Loaded ${newRecords.length} rows into batch editor`, 'success');
+            } else {
+                setRecords(prev => [...newRecords, ...prev]);
+                addToast(`Successfully imported ${newRecords.length} records`, 'success');
+            }
+        } catch (error: any) {
+            console.error(error);
+            addToast(`Import failed: ${error.message}`, 'error');
+        } finally {
+            if (dataImportInputRef.current) dataImportInputRef.current.value = '';
         }
     };
 
@@ -2790,7 +2939,8 @@ export const SuperTable: React.FC = () => {
             return;
         }
 
-        setRecords(prev => [{ _id: Date.now(), ...data }, ...prev]);
+        const newRecord = applyRowLogic({ _id: Date.now(), ...data }, schema);
+        setRecords(prev => [newRecord, ...prev]);
         addToast('Record added successfully', 'success');
         setPreviewData({});
         setSubView('table');
@@ -2870,7 +3020,7 @@ export const SuperTable: React.FC = () => {
     const handleBatchSubmit = () => {
         const validRows = batchRows
             .filter(r => Object.keys(r.data).length > 0 && Object.values(r.data).some(v => v !== ''))
-            .map(r => ({ _id: Date.now() + Math.random(), ...r.data }));
+            .map(r => applyRowLogic({ _id: Date.now() + Math.random(), ...r.data }, schema));
 
         if (validRows.length === 0) {
             addToast('No data to import', 'warning');
@@ -2878,7 +3028,7 @@ export const SuperTable: React.FC = () => {
         }
 
         setRecords(prev => [...validRows, ...prev]);
-        setBatchRows(Array(10).fill(null).map(() => ({ tempId: Date.now() + Math.random(), data: {} })));
+        setBatchRows([]);
         addToast(`Imported ${validRows.length} records`, 'success');
         setSubView('table');
     };
@@ -3062,7 +3212,9 @@ export const SuperTable: React.FC = () => {
             return true;
         };
 
-        return records.filter(r => {
+        const filtered = records.filter(r => {
+            if (!r) return false;
+
             // 1. Global Search
             if (globalSearch && !Object.values(r).some(v => String(v).toLowerCase().includes(globalSearch.toLowerCase()))) {
                 return false;
@@ -3080,8 +3232,7 @@ export const SuperTable: React.FC = () => {
             if (filterGroups.length === 0) return true;
 
             const groupResults = filterGroups.map(group => {
-                if (group.conditions.length === 0) return true; // Empty group matches everything? Or nothing? Usually true effectively ignored in AND, but in OR?
-                // If a group has no conditions, let's say it returns true (neutral).
+                if (group.conditions.length === 0) return true;
 
                 if (group.logic === 'AND') {
                     return group.conditions.every(c => evaluateFilter(r, c));
@@ -3096,7 +3247,29 @@ export const SuperTable: React.FC = () => {
                 return groupResults.some(r => r);
             }
         });
-    }, [records, globalSearch, filterGroups, rootFilterMode, quickFilters, schema]);
+
+        // Apply Sorting
+        if (sortConfig.length > 0) {
+            filtered.sort((a, b) => {
+                if (!a || !b) return 0;
+                for (const sort of sortConfig) {
+                    const valA = a[sort.fieldId];
+                    const valB = b[sort.fieldId];
+                    if (valA === valB) continue;
+
+                    // Treat null/undefined as less than standard values
+                    if (valA === null || valA === undefined) return 1; // move to bottom
+                    if (valB === null || valB === undefined) return -1;
+
+                    if (valA < valB) return sort.direction === 'asc' ? -1 : 1;
+                    if (valA > valB) return sort.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+
+        return filtered;
+    }, [records, globalSearch, filterGroups, rootFilterMode, quickFilters, schema, sortConfig]);
 
     // --- Import/Export ---
     const handleExport = () => {
@@ -3194,7 +3367,369 @@ export const SuperTable: React.FC = () => {
     const layoutTypes = ['divider', 'notice', 'spacer'];
     const allDataFields = schema.filter(f => !layoutTypes.includes(f.type));
     const gridColumns = allDataFields.filter(f => f.showInGrid !== false && !hiddenColumnIds.includes(f.id));
+    // --- Auto-Fill Global Handler ---
+    useEffect(() => {
+        if (!isDraggingFill && !isDraggingSelection && !isDraggingRowSelection && !isDraggingColumnSelection) return;
+
+        const handleMouseUp = (e: MouseEvent) => {
+            if (isDraggingSelection) {
+                setIsDraggingSelection(false);
+                return;
+            }
+            if (isDraggingRowSelection) {
+                setIsDraggingRowSelection(false);
+                return;
+            }
+            if (isDraggingColumnSelection) {
+                setIsDraggingColumnSelection(false);
+                return;
+            }
+
+            if (!isDraggingFill) return;
+            setIsDraggingFill(false);
+
+            if (!fillRange || !selectedCells.length) {
+                setFillRange(null);
+                return;
+            }
+
+            // 1. Calculate source bounding box
+            const sourceRowIndices = selectedCells.map(c => filteredRecords.findIndex(r => r._id === c.rowId));
+            const sourceColIndices = selectedCells.map(c => gridColumns.findIndex(col => col.id === c.fieldId));
+            const sourceMinRow = Math.min(...sourceRowIndices);
+            const sourceMaxRow = Math.max(...sourceRowIndices);
+            const sourceMinCol = Math.min(...sourceColIndices);
+            const sourceMaxCol = Math.max(...sourceColIndices);
+
+            const isRangeChanged = fillRange.startRowIndex !== sourceMinRow ||
+                fillRange.endRowIndex !== sourceMaxRow ||
+                fillRange.minColIndex !== sourceMinCol ||
+                fillRange.maxColIndex !== sourceMaxCol;
+
+            if (isRangeChanged) {
+                const isMultiColumn = (sourceMaxCol - sourceMinCol) > 0;
+
+                if (isMultiColumn) {
+                    // Req: Multi-column selection should simply expand without menu
+                    performFill('select_only');
+                } else {
+                    // Single column selection shows menu
+                    const clientX = e.clientX;
+                    const clientY = e.clientY;
+                    setFillConfirmMenu({
+                        x: clientX,
+                        y: clientY,
+                        recordsToUpdate: [],
+                    });
+                }
+            } else {
+                // If no range change, just clear state
+                setFillRange(null);
+            }
+        };
+
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => window.removeEventListener('mouseup', handleMouseUp);
+    }, [isDraggingFill, isDraggingSelection, isDraggingRowSelection, isDraggingColumnSelection, fillRange, selectedCells, filteredRecords, gridColumns, records, isCellReadOnly]);
+
+    // Perform Fill Action
+    const performFill = (mode: 'copy' | 'series' | 'select_only') => {
+        if (!fillRange) return;
+
+        if (mode === 'select_only') {
+            const newSelection = [];
+            for (let r = fillRange.startRowIndex; r <= fillRange.endRowIndex; r++) {
+                for (let c = fillRange.minColIndex; c <= fillRange.maxColIndex; c++) {
+                    if (filteredRecords[r] && gridColumns[c]) {
+                        newSelection.push({
+                            rowId: filteredRecords[r]._id,
+                            fieldId: gridColumns[c].id
+                        });
+                    }
+                }
+            }
+            setSelectedCells(newSelection);
+            if (newSelection.length > 0) {
+                setSelectedCell(newSelection[0]);
+            }
+            setFillRange(null);
+            setFillConfirmMenu(null);
+            return;
+        }
+
+        const sourceRowIndices = selectedCells.map(c => filteredRecords.findIndex(r => r._id === c.rowId)).filter(i => i !== -1);
+        const sourceMinRow = Math.min(...sourceRowIndices);
+        const sourceMaxRow = Math.max(...sourceRowIndices);
+        const sourceHeight = sourceMaxRow - sourceMinRow + 1;
+
+        let newRecords = [...records];
+
+        for (let colIdx = fillRange.minColIndex; colIdx <= fillRange.maxColIndex; colIdx++) {
+            const col = gridColumns[colIdx];
+
+            // Skip calculated columns
+            if (col.logic?.calculation) continue;
+
+            const isDate = col.type === 'date';
+            const isNumber = col.type === 'number';
+
+            for (let rIdx = fillRange.startRowIndex; rIdx <= fillRange.endRowIndex; rIdx++) {
+                if (rIdx >= sourceMinRow && rIdx <= sourceMaxRow) continue;
+
+                const targetRecord = filteredRecords[rIdx];
+                if (!targetRecord) continue;
+                if (isCellReadOnly(targetRecord, col)) continue;
+
+                const offsetFromSourceStart = rIdx - sourceMinRow;
+                const sourceRowOffset = offsetFromSourceStart >= 0 ? offsetFromSourceStart % sourceHeight : (sourceHeight + (offsetFromSourceStart % sourceHeight)) % sourceHeight;
+                const sourceRowIdx = sourceMinRow + sourceRowOffset;
+
+                const sourceRecord = filteredRecords[sourceRowIdx];
+                const sourceValue = sourceRecord[col.id];
+
+                let newValue = sourceValue;
+
+                if (mode === 'series') {
+                    let step = 0;
+                    if (sourceHeight > 1 && (isNumber || isDate)) {
+                        const firstVal = filteredRecords[sourceMinRow][col.id];
+                        const lastVal = filteredRecords[sourceMaxRow][col.id];
+                        const diff = isDate ? (new Date(lastVal).getTime() - new Date(firstVal).getTime()) / (1000 * 60 * 60 * 24)
+                            : (Number(lastVal) - Number(firstVal));
+                        step = diff / (sourceHeight - 1);
+                    } else {
+                        step = 1;
+                    }
+
+                    if (isNumber || isDate) {
+                        const startVal = filteredRecords[sourceMinRow][col.id];
+                        if (startVal !== null && startVal !== undefined) {
+                            if (isNumber) {
+                                newValue = Number(startVal) + (step * (rIdx - sourceMinRow));
+                            } else if (isDate) {
+                                const d = new Date(startVal);
+                                d.setDate(d.getDate() + (step * (rIdx - sourceMinRow)));
+                                newValue = d.toISOString().split('T')[0];
+                            }
+                        }
+                    }
+                }
+
+                const realRecordIndex = records.findIndex(r => r._id === targetRecord._id);
+                if (realRecordIndex !== -1) {
+                    newRecords[realRecordIndex] = applyRowLogic({ ...newRecords[realRecordIndex], [col.id]: newValue }, schema);
+                }
+            }
+        }
+
+        setRecords(newRecords);
+
+        // After fill, the fillRange becomes the new selection
+        const finalSelection = [];
+        for (let r = fillRange.startRowIndex; r <= fillRange.endRowIndex; r++) {
+            for (let c = fillRange.minColIndex; c <= fillRange.maxColIndex; c++) {
+                if (filteredRecords[r] && gridColumns[c]) {
+                    finalSelection.push({
+                        rowId: filteredRecords[r]._id,
+                        fieldId: gridColumns[c].id
+                    });
+                }
+            }
+        }
+        setSelectedCells(finalSelection);
+
+        setFillRange(null);
+        setFillConfirmMenu(null);
+        addToast('Cells filled', 'success');
+    };
+
+    // --- Auto-Fill Confirmation Menu ---
+    const renderFillMenu = () => {
+        if (!fillConfirmMenu) return null;
+
+        return (
+            <div
+                className="fixed inset-0 z-50 bg-transparent flex items-start justify-start"
+                onClick={() => {
+                    setFillRange(null);
+                    setFillConfirmMenu(null);
+                }}
+            >
+                <div
+                    className="bg-white rounded-lg shadow-xl border border-gray-200 p-1 flex flex-col min-w-[140px] animate-in fade-in zoom-in-95 duration-100"
+                    style={{
+                        position: 'absolute',
+                        left: fillConfirmMenu.x + 10,
+                        top: fillConfirmMenu.y + 10,
+                    }}
+                    onClick={e => e.stopPropagation()}
+                >
+                    <div className="text-xs font-semibold text-gray-500 px-3 py-2 border-b border-gray-100 mb-1">
+                        Auto Fill Options
+                    </div>
+
+                    <button
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-slate-100 rounded-md transition-colors text-left"
+                        onClick={() => performFill('copy')}
+                    >
+                        <Copy size={14} className="text-gray-400" />
+                        <span>Copy Cells</span>
+                    </button>
+
+                    <button
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-slate-100 rounded-md transition-colors text-left"
+                        onClick={() => performFill('series')}
+                    >
+                        <ListOrdered size={14} className="text-gray-400" />
+                        <span>Fill Series</span>
+                    </button>
+
+                    <div className="h-px bg-gray-100 my-1"></div>
+
+                    <button
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors text-left"
+                        onClick={() => performFill('select_only')}
+                    >
+                        <X size={14} />
+                        <span>Cancel</span>
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
     const batchColumns = allDataFields.filter(f => f.showInBatch !== false);
+
+    // --- Keyboard Navigation (Excel-like) ---
+    useEffect(() => {
+        if (activeTab !== 'data' || subView !== 'table' || !selectedCell) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Helper to move selection
+            const moveSelection = (deltaRow: number, deltaCol: number, isShift = false) => {
+                const rowIndex = filteredRecords.findIndex(r => r._id === selectedCell.rowId);
+                const colIndex = gridColumns.findIndex(c => c.id === selectedCell.fieldId);
+
+                if (rowIndex === -1 || colIndex === -1) return;
+
+                let newRowIndex = rowIndex + deltaRow;
+                let newColIndex = colIndex + deltaCol;
+
+                // Clamp
+                if (newRowIndex < 0) newRowIndex = 0;
+                if (newRowIndex >= filteredRecords.length) newRowIndex = filteredRecords.length - 1;
+                if (newColIndex < 0) newColIndex = 0;
+                if (newColIndex >= gridColumns.length) newColIndex = gridColumns.length - 1;
+
+                const newRow = filteredRecords[newRowIndex];
+                const newCol = gridColumns[newColIndex];
+
+                if (isShift && selectionAnchor) {
+                    // Range expansion from anchor to new target
+                    const startRowIdx = filteredRecords.findIndex(r => r._id === selectionAnchor.rowId);
+                    const startColIdx = gridColumns.findIndex(c => c.id === selectionAnchor.fieldId);
+                    const endRowIdx = newRowIndex;
+                    const endColIdx = newColIndex;
+
+                    if (startRowIdx !== -1 && startColIdx !== -1) {
+                        const minRow = Math.min(startRowIdx, endRowIdx);
+                        const maxRow = Math.max(startRowIdx, endRowIdx);
+                        const minCol = Math.min(startColIdx, endColIdx);
+                        const maxCol = Math.max(startColIdx, endColIdx);
+
+                        const newSelection = [];
+                        for (let r = minRow; r <= maxRow; r++) {
+                            for (let c = minCol; c <= maxCol; c++) {
+                                newSelection.push({ rowId: filteredRecords[r]._id, fieldId: gridColumns[c].id });
+                            }
+                        }
+                        setSelectedCells(newSelection);
+                        setSelectedCell({ rowId: newRow._id, fieldId: newCol.id });
+                    }
+                } else {
+                    setSelectedCell({ rowId: newRow._id, fieldId: newCol.id });
+                    setSelectedCells([{ rowId: newRow._id, fieldId: newCol.id }]);
+                    setSelectionAnchor({ rowId: newRow._id, fieldId: newCol.id });
+                }
+            };
+
+            // If editing
+            if (editingCell) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    setEditingCell(null);
+                    moveSelection(1, 0); // Move down
+                }
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    setEditingCell(null);
+                    moveSelection(0, 1); // Move right
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setEditingCell(null);
+                }
+                return;
+            }
+
+
+            // Ignore if user is typing in another input (Search, etc.)
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+                return;
+            }
+
+            // Navigation Mode (Not Editing)
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                e.preventDefault();
+                if (e.key === 'ArrowUp') moveSelection(-1, 0, e.shiftKey);
+                if (e.key === 'ArrowDown') moveSelection(1, 0, e.shiftKey);
+                if (e.key === 'ArrowLeft') moveSelection(0, -1, e.shiftKey);
+                if (e.key === 'ArrowRight') moveSelection(0, 1, e.shiftKey);
+            }
+
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                // Check if read-only
+                const row = filteredRecords.find(r => r._id === selectedCell.rowId);
+                const col = gridColumns.find(c => c.id === selectedCell.fieldId);
+                if (row && col && !isCellReadOnly(row, col)) {
+                    setEditingCell(selectedCell);
+                }
+            }
+
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                e.preventDefault();
+                if (selectedCells.length > 0) {
+                    const newRecords = [...records];
+                    let count = 0;
+
+                    selectedCells.forEach(cell => {
+                        const recordIndex = newRecords.findIndex(r => r._id === cell.rowId);
+                        if (recordIndex !== -1) {
+                            const col = gridColumns.find(c => c.id === cell.fieldId);
+                            // Safety Check: Skip calculated columns and read-only cells
+                            if (col && !col.logic?.calculation && !isCellReadOnly(newRecords[recordIndex], col)) {
+                                const updatedRow = { ...newRecords[recordIndex] };
+                                delete updatedRow[cell.fieldId];
+                                newRecords[recordIndex] = applyRowLogic(updatedRow, schema);
+                                count++;
+                            }
+                        }
+                    });
+
+                    if (count > 0) {
+                        setRecords(newRecords);
+                        addToast(`Cleared ${count} cells`, 'success');
+                    }
+                }
+                return;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [activeTab, subView, selectedCell, editingCell, filteredRecords, gridColumns]);
 
     return (
         <div className="flex flex-col h-full bg-slate-50 font-sans text-slate-900">
@@ -3789,86 +4324,87 @@ export const SuperTable: React.FC = () => {
 
                                     {/* Right Group: Search, Tools, Actions */}
                                     <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                                        {subView !== 'preview' && (
+                                            <>
+                                                {/* Search */}
+                                                <div className="relative w-full sm:w-48">
+                                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                                    <input
+                                                        className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-50 transition-all"
+                                                        placeholder="Search..."
+                                                        value={globalSearch}
+                                                        onChange={(e) => setGlobalSearch(e.target.value)}
+                                                    />
+                                                </div>
 
-                                        {/* Search */}
-                                        <div className="relative w-full sm:w-48">
-                                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                            <input
-                                                className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-50 transition-all"
-                                                placeholder="Search..."
-                                                value={globalSearch}
-                                                onChange={(e) => setGlobalSearch(e.target.value)}
-                                            />
-                                        </div>
+                                                {/* Tools Group */}
+                                                <div className="flex items-center gap-1 bg-white border border-gray-100 p-1 rounded-lg mr-2 shadow-sm">
+                                                    <button
+                                                        onClick={() => setShowFilters(!showFilters)}
+                                                        className={`p-1.5 rounded-md transition-colors ${showFilters || hasActiveFilters ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}
+                                                        title="Toggle Filters"
+                                                    >
+                                                        <Filter size={16} className={hasActiveFilters ? "fill-indigo-600" : ""} />
+                                                    </button>
+                                                    <div className="w-px h-4 bg-gray-200 mx-1"></div>
+                                                    <button onClick={handleGenerateMock} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Mock Data">
+                                                        <RefreshCw size={16} />
+                                                    </button>
 
-                                        {/* Tools Group */}
-                                        <div className="flex items-center gap-1 bg-white border border-gray-100 p-1 rounded-lg mr-2 shadow-sm">
-                                            {subView !== 'preview' && (
-                                                <button
-                                                    onClick={() => setShowFilters(!showFilters)}
-                                                    className={`p-1.5 rounded-md transition-colors ${showFilters ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}
-                                                    title="Toggle Filters"
-                                                >
-                                                    <Filter size={16} />
-                                                </button>
-                                            )}
-                                            <div className="w-px h-4 bg-gray-200 mx-1"></div>
-                                            <button onClick={handleGenerateMock} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Mock Data">
-                                                <RefreshCw size={16} />
-                                            </button>
-
-                                            {/* Columns Toggle */}
-                                            <div className="relative">
-                                                <button
-                                                    onClick={() => setColumnsMenuOpen(!columnsMenuOpen)}
-                                                    className={`p-1.5 rounded-md transition-colors ${columnsMenuOpen ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
-                                                    title="Toggle Columns"
-                                                >
-                                                    <Columns size={16} />
-                                                </button>
-                                                {columnsMenuOpen && (
-                                                    <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-80">
-                                                        {/* Backdrop to close */}
-                                                        <div className="fixed inset-0 z-40" onClick={() => setColumnsMenuOpen(false)}></div>
-                                                        <div className="relative z-50 flex flex-col max-h-80">
-                                                            <div className="p-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center ">
-                                                                <span className="text-xs font-bold text-gray-500 uppercase">Columns</span>
-                                                                <button onClick={() => setHiddenColumnIds([])} className="text-[10px] font-bold text-indigo-600 hover:underline">Reset</button>
+                                                    {/* Columns Toggle */}
+                                                    <div className="relative">
+                                                        <button
+                                                            onClick={() => setColumnsMenuOpen(!columnsMenuOpen)}
+                                                            className={`p-1.5 rounded-md transition-colors ${columnsMenuOpen ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                                                            title="Toggle Columns"
+                                                        >
+                                                            <Columns size={16} />
+                                                        </button>
+                                                        {columnsMenuOpen && (
+                                                            <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-80">
+                                                                {/* Backdrop to close */}
+                                                                <div className="fixed inset-0 z-40" onClick={() => setColumnsMenuOpen(false)}></div>
+                                                                <div className="relative z-50 flex flex-col max-h-80">
+                                                                    <div className="p-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center ">
+                                                                        <span className="text-xs font-bold text-gray-500 uppercase">Columns</span>
+                                                                        <button onClick={() => setHiddenColumnIds([])} className="text-[10px] font-bold text-indigo-600 hover:underline">Reset</button>
+                                                                    </div>
+                                                                    <div className="overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                                                                        {schema.filter((f: any) => !['divider', 'notice', 'spacer'].includes(f.type)).map((f: any) => (
+                                                                            <label key={f.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded-lg cursor-pointer">
+                                                                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${!hiddenColumnIds.includes(f.id) ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-300'}`}>
+                                                                                    {!hiddenColumnIds.includes(f.id) && <Check size={10} className="text-white" />}
+                                                                                </div>
+                                                                                <span className={`text-xs font-medium truncate ${!hiddenColumnIds.includes(f.id) ? 'text-gray-700' : 'text-gray-400'}`}>{f.label}</span>
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    className="hidden"
+                                                                                    checked={!hiddenColumnIds.includes(f.id)}
+                                                                                    onChange={() => {
+                                                                                        if (hiddenColumnIds.includes(f.id)) {
+                                                                                            setHiddenColumnIds(prev => prev.filter(id => id !== f.id));
+                                                                                        } else {
+                                                                                            setHiddenColumnIds(prev => [...prev, f.id]);
+                                                                                        }
+                                                                                    }}
+                                                                                />
+                                                                            </label>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
                                                             </div>
-                                                            <div className="overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                                                                {schema.filter((f: any) => !['divider', 'notice', 'spacer'].includes(f.type)).map((f: any) => (
-                                                                    <label key={f.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded-lg cursor-pointer">
-                                                                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${!hiddenColumnIds.includes(f.id) ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-300'}`}>
-                                                                            {!hiddenColumnIds.includes(f.id) && <Check size={10} className="text-white" />}
-                                                                        </div>
-                                                                        <span className={`text-xs font-medium truncate ${!hiddenColumnIds.includes(f.id) ? 'text-gray-700' : 'text-gray-400'}`}>{f.label}</span>
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            className="hidden"
-                                                                            checked={!hiddenColumnIds.includes(f.id)}
-                                                                            onChange={() => {
-                                                                                if (hiddenColumnIds.includes(f.id)) {
-                                                                                    setHiddenColumnIds(prev => prev.filter(id => id !== f.id));
-                                                                                } else {
-                                                                                    setHiddenColumnIds(prev => [...prev, f.id]);
-                                                                                }
-                                                                            }}
-                                                                        />
-                                                                    </label>
-                                                                ))}
-                                                            </div>
-                                                        </div>
+                                                        )}
                                                     </div>
-                                                )}
-                                            </div>
-                                            <button onClick={() => fileInputRef.current?.click()} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Import CSV">
-                                                <Upload size={16} />
-                                            </button>
-                                            <button onClick={handleExport} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Export CSV">
-                                                <Download size={16} />
-                                            </button>
-                                            <input type="file" className="hidden" ref={fileInputRef} onChange={(e) => { addToast('Import simulated', 'info'); }} />
-                                        </div>
+                                                    <button onClick={() => dataImportInputRef.current?.click()} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Import CSV/Excel">
+                                                        <Download size={16} />
+                                                    </button>
+                                                    <button onClick={handleExport} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Export CSV/Excel">
+                                                        <Upload size={16} />
+                                                    </button>
+                                                    <input type="file" className="hidden" ref={dataImportInputRef} accept=".xlsx, .xls, .csv" onChange={handleDataImport} />
+                                                </div>
+                                            </>
+                                        )}
 
                                         {/* Primary Action */}
                                         {subView === 'table' && (
@@ -4245,12 +4781,140 @@ export const SuperTable: React.FC = () => {
                                                 <table className="w-full text-left border-collapse">
                                                     <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10 shadow-sm">
                                                         <tr>
-                                                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase w-16 text-center bg-gray-50">#</th>
-                                                            {gridColumns.map(f => (
-                                                                <th key={f.id} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase whitespace-nowrap min-w-[150px] bg-gray-50 border-l border-gray-100 group">
-                                                                    <span>{f.label}</span>
-                                                                </th>
-                                                            ))}
+                                                            <th
+                                                                className="px-6 py-4 text-xs font-bold text-gray-500 w-16 text-center bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors border-b border-gray-200"
+                                                                onClick={() => {
+                                                                    const allCells = [];
+                                                                    for (const r of filteredRecords) {
+                                                                        for (const c of gridColumns) {
+                                                                            allCells.push({ rowId: r._id, fieldId: c.id });
+                                                                        }
+                                                                    }
+                                                                    setSelectedCells(allCells);
+                                                                    if (filteredRecords.length > 0 && gridColumns.length > 0) {
+                                                                        setSelectedCell({ rowId: filteredRecords[0]._id, fieldId: gridColumns[0].id });
+                                                                    }
+                                                                }}
+                                                                title="Select All"
+                                                            >
+                                                                <div className="flex items-center justify-center">
+                                                                    <Grid size={14} className="text-gray-400 group-hover:text-indigo-500" />
+                                                                </div>
+                                                            </th>
+                                                            {gridColumns.map(f => {
+                                                                const currentSort = sortConfig.find(s => s.fieldId === f.id);
+                                                                return (
+                                                                    <th
+                                                                        key={f.id}
+                                                                        onMouseDown={(e) => {
+                                                                            if (e.target instanceof HTMLElement && e.target.closest('.sort-btn')) {
+                                                                                return; // Handled by button
+                                                                            }
+                                                                            if (e.button !== 0) return; // Only left click
+
+                                                                            const newSelection = [];
+                                                                            for (const r of filteredRecords) {
+                                                                                newSelection.push({ rowId: r._id, fieldId: f.id });
+                                                                            }
+
+                                                                            if (e.ctrlKey || e.metaKey) {
+                                                                                // Toggle logic for entire column
+                                                                                const isAlreadySelected = selectedCells.some(c => c.fieldId === f.id);
+                                                                                if (isAlreadySelected) {
+                                                                                    setSelectedCells(prev => prev.filter(c => c.fieldId !== f.id));
+                                                                                } else {
+                                                                                    setSelectedCells(prev => [...prev, ...newSelection]);
+                                                                                }
+                                                                                setSelectedCell({ rowId: filteredRecords[0]._id, fieldId: f.id });
+                                                                                setSelectionAnchor({ rowId: filteredRecords[0]._id, fieldId: f.id });
+                                                                            } else if (e.shiftKey && selectionAnchor) {
+                                                                                // Shift + Click Column Range
+                                                                                const startColIdx = gridColumns.findIndex(c => c.id === selectionAnchor.fieldId);
+                                                                                const endColIdx = gridColumns.findIndex(c => c.id === f.id);
+                                                                                const minC = Math.min(startColIdx, endColIdx);
+                                                                                const maxC = Math.max(startColIdx, endColIdx);
+
+                                                                                const multiColSelection = [];
+                                                                                for (let cIdx = minC; cIdx <= maxC; cIdx++) {
+                                                                                    for (const r of filteredRecords) {
+                                                                                        multiColSelection.push({ rowId: r._id, fieldId: gridColumns[cIdx].id });
+                                                                                    }
+                                                                                }
+                                                                                setSelectedCells(multiColSelection);
+                                                                            } else {
+                                                                                setSelectedCells(newSelection);
+                                                                                if (newSelection.length > 0) {
+                                                                                    setSelectedCell({ rowId: filteredRecords[0]._id, fieldId: f.id });
+                                                                                }
+                                                                                setSelectionAnchor({ rowId: filteredRecords[0]._id, fieldId: f.id });
+                                                                                setIsDraggingColumnSelection(true);
+                                                                            }
+                                                                        }}
+                                                                        onMouseEnter={() => {
+                                                                            if (isDraggingColumnSelection && selectionAnchor) {
+                                                                                const startColIdx = gridColumns.findIndex(c => c.id === selectionAnchor.fieldId);
+                                                                                const endColIdx = gridColumns.findIndex(c => c.id === f.id);
+
+                                                                                if (startColIdx !== -1) {
+                                                                                    const minC = Math.min(startColIdx, endColIdx);
+                                                                                    const maxC = Math.max(startColIdx, endColIdx);
+
+                                                                                    const multiColSelection = [];
+                                                                                    for (let cIdx = minC; cIdx <= maxC; cIdx++) {
+                                                                                        for (const r of filteredRecords) {
+                                                                                            multiColSelection.push({ rowId: r._id, fieldId: gridColumns[cIdx].id });
+                                                                                        }
+                                                                                    }
+                                                                                    setSelectedCells(multiColSelection);
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                        className="px-6 py-4 text-xs font-bold text-gray-500 uppercase whitespace-nowrap bg-gray-50 border-l border-gray-100 group cursor-pointer hover:bg-gray-100 transition-colors relative"
+                                                                        style={{ width: columnWidths[f.id] || 200, minWidth: columnWidths[f.id] || 200 }}
+                                                                    >
+                                                                        {/* Resize Handle */}
+                                                                        <div
+                                                                            onMouseDown={(e) => handleResizeStart(e, f.id)}
+                                                                            className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize group-hover/resize:bg-indigo-300 transition-all hover:bg-indigo-500 group/resize z-20"
+                                                                        ></div>
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <span>{f.label}</span>
+                                                                            <button
+                                                                                className={`sort-btn p-1 rounded hover:bg-gray-200 transition-colors ${currentSort ? 'text-indigo-600 bg-indigo-50' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`}
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    // Toggle Sort
+                                                                                    // None -> Asc -> Desc -> None
+                                                                                    let newDirection: 'asc' | 'desc' | null = 'asc';
+                                                                                    if (currentSort?.direction === 'asc') newDirection = 'desc';
+                                                                                    else if (currentSort?.direction === 'desc') newDirection = null;
+
+                                                                                    if (newDirection) {
+                                                                                        // Multi-sort with Shift?
+                                                                                        // For now, single column sort mostly.
+                                                                                        // If Shift held, append.
+                                                                                        if (e.shiftKey) {
+                                                                                            setSortConfig(prev => {
+                                                                                                const existing = prev.filter(s => s.fieldId !== f.id);
+                                                                                                return [...existing, { fieldId: f.id, direction: newDirection! }];
+                                                                                            });
+                                                                                        } else {
+                                                                                            setSortConfig([{ fieldId: f.id, direction: newDirection }]);
+                                                                                        }
+                                                                                    } else {
+                                                                                        // Remove sort
+                                                                                        setSortConfig(prev => prev.filter(s => s.fieldId !== f.id));
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                {currentSort?.direction === 'asc' ? <ArrowUp size={12} /> :
+                                                                                    currentSort?.direction === 'desc' ? <ArrowDown size={12} /> :
+                                                                                        <ArrowDownUp size={12} />}
+                                                                            </button>
+                                                                        </div>
+                                                                    </th>
+                                                                );
+                                                            })}
                                                             <th className="px-6 py-4 w-20 text-center bg-gray-50 border-l border-gray-100">Actions</th>
                                                         </tr>
                                                     </thead>
@@ -4270,23 +4934,226 @@ export const SuperTable: React.FC = () => {
                                                         ) : (
                                                             filteredRecords.map((row, i) => (
                                                                 <tr key={row._id} className="hover:bg-indigo-50/30 transition-colors group">
-                                                                    <td className="px-6 py-4 text-xs font-mono text-gray-400 text-center group-hover:text-indigo-400">{i + 1}</td>
+                                                                    <td
+                                                                        onMouseDown={(e) => {
+                                                                            if (e.button !== 0) return; // Only left click
+
+                                                                            const newSelection = [];
+                                                                            for (const c of gridColumns) {
+                                                                                newSelection.push({ rowId: row._id, fieldId: c.id });
+                                                                            }
+
+                                                                            if (e.ctrlKey || e.metaKey) {
+                                                                                const isAlreadySelected = selectedCells.some(c => c.rowId === row._id);
+                                                                                if (isAlreadySelected) {
+                                                                                    setSelectedCells(prev => prev.filter(c => c.rowId !== row._id));
+                                                                                } else {
+                                                                                    setSelectedCells(prev => [...prev, ...newSelection]);
+                                                                                }
+                                                                            } else if (e.shiftKey && selectionAnchor) {
+                                                                                // Row Range Selection
+                                                                                const startRowIdx = filteredRecords.findIndex(r => r._id === selectionAnchor.rowId);
+                                                                                const endRowIdx = i;
+                                                                                const minR = Math.min(startRowIdx, endRowIdx);
+                                                                                const maxR = Math.max(startRowIdx, endRowIdx);
+
+                                                                                const multiRowSelection = [];
+                                                                                for (let r = minR; r <= maxR; r++) {
+                                                                                    for (const c of gridColumns) {
+                                                                                        multiRowSelection.push({ rowId: filteredRecords[r]._id, fieldId: c.id });
+                                                                                    }
+                                                                                }
+                                                                                setSelectedCells(multiRowSelection);
+                                                                            } else {
+                                                                                setSelectedCells(newSelection);
+                                                                                if (newSelection.length > 0) {
+                                                                                    setSelectedCell({ rowId: row._id, fieldId: gridColumns[0].id });
+                                                                                }
+                                                                                setSelectionAnchor({ rowId: row._id, fieldId: gridColumns[0].id });
+                                                                                setIsDraggingRowSelection(true);
+                                                                            }
+                                                                        }}
+                                                                        onMouseEnter={() => {
+                                                                            if (isDraggingRowSelection && selectionAnchor) {
+                                                                                const startRowIdx = filteredRecords.findIndex(r => r._id === selectionAnchor.rowId);
+                                                                                const endRowIdx = i;
+
+                                                                                if (startRowIdx !== -1) {
+                                                                                    const minR = Math.min(startRowIdx, endRowIdx);
+                                                                                    const maxR = Math.max(startRowIdx, endRowIdx);
+
+                                                                                    const multiRowSelection = [];
+                                                                                    for (let r = minR; r <= maxR; r++) {
+                                                                                        for (const c of gridColumns) {
+                                                                                            multiRowSelection.push({ rowId: filteredRecords[r]._id, fieldId: c.id });
+                                                                                        }
+                                                                                    }
+                                                                                    setSelectedCells(multiRowSelection);
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                        className="px-6 py-4 text-xs font-mono text-gray-400 text-center group-hover:text-indigo-400 cursor-pointer hover:bg-indigo-50 transition-colors"
+                                                                    >
+                                                                        {i + 1}
+                                                                    </td>
                                                                     {gridColumns.map(f => {
                                                                         const isEditing = editingCell?.rowId === row._id && editingCell?.fieldId === f.id;
                                                                         const isReadOnly = isCellReadOnly(row, f);
                                                                         const hasCalculation = !!f.logic?.calculation;
 
+                                                                        const isSelected = selectedCells.some(c => c.rowId === row._id && c.fieldId === f.id);
+                                                                        const isActive = selectedCell?.rowId === row._id && selectedCell?.fieldId === f.id;
+
                                                                         return (
                                                                             <td
                                                                                 key={f.id}
-                                                                                onClick={() => !isReadOnly && setEditingCell({ rowId: row._id, fieldId: f.id })}
-                                                                                className={`px-6 py-4 text-sm border-l border-transparent group-hover:border-indigo-100 max-w-xs transition-all duration-200 
-                                                                                    ${isEditing ? 'bg-white p-2 relative z-10' :
-                                                                                        `whitespace-nowrap truncate ${!isCellVisible(row, f) ? 'bg-slate-100/30' :
-                                                                                            isReadOnly ? 'bg-slate-50/50 cursor-not-allowed' :
-                                                                                                'cursor-pointer hover:bg-white'}`} 
-                                                                                    ${hasCalculation && isReadOnly ? 'font-medium text-indigo-600' : 'text-gray-700'}`}
+                                                                                style={{ width: columnWidths[f.id] || 200, minWidth: columnWidths[f.id] || 200 }}
+                                                                                onMouseDown={(e) => {
+                                                                                    if (e.button !== 0) return; // Only left click (0)
+
+                                                                                    if (e.shiftKey && selectionAnchor) {
+                                                                                        // Range Selection (Keyboard or Click)
+                                                                                        const startRowIdx = filteredRecords.findIndex(r => r._id === selectionAnchor.rowId);
+                                                                                        const startColIdx = gridColumns.findIndex(c => c.id === selectionAnchor.fieldId);
+                                                                                        const endRowIdx = filteredRecords.findIndex(r => r._id === row._id);
+                                                                                        const endColIdx = gridColumns.findIndex(c => c.id === f.id);
+
+                                                                                        if (startRowIdx !== -1 && startColIdx !== -1 && endRowIdx !== -1 && endColIdx !== -1) {
+                                                                                            const minRow = Math.min(startRowIdx, endRowIdx);
+                                                                                            const maxRow = Math.max(startRowIdx, endRowIdx);
+                                                                                            const minCol = Math.min(startColIdx, endColIdx);
+                                                                                            const maxCol = Math.max(startColIdx, endColIdx);
+
+                                                                                            const newSelection = [];
+                                                                                            for (let r = minRow; r <= maxRow; r++) {
+                                                                                                for (let c = minCol; c <= maxCol; c++) {
+                                                                                                    newSelection.push({ rowId: filteredRecords[r]._id, fieldId: gridColumns[c].id });
+                                                                                                }
+                                                                                            }
+                                                                                            setSelectedCells(newSelection);
+                                                                                        }
+                                                                                    } else if (e.ctrlKey || e.metaKey) {
+                                                                                        // Toggle Selection
+                                                                                        const currentCell = { rowId: row._id, fieldId: f.id };
+                                                                                        const exists = selectedCells.find(c => c.rowId === currentCell.rowId && c.fieldId === currentCell.fieldId);
+                                                                                        if (exists) {
+                                                                                            setSelectedCells(prev => prev.filter(c => c !== exists));
+                                                                                        } else {
+                                                                                            setSelectedCells(prev => [...prev, currentCell]);
+                                                                                        }
+                                                                                        setSelectedCell(currentCell);
+                                                                                        setSelectionAnchor(currentCell);
+                                                                                    } else {
+                                                                                        // Single Selection and Start Drag selection
+                                                                                        const currentCell = { rowId: row._id, fieldId: f.id };
+                                                                                        setSelectedCell(currentCell);
+                                                                                        setSelectedCells([currentCell]);
+                                                                                        setSelectionAnchor(currentCell);
+                                                                                        setIsDraggingSelection(true);
+                                                                                    }
+                                                                                }}
+                                                                                onMouseEnter={() => {
+                                                                                    if (isDraggingFill) {
+                                                                                        // Only allow vertical fill for now, but strictly expand the EXISTING selection block.
+                                                                                        if (selectedCells.length === 0) return;
+
+                                                                                        // Get all indices
+                                                                                        const rowIndices = selectedCells.map(c => filteredRecords.findIndex(r => r._id === c.rowId)).filter(i => i !== -1);
+                                                                                        const colIndices = selectedCells.map(c => gridColumns.findIndex(col => col.id === c.fieldId)).filter(i => i !== -1);
+
+                                                                                        if (rowIndices.length === 0 || colIndices.length === 0) return;
+
+                                                                                        const minRow = Math.min(...rowIndices);
+                                                                                        const maxRow = Math.max(...rowIndices);
+                                                                                        const minCol = Math.min(...colIndices);
+                                                                                        const maxCol = Math.max(...colIndices);
+
+                                                                                        const currentRowIdx = i;
+
+                                                                                        setFillRange({
+                                                                                            startRowIndex: Math.min(minRow, currentRowIdx),
+                                                                                            endRowIndex: Math.max(maxRow, currentRowIdx),
+                                                                                            minColIndex: minCol,
+                                                                                            maxColIndex: maxCol
+                                                                                        });
+                                                                                    } else if (isDraggingSelection && selectionAnchor) {
+                                                                                        // Expand Selection based on Mouse Move
+                                                                                        const startRowIdx = filteredRecords.findIndex(r => r._id === selectionAnchor.rowId);
+                                                                                        const startColIdx = gridColumns.findIndex(c => c.id === selectionAnchor.fieldId);
+                                                                                        const endRowIdx = i;
+                                                                                        const endColIdx = gridColumns.findIndex(c => c.id === f.id);
+
+                                                                                        if (startRowIdx !== -1 && startColIdx !== -1 && endRowIdx !== -1 && endColIdx !== -1) {
+                                                                                            const minRow = Math.min(startRowIdx, endRowIdx);
+                                                                                            const maxRow = Math.max(startRowIdx, endRowIdx);
+                                                                                            const minCol = Math.min(startColIdx, endColIdx);
+                                                                                            const maxCol = Math.max(startColIdx, endColIdx);
+
+                                                                                            const newSelection = [];
+                                                                                            for (let r = minRow; r <= maxRow; r++) {
+                                                                                                for (let c = minCol; c <= maxCol; c++) {
+                                                                                                    newSelection.push({ rowId: filteredRecords[r]._id, fieldId: gridColumns[c].id });
+                                                                                                }
+                                                                                            }
+                                                                                            setSelectedCells(newSelection);
+                                                                                            setSelectedCell({ rowId: filteredRecords[endRowIdx]._id, fieldId: gridColumns[endColIdx].id });
+                                                                                        }
+                                                                                    }
+                                                                                }}
+                                                                                onDoubleClick={() => !isReadOnly && setEditingCell({ rowId: row._id, fieldId: f.id })}
+                                                                                className={`text-sm border-l border-transparent group-hover:border-indigo-100 max-w-xs select-none relative
+                                                                                    ${isEditing ? 'bg-white px-1 py-1 z-20 shadow-inner' :
+                                                                                        `px-6 py-4 whitespace-nowrap truncate ${isSelected ? 'bg-indigo-50/50 z-10 box-border' :
+                                                                                            !isCellVisible(row, f) ? 'bg-slate-100/30' :
+                                                                                                isReadOnly ? 'bg-slate-50/50 cursor-not-allowed' :
+                                                                                                    'cursor-pointer hover:bg-white'}`}
+                                                                                    ${hasCalculation && isReadOnly ? 'font-medium text-indigo-600' : 'text-gray-700'}
+                                                                                    ${isActive && !isEditing ? 'ring-2 ring-indigo-500 ring-inset' : ''}
+                                                                                    ${fillRange && i >= fillRange.startRowIndex && i <= fillRange.endRowIndex &&
+                                                                                        gridColumns.findIndex(c => c.id === f.id) >= fillRange.minColIndex &&
+                                                                                        gridColumns.findIndex(c => c.id === f.id) <= fillRange.maxColIndex
+                                                                                        ? 'bg-indigo-100/50 ring-1 ring-indigo-300 ring-dashed z-20' : ''}
+                                                                                `}
                                                                             >
+                                                                                {/* Auto-fill Handle - Show only on the bottom-right cell of the SELECTION */}
+                                                                                {(() => {
+                                                                                    // Check if this cell is the bottom-right of the current selection block
+                                                                                    const rowIndices = selectedCells.map(c => filteredRecords.findIndex(r => r._id === c.rowId));
+                                                                                    const colIndices = selectedCells.map(c => gridColumns.findIndex(col => col.id === c.fieldId));
+                                                                                    const maxRow = Math.max(...rowIndices);
+                                                                                    const maxCol = Math.max(...colIndices);
+
+                                                                                    // Current cell indices
+                                                                                    const myRowIdx = i;
+                                                                                    const myColIdx = gridColumns.findIndex(c => c.id === f.id);
+
+                                                                                    const isBottomRight = myRowIdx === maxRow && myColIdx === maxCol;
+
+                                                                                    // Protection: No fill for columns with calculations
+                                                                                    if (hasCalculation) return false;
+
+                                                                                    // Render handle if this is the bottom-right cell AND it is selected
+                                                                                    return isBottomRight && isSelected && !isEditing;
+                                                                                })() && (
+                                                                                        <div
+                                                                                            className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-indigo-600 cursor-crosshair z-30 transform translate-x-1/2 translate-y-1/2 border border-white hover:scale-125 transition-transform shadow-sm"
+                                                                                            onMouseDown={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                e.preventDefault(); // Prevent text selection
+                                                                                                setIsDraggingFill(true);
+                                                                                                // Initial range is the selection itself
+                                                                                                const rowIndices = selectedCells.map(c => filteredRecords.findIndex(r => r._id === c.rowId));
+                                                                                                const colIndices = selectedCells.map(c => gridColumns.findIndex(col => col.id === c.fieldId));
+                                                                                                setFillRange({
+                                                                                                    startRowIndex: Math.min(...rowIndices),
+                                                                                                    endRowIndex: Math.max(...rowIndices),
+                                                                                                    minColIndex: Math.min(...colIndices),
+                                                                                                    maxColIndex: Math.max(...colIndices)
+                                                                                                });
+                                                                                            }}
+                                                                                        ></div>
+                                                                                    )}
+
                                                                                 {!isCellVisible(row, f) ? (
                                                                                     <span className="text-gray-300 italic text-[11px]">- Hidden -</span>
                                                                                 ) : isEditing ? (
@@ -4321,7 +5188,6 @@ export const SuperTable: React.FC = () => {
                                                                                                 value={row[f.id] || ''}
                                                                                                 onChange={(e) => handleGridUpdate(row._id, f.id, e.target.value)}
                                                                                                 onBlur={() => setEditingCell(null)}
-                                                                                                onKeyDown={(e) => e.key === 'Enter' && setEditingCell(null)}
                                                                                             />
                                                                                             {validateField(f, row[f.id], row) && (
                                                                                                 <div className="absolute top-full left-0 mt-1 bg-red-600 text-white text-[10px] px-2 py-1 rounded shadow-xl z-30 animate-in fade-in slide-in-from-top-1 whitespace-normal min-w-[120px]">
@@ -4372,6 +5238,9 @@ export const SuperTable: React.FC = () => {
                                                 <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                                                     <h3 className="font-bold text-gray-700 text-sm flex items-center gap-2"><Grid size={16} /> Batch Entry Mode</h3>
                                                     <div className="flex gap-2">
+                                                        <button onClick={() => dataImportInputRef.current?.click()} className="text-xs font-bold text-gray-600 bg-white border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50 transition-colors flex items-center gap-1">
+                                                            <Download size={14} /> Import
+                                                        </button>
                                                         <button onClick={() => setBatchRows([...batchRows, { tempId: Date.now(), data: {} }])} className="text-xs font-bold text-indigo-600 bg-white border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-50 transition-colors">+ Add Row</button>
                                                         <button onClick={handleBatchSubmit} className="text-xs font-bold text-white bg-indigo-600 px-3 py-1.5 rounded hover:bg-indigo-700 transition-colors shadow-sm">Save All</button>
                                                     </div>
@@ -4382,75 +5251,107 @@ export const SuperTable: React.FC = () => {
                                                             <tr>
                                                                 <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase w-12 text-center">#</th>
                                                                 {batchColumns.map(f => (
-                                                                    <th key={f.id} className="px-4 py-3 text-xs font-bold text-gray-500 uppercase whitespace-nowrap min-w-[150px] border-l border-gray-100">
-                                                                        {f.label} {f.required && <span className="text-red-500">*</span>}
+                                                                    <th
+                                                                        key={f.id}
+                                                                        className="px-4 py-3 text-xs font-bold text-gray-500 uppercase whitespace-nowrap border-l border-gray-100 relative group/resize-batch"
+                                                                        style={{ width: columnWidths[f.id] || 200, minWidth: columnWidths[f.id] || 200 }}
+                                                                    >
+                                                                        <div
+                                                                            onMouseDown={(e) => handleResizeStart(e, f.id)}
+                                                                            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-400 transition-colors z-20"
+                                                                        ></div>
+                                                                        <div className="truncate pr-2">
+                                                                            {f.label} {f.required && <span className="text-red-500">*</span>}
+                                                                        </div>
                                                                     </th>
                                                                 ))}
                                                                 <th className="px-4 py-3 w-10"></th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-gray-100">
-                                                            {batchRows.map((row, idx) => (
-                                                                <tr key={row.tempId} className="group hover:bg-indigo-50/10">
-                                                                    <td className="px-4 py-2 text-center text-xs text-gray-400 font-mono">{idx + 1}</td>
-                                                                    {batchColumns.map(f => {
-                                                                        const isVisible = isCellVisible(row.data, f);
-                                                                        const isReadOnly = isCellReadOnly(row.data, f);
-
-                                                                        return (
-                                                                            <td key={f.id} className={`p-0 border-l border-gray-100 relative ${!isVisible ? 'bg-slate-50/50' : isReadOnly ? 'bg-slate-50' : ''}`}>
-                                                                                {!isVisible ? (
-                                                                                    <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-300 font-medium italic bg-slate-100/20">
-                                                                                        Hidden
-                                                                                    </div>
-                                                                                ) : isReadOnly ? (
-                                                                                    <div className="px-4 py-2 text-sm text-slate-400 italic flex items-center justify-between group/calc">
-                                                                                        <span className="truncate">{row.data[f.id] || '-'}</span>
-                                                                                    </div>
-                                                                                ) : f.type === 'select' ? (
-                                                                                    <select
-                                                                                        className="w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all h-full"
-                                                                                        value={row.data[f.id] || ''}
-                                                                                        onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
-                                                                                    >
-                                                                                        <option value="">Select...</option>
-                                                                                        {getFieldOptions(f, row.data).map((o: string) => <option key={o} value={o}>{o}</option>)}
-                                                                                    </select>
-                                                                                ) : f.type === 'checkbox' ? (
-                                                                                    <div className="flex items-center justify-center py-2 h-full">
-                                                                                        <input
-                                                                                            type="checkbox"
-                                                                                            checked={!!row.data[f.id]}
-                                                                                            onChange={e => handleBatchUpdate(idx, f.id, e.target.checked)}
-                                                                                            className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                                                                                        />
-                                                                                    </div>
-                                                                                ) : (
-                                                                                    <div className="relative w-full">
-                                                                                        <input
-                                                                                            type={f.type === 'number' ? 'number' : (f.type === 'date' ? 'date' : 'text')}
-                                                                                            className={`w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 transition-all placeholder-gray-300 ${validateField(f, row.data[f.id], row.data) ? 'focus:ring-red-500/20 text-red-600' : 'focus:ring-indigo-500/20'}`}
-                                                                                            placeholder={f.label}
-                                                                                            value={row.data[f.id] || ''}
-                                                                                            onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
-                                                                                        />
-                                                                                        {validateField(f, row.data[f.id], row.data) && (
-                                                                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-red-500" title={validateField(f, row.data[f.id], row.data) || ''}>
-                                                                                                <AlertCircle size={14} />
-                                                                                            </div>
-                                                                                        )}
-                                                                                    </div>
-                                                                                )}
-                                                                            </td>
-                                                                        );
-                                                                    })}
-                                                                    <td className="px-2 text-center">
-                                                                        <button onClick={() => setBatchRows(batchRows.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-500 p-1 rounded hover:bg-red-50">
-                                                                            <X size={14} />
-                                                                        </button>
+                                                            {batchRows.length === 0 ? (
+                                                                <tr>
+                                                                    <td colSpan={batchColumns.length + 2} className="px-6 py-16 text-center text-gray-400">
+                                                                        <div className="flex flex-col items-center gap-3">
+                                                                            <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
+                                                                                <Download size={24} className="opacity-30" />
+                                                                            </div>
+                                                                            <p className="text-sm font-medium">No rows to import.</p>
+                                                                            <div className="flex gap-4 justify-center mt-2">
+                                                                                <button onClick={() => setBatchRows([{ tempId: Date.now(), data: {} }])} className="text-indigo-600 font-bold text-xs hover:underline">Add manually</button>
+                                                                                <span className="text-gray-300">|</span>
+                                                                                <button onClick={() => dataImportInputRef.current?.click()} className="text-indigo-600 font-bold text-xs hover:underline">Import from file</button>
+                                                                            </div>
+                                                                        </div>
                                                                     </td>
                                                                 </tr>
-                                                            ))}
+                                                            ) : (
+                                                                batchRows.map((row, idx) => (
+                                                                    <tr key={row.tempId} className="group hover:bg-indigo-50/10">
+                                                                        <td className="px-4 py-2 text-center text-xs text-gray-400 font-mono">{idx + 1}</td>
+                                                                        {batchColumns.map(f => {
+                                                                            const isVisible = isCellVisible(row.data, f);
+                                                                            const isReadOnly = isCellReadOnly(row.data, f);
+
+                                                                            return (
+                                                                                <td
+                                                                                    key={f.id}
+                                                                                    className={`p-0 border-l border-gray-100 relative ${!isVisible ? 'bg-slate-50/50' : isReadOnly ? 'bg-slate-50' : ''}`}
+                                                                                    style={{ width: columnWidths[f.id] || 200, minWidth: columnWidths[f.id] || 200 }}
+                                                                                >
+                                                                                    {!isVisible ? (
+                                                                                        <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-300 font-medium italic bg-slate-100/20">
+                                                                                            Hidden
+                                                                                        </div>
+                                                                                    ) : isReadOnly ? (
+                                                                                        <div className="px-4 py-2 text-sm text-slate-400 italic flex items-center justify-between group/calc">
+                                                                                            <span className="truncate">{row.data[f.id] || '-'}</span>
+                                                                                        </div>
+                                                                                    ) : f.type === 'select' ? (
+                                                                                        <select
+                                                                                            className="w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all h-full"
+                                                                                            value={row.data[f.id] || ''}
+                                                                                            onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
+                                                                                        >
+                                                                                            <option value="">Select...</option>
+                                                                                            {getFieldOptions(f, row.data).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                                                                                        </select>
+                                                                                    ) : f.type === 'checkbox' ? (
+                                                                                        <div className="flex items-center justify-center py-2 h-full">
+                                                                                            <input
+                                                                                                type="checkbox"
+                                                                                                checked={!!row.data[f.id]}
+                                                                                                onChange={e => handleBatchUpdate(idx, f.id, e.target.checked)}
+                                                                                                className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                                                                                            />
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="relative w-full">
+                                                                                            <input
+                                                                                                type={f.type === 'number' ? 'number' : (f.type === 'date' ? 'date' : 'text')}
+                                                                                                className={`w-full px-4 py-2 text-sm bg-transparent outline-none focus:bg-white focus:ring-2 transition-all placeholder-gray-300 ${validateField(f, row.data[f.id], row.data) ? 'focus:ring-red-500/20 text-red-600' : 'focus:ring-indigo-500/20'}`}
+                                                                                                placeholder={f.label}
+                                                                                                value={row.data[f.id] || ''}
+                                                                                                onChange={e => handleBatchUpdate(idx, f.id, e.target.value)}
+                                                                                            />
+                                                                                            {validateField(f, row.data[f.id], row.data) && (
+                                                                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-red-500" title={validateField(f, row.data[f.id], row.data) || ''}>
+                                                                                                    <AlertCircle size={14} />
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </td>
+                                                                            );
+                                                                        })}
+                                                                        <td className="px-2 text-center">
+                                                                            <button onClick={() => setBatchRows(batchRows.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-500 p-1 rounded hover:bg-red-50">
+                                                                                <X size={14} />
+                                                                            </button>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))
+                                                            )}
                                                         </tbody>
                                                     </table>
                                                 </div>
@@ -5108,6 +6009,7 @@ export const SuperTable: React.FC = () => {
                     </div>
                 )
             }
+            {renderFillMenu()}
         </div>
     );
 };
