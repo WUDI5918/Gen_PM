@@ -3598,7 +3598,7 @@ export const SuperTable: React.FC = () => {
         );
     };
 
-    const batchColumns = allDataFields.filter(f => f.showInBatch !== false);
+    const batchColumns = allDataFields.filter(f => f.showInBatch !== false && !hiddenColumnIds.includes(f.id));
 
     // --- Keyboard Navigation (Excel-like) ---
     useEffect(() => {
