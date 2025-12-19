@@ -2441,6 +2441,7 @@ export const SuperTable: React.FC = () => {
             if (result && result.length > 0) {
                 if (aiBuilderModal.mode === 'generate') {
                     setSchema(result);
+                    setActiveFormId(null);
                     addToast(`Generated ${result.length} fields!`, 'success');
                 } else {
                     // Merge logic into existing schema
@@ -2514,6 +2515,7 @@ export const SuperTable: React.FC = () => {
 
             if (schema && schema.length > 0) {
                 setSchema(schema);
+                setActiveFormId(null);
                 setActiveTab('builder');
                 setImportProgress({ isOpen: false, step: 0, message: '' });
                 addToast(`Form generated with ${schema.length} fields!`, 'success');
@@ -3124,6 +3126,16 @@ export const SuperTable: React.FC = () => {
     };
 
     // --- Form Library Actions ---
+    const handleUpdateForm = () => {
+        if (!activeFormId) return;
+        setSavedForms(prev => prev.map(f =>
+            f.id === activeFormId
+                ? { ...f, schema: [...schema], timestamp: Date.now() }
+                : f
+        ));
+        addToast('Template updated successfully', 'success');
+    };
+
     const handleSaveForm = () => {
         if (!formName.trim()) {
             addToast('Please enter a form name', 'error');
@@ -3159,7 +3171,7 @@ export const SuperTable: React.FC = () => {
             // Update snapshot to mark as clean (empty data)
             setLastSavedSnapshot(JSON.stringify({ records: [], schema: form.schema }));
 
-            addToast(`Loaded template: ${form.name}`, 'success');
+            addToast(`Template loaded for modification: ${form.name}`, 'success');
             if (targetTab) setActiveTab(targetTab);
             setTemplateSelectorOpen(false);
         }
@@ -3322,12 +3334,29 @@ export const SuperTable: React.FC = () => {
                                 <div className="p-4 border-t border-gray-100 bg-gray-50/50 hidden lg:block">
                                     <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-center">
                                         <p className="text-[10px] text-indigo-800 font-medium mb-1">Manage Forms</p>
-                                        <button
-                                            onClick={() => setSaveFormOpen(true)}
-                                            className="text-[10px] bg-white border border-indigo-200 text-indigo-600 font-bold px-3 py-1.5 rounded-full hover:bg-indigo-50 transition-colors w-full shadow-sm mb-2"
-                                        >
-                                            Save to Library
-                                        </button>
+                                        {activeFormId ? (
+                                            <>
+                                                <button
+                                                    onClick={() => setSaveFormOpen(true)}
+                                                    className="text-[10px] bg-white border border-indigo-200 text-indigo-600 font-bold px-3 py-1.5 rounded-full hover:bg-indigo-50 transition-colors w-full shadow-sm mb-2"
+                                                >
+                                                    Save as New...
+                                                </button>
+                                                <button
+                                                    onClick={handleUpdateForm}
+                                                    className="text-[10px] bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-full hover:bg-indigo-700 transition-colors w-full shadow-sm mb-2"
+                                                >
+                                                    Update Template
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <button
+                                                onClick={() => setSaveFormOpen(true)}
+                                                className="text-[10px] bg-white border border-indigo-200 text-indigo-600 font-bold px-3 py-1.5 rounded-full hover:bg-indigo-50 transition-colors w-full shadow-sm mb-2"
+                                            >
+                                                Save to Library
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => setActiveTab('library')}
                                             className="text-[10px] bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-full hover:bg-indigo-700 transition-colors w-full shadow-sm"
@@ -4493,6 +4522,8 @@ export const SuperTable: React.FC = () => {
                                         onClick={() => {
                                             setSchema([]);
                                             setActiveDatasetId(null);
+                                            setActiveFormId(null);
+                                            setCurrentFormName('New Form');
                                             setActiveTab('builder');
                                             addToast('Created new blank form', 'info');
                                         }}
@@ -4542,7 +4573,7 @@ export const SuperTable: React.FC = () => {
                                                 onClick={() => handleLoadForm(form.id)}
                                                 className="w-full py-2.5 mt-4 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-100 flex items-center justify-center gap-2 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-transparent"
                                             >
-                                                Load Template <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
+                                                Modify Template <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
                                             </button>
                                         </div>
                                     ))}
