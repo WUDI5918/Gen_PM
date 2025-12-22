@@ -10,7 +10,8 @@ import {
     Maximize2, Columns, Edit3, Check, ChevronUp, Layers, BoxSelect,
     ToggleLeft, FileText, PenTool, Star, CreditCard, Clock, Link,
     ListOrdered, Folder, Sidebar, FormInput, BookOpen, Lightbulb, FunctionSquare, Calculator, Regex, Sparkles,
-    ArrowDownUp, ArrowDownAZ, ArrowUpAZ, ArrowUp
+    ArrowDownUp, ArrowDownAZ, ArrowUpAZ, ArrowUp,
+    Package, Box, Settings, ChevronLeft, ShoppingCart
 } from 'lucide-react';
 import { read, utils } from 'xlsx';
 import { generateFormSchemaFromData, generateFormFromDescription, generateFormLogic } from '../services/geminiService';
@@ -1865,7 +1866,8 @@ export const SuperTable: React.FC = () => {
     };
 
     // State
-    const [activeTab, setActiveTab] = useState<'builder' | 'data' | 'library' | 'guide'>(() => loadFromStorage('erp_active_tab', 'data'));
+    const [activeTab, setActiveTab] = useState<'builder' | 'data' | 'library' | 'guide' | 'product_center'>(() => loadFromStorage('erp_active_tab', 'data'));
+    const [productSubTab, setProductSubTab] = useState<'config' | 'library' | 'settings'>(() => loadFromStorage('erp_product_sub_tab', 'config'));
     const [subView, setSubView] = useState<'table' | 'preview' | 'batch'>(() => loadFromStorage('erp_sub_view', 'table')); // Data sub-views
 
     // Schema State
@@ -1936,13 +1938,59 @@ export const SuperTable: React.FC = () => {
     const [activeDatasetId, setActiveDatasetId] = useState<string | null>(() => loadFromStorage('erp_active_dataset_id', null));
     const [activeFormId, setActiveFormId] = useState<string | null>(() => loadFromStorage('erp_active_form_id', 'form_default'));
 
+    // Product Center State
+    const [products, setProducts] = useState<{
+        id: string;
+        name: string;
+        description: string;
+        image: string;
+        datasetId: string;
+        viewName: string;
+        timestamp: number;
+        baseInfo: any;
+    }[]>(() => loadFromStorage('erp_products', []));
+
+    const [productOrders, setProductOrders] = useState<{
+        id: string;
+        productId: string;
+        quantity: number;
+        timestamp: number;
+    }[]>(() => loadFromStorage('erp_product_orders', []));
+
+    const [configState, setConfigState] = useState({
+        datasetId: '',
+        viewName: '',
+        name: '',
+        description: '',
+        image: ''
+    });
+
+    const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+    const [orderQuantity, setOrderQuantity] = useState<number>(1);
+
     // Dataset Groups State
     const [datasetGroups, setDatasetGroups] = useState<{ id: string, name: string }[]>(() => loadFromStorage('erp_dataset_groups', []));
 
-    // Persist groups
+    // Persist groups & products
     useEffect(() => {
         if (typeof window !== 'undefined') window.localStorage.setItem('erp_dataset_groups', JSON.stringify(datasetGroups));
     }, [datasetGroups]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_products', JSON.stringify(products));
+    }, [products]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_product_orders', JSON.stringify(productOrders));
+    }, [productOrders]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_active_tab', activeTab);
+    }, [activeTab]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_product_sub_tab', productSubTab);
+    }, [productSubTab]);
 
     // Group Handlers
     const handleAddDatasetGroup = () => {
@@ -3154,63 +3202,63 @@ export const SuperTable: React.FC = () => {
     };
 
     // --- Enhanced Filtering Logic ---
+    const evaluateFilter = (r: any, f: { fieldId: string, operator: string, value: string, value2?: string }) => {
+        const val = r[f.fieldId];
+        const fieldType = schema.find(s => s.id === f.fieldId)?.type || 'text';
+        const strVal = String(val ?? '');
+        const lowerVal = strVal.toLowerCase();
+        const filterLower = f.value.toLowerCase();
+
+        // Common operators (all types)
+        if (f.operator === 'isEmpty') return val === undefined || val === null || val === '';
+        if (f.operator === 'isNotEmpty') return val !== undefined && val !== null && val !== '';
+        if (f.operator === 'eq') return strVal == f.value;
+        if (f.operator === 'neq') return strVal != f.value;
+
+        // Text operators
+        if (f.operator === 'contains') return lowerVal.includes(filterLower);
+        if (f.operator === 'notContains') return !lowerVal.includes(filterLower);
+        if (f.operator === 'startsWith') return lowerVal.startsWith(filterLower);
+        if (f.operator === 'endsWith') return lowerVal.endsWith(filterLower);
+        if (f.operator === 'regex') {
+            try {
+                const regex = new RegExp(f.value, 'i');
+                return regex.test(strVal);
+            } catch { return false; }
+        }
+
+        // Number operators
+        if (fieldType === 'number') {
+            const numVal = Number(val);
+            const filterVal = Number(f.value);
+            if (f.operator === 'gt') return numVal > filterVal;
+            if (f.operator === 'lt') return numVal < filterVal;
+            if (f.operator === 'gte') return numVal >= filterVal;
+            if (f.operator === 'lte') return numVal <= filterVal;
+            if (f.operator === 'between' && f.value2) {
+                const min = Number(f.value);
+                const max = Number(f.value2);
+                return numVal >= min && numVal <= max;
+            }
+        }
+
+        // Date operators
+        if (fieldType === 'date') {
+            const dateVal = new Date(val).getTime();
+            const filterDate = new Date(f.value).getTime();
+            if (f.operator === 'before') return dateVal < filterDate;
+            if (f.operator === 'after') return dateVal > filterDate;
+            if (f.operator === 'between' && f.value2) {
+                const startDate = new Date(f.value).getTime();
+                const endDate = new Date(f.value2).getTime();
+                return dateVal >= startDate && dateVal <= endDate;
+            }
+        }
+
+        return true;
+    };
+
     const filteredRecords = useMemo(() => {
-        // Helper to evaluate a single filter condition
-        const evaluateFilter = (r: any, f: { fieldId: string, operator: string, value: string, value2?: string }) => {
-            const val = r[f.fieldId];
-            const fieldType = schema.find(s => s.id === f.fieldId)?.type || 'text';
-            const strVal = String(val ?? '');
-            const lowerVal = strVal.toLowerCase();
-            const filterLower = f.value.toLowerCase();
-
-            // Common operators (all types)
-            if (f.operator === 'isEmpty') return val === undefined || val === null || val === '';
-            if (f.operator === 'isNotEmpty') return val !== undefined && val !== null && val !== '';
-            if (f.operator === 'eq') return strVal == f.value;
-            if (f.operator === 'neq') return strVal != f.value;
-
-            // Text operators
-            if (f.operator === 'contains') return lowerVal.includes(filterLower);
-            if (f.operator === 'notContains') return !lowerVal.includes(filterLower);
-            if (f.operator === 'startsWith') return lowerVal.startsWith(filterLower);
-            if (f.operator === 'endsWith') return lowerVal.endsWith(filterLower);
-            if (f.operator === 'regex') {
-                try {
-                    const regex = new RegExp(f.value, 'i');
-                    return regex.test(strVal);
-                } catch { return false; }
-            }
-
-            // Number operators
-            if (fieldType === 'number') {
-                const numVal = Number(val);
-                const filterVal = Number(f.value);
-                if (f.operator === 'gt') return numVal > filterVal;
-                if (f.operator === 'lt') return numVal < filterVal;
-                if (f.operator === 'gte') return numVal >= filterVal;
-                if (f.operator === 'lte') return numVal <= filterVal;
-                if (f.operator === 'between' && f.value2) {
-                    const min = Number(f.value);
-                    const max = Number(f.value2);
-                    return numVal >= min && numVal <= max;
-                }
-            }
-
-            // Date operators
-            if (fieldType === 'date') {
-                const dateVal = new Date(val).getTime();
-                const filterDate = new Date(f.value).getTime();
-                if (f.operator === 'before') return dateVal < filterDate;
-                if (f.operator === 'after') return dateVal > filterDate;
-                if (f.operator === 'between' && f.value2) {
-                    const startDate = new Date(f.value).getTime();
-                    const endDate = new Date(f.value2).getTime();
-                    return dateVal >= startDate && dateVal <= endDate;
-                }
-            }
-
-            return true;
-        };
 
         const filtered = records.filter(r => {
             if (!r) return false;
@@ -3543,6 +3591,529 @@ export const SuperTable: React.FC = () => {
         addToast('Cells filled', 'success');
     };
 
+    // --- Product Configuration Center Helpers ---
+    const handleSaveProduct = () => {
+        if (!configState.name || !configState.datasetId || !configState.viewName) {
+            addToast('请完成所有必填配置', 'warning');
+            return;
+        }
+
+        const newProduct = {
+            id: `prod_${Date.now()}`,
+            name: configState.name,
+            description: configState.description,
+            image: configState.image,
+            datasetId: configState.datasetId,
+            viewName: configState.viewName,
+            timestamp: Date.now(),
+            baseInfo: {}
+        };
+
+        setProducts([...products, newProduct]);
+        addToast('产品已发布至库 (Product Published)', 'success');
+        setProductSubTab('library');
+        setConfigState({ datasetId: '', viewName: '', name: '', description: '', image: '' });
+    };
+
+    const renderBOMTable = (datasetId: string, viewName: string) => {
+        const dataset = savedDatasets.find(d => d.id === datasetId);
+        if (!dataset) return <div className="p-8 text-center text-gray-400 italic">Dataset not found</div>;
+
+        const view = savedViews.find(v => v.name === viewName && (v as any).datasetId === datasetId);
+        if (!view) return <div className="p-8 text-center text-gray-400 italic">View preset not found</div>;
+
+        let filtered = [...dataset.records];
+        view.filterGroups.forEach(group => {
+            const groupMatch = (r: any) => {
+                const results = group.conditions.map((f: any) => evaluateFilter(r, f));
+                return group.logic === 'AND' ? results.every(res => res) : results.some(res => res);
+            };
+            filtered = filtered.filter(groupMatch);
+        });
+
+        const displayFields = dataset.schema.filter(f => !['divider', 'spacer', 'notice'].includes(f.type));
+
+        return (
+            <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-100">
+                        <tr>
+                            {displayFields.slice(0, 8).map(f => (
+                                <th key={f.id} className="px-4 py-3 font-extrabold text-slate-500 uppercase text-[10px] tracking-wider whitespace-nowrap">{f.label}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                        {filtered.map((r, i) => (
+                            <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                {displayFields.slice(0, 8).map(f => (
+                                    <td key={f.id} className="px-4 py-3 text-slate-600 truncate max-w-[200px]">{safeRenderValue(r[f.id])}</td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
+
+    const renderProductConfig = () => {
+        const selectedDataset = savedDatasets.find(d => d.id === configState.datasetId);
+        const availableViewsForDataset = savedViews.filter(v => (v as any).datasetId === configState.datasetId);
+
+        return (
+            <div className="flex h-full animate-in fade-in duration-500">
+                {/* Left: Configuration Panel */}
+                <div className="w-[400px] flex-shrink-0 bg-white border-r border-slate-100 flex flex-col h-full overflow-y-auto custom-scrollbar z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
+                    <div className="p-8 space-y-8">
+                        <div>
+                            <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">定义产品</h3>
+                            <p className="text-sm text-slate-400 font-medium mt-1">Define Product Parameters</p>
+                        </div>
+
+                        {/* Step 1: Data Source */}
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                                <Database size={16} />
+                                <span className="text-xs font-bold uppercase tracking-widest">1. Data Source</span>
+                            </div>
+                            <div className="space-y-3">
+                                <div className="group relative">
+                                    <label className="absolute left-4 top-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider group-focus-within:text-indigo-500 transition-colors">Select Table</label>
+                                    <select
+                                        value={configState.datasetId}
+                                        onChange={(e) => setConfigState({ ...configState, datasetId: e.target.value, viewName: '' })}
+                                        className="w-full bg-slate-50 hover:bg-slate-100 border-none rounded-xl px-4 pt-8 pb-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none appearance-none cursor-pointer"
+                                    >
+                                        <option value="">--- Choose a Database ---</option>
+                                        {savedDatasets.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                    </select>
+                                    <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                </div>
+
+                                <div className="group relative">
+                                    <label className="absolute left-4 top-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider group-focus-within:text-indigo-500 transition-colors">Select View</label>
+                                    <select
+                                        disabled={!configState.datasetId}
+                                        value={configState.viewName}
+                                        onChange={(e) => setConfigState({ ...configState, viewName: e.target.value })}
+                                        className="w-full bg-slate-50 hover:bg-slate-100 border-none rounded-xl px-4 pt-8 pb-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <option value="">--- Choose Filter Preset ---</option>
+                                        {availableViewsForDataset.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+                                    </select>
+                                    <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="w-full h-px bg-slate-100 my-2"></div>
+
+                        {/* Step 2: Basic Info */}
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                                <Box size={16} />
+                                <span className="text-xs font-bold uppercase tracking-widest">2. Product Identity</span>
+                            </div>
+                            <div className="space-y-3">
+                                <input
+                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none"
+                                    placeholder="Product Name (e.g. Robot Arm V1)"
+                                    value={configState.name}
+                                    onChange={e => setConfigState({ ...configState, name: e.target.value })}
+                                />
+                                <input
+                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-medium text-slate-600 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none"
+                                    placeholder="Description / Specs..."
+                                    value={configState.description}
+                                    onChange={e => setConfigState({ ...configState, description: e.target.value })}
+                                />
+                                <input
+                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-xs font-mono text-slate-500 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none"
+                                    placeholder="Image URL (https://...)"
+                                    value={configState.image}
+                                    onChange={e => setConfigState({ ...configState, image: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Action Button */}
+                        <div className="pt-4">
+                            <button
+                                onClick={handleSaveProduct}
+                                disabled={!configState.datasetId || !configState.viewName || !configState.name}
+                                className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-bold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                            >
+                                <Save size={18} />
+                                <span>Publish Configuration</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right: Live Preview */}
+                <div className="flex-1 bg-slate-50/50 p-8 overflow-y-auto custom-scrollbar flex flex-col">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+                                <Eye size={16} />
+                            </div>
+                            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Live BOM Preview</h3>
+                        </div>
+                        {configState.datasetId && configState.viewName && (
+                            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
+                                Active View: {configState.viewName}
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative min-h-[400px]">
+                        {configState.datasetId && configState.viewName ? (
+                            <div className="absolute inset-0 overflow-auto custom-scrollbar">
+                                {renderBOMTable(configState.datasetId, configState.viewName)}
+                            </div>
+                        ) : (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300">
+                                <div className="w-20 h-20 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center mb-4">
+                                    <TableIcon size={32} />
+                                </div>
+                                <p className="font-medium text-sm">Select a Data Source & View to preview BOM</p>
+                            </div>
+                        )}
+                    </div>
+                    <p className="mt-4 text-center text-[10px] text-slate-400 font-medium">BOM Engine v2.4 • Real-time Data Binding</p>
+                </div>
+            </div>
+        );
+    };
+
+    const renderProductLibrary = () => {
+        if (selectedProductId) {
+            return renderProductDetail(selectedProductId);
+        }
+
+        return (
+            <div className="h-full flex flex-col animate-in fade-in duration-500">
+                {/* Header */}
+                <div className="px-10 py-8 flex justify-between items-end bg-white border-b border-gray-100 sticky top-0 z-10">
+                    <div>
+                        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Product Library</h2>
+                        <p className="text-xs text-slate-500 mt-2 font-medium uppercase tracking-wider">Catalog of Configured BOMs</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="relative group">
+                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                            <input
+                                className="pl-9 pr-4 py-2 bg-slate-50 border-none rounded-full text-xs font-bold text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none w-48 focus:w-64"
+                                placeholder="Search products..."
+                            />
+                        </div>
+                        <div className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-[10px] font-bold">
+                            {products.length} Items
+                        </div>
+                    </div>
+                </div>
+
+                {/* Grid */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-10">
+                    {products.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            {products.map(p => (
+                                <div
+                                    key={p.id}
+                                    onClick={() => setSelectedProductId(p.id)}
+                                    className="bg-white rounded-2xl border border-slate-100 overflow-hidden hover:shadow-xl hover:shadow-indigo-900/5 hover:-translate-y-1 hover:border-indigo-100 transition-all group cursor-pointer relative"
+                                >
+                                    {/* Image Area */}
+                                    <div className="h-40 bg-slate-50 relative overflow-hidden flex items-center justify-center">
+                                        {p.image ? (
+                                            <img src={p.image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt={p.name} />
+                                        ) : (
+                                            <Box size={40} className="text-slate-200 group-hover:text-indigo-200 transition-colors" />
+                                        )}
+                                        {/* Overlay Actions */}
+                                        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setProducts(products.filter(item => item.id !== p.id)); }}
+                                                className="p-2 bg-white/90 text-rose-500 rounded-lg shadow-sm hover:bg-rose-500 hover:text-white transition-all"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Content Area */}
+                                    <div className="p-5">
+                                        <div className="mb-3">
+                                            <h4 className="font-bold text-sm text-slate-800 truncate group-hover:text-indigo-600 transition-colors">{p.name}</h4>
+                                            <p className="text-[10px] text-slate-400 font-medium mt-1 truncate">{new Date(p.timestamp).toLocaleDateString()}</p>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-bold uppercase tracking-wider scale-90 origin-left border border-slate-200">
+                                                {p.viewName}
+                                            </span>
+                                        </div>
+
+                                        <p className="text-xs text-slate-400 line-clamp-2 h-8 leading-relaxed mb-0 font-medium">{p.description || 'No description'}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-center pb-20">
+                            <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 text-slate-200 border-2 border-dashed border-slate-100">
+                                <Package size={48} />
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-700">Library is Empty</h3>
+                            <p className="text-sm text-slate-400 mb-8 mt-2 max-w-xs mx-auto">Configure your first product in the "Define" tab to see it here.</p>
+                            <button
+                                onClick={() => setProductSubTab('config')}
+                                className="px-6 py-2.5 bg-indigo-600 text-white rounded-full text-xs font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95"
+                            >
+                                Create Product
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    const renderProductDetail = (productId: string) => {
+        const product = products.find(p => p.id === productId);
+        if (!product) return null;
+
+        return (
+            <div className="h-full flex flex-col bg-white animate-in slide-in-from-right duration-500 z-20 absolute inset-0">
+                {/* Navbar */}
+                <div className="px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-30">
+                    <button
+                        onClick={() => setSelectedProductId(null)}
+                        className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-indigo-600 hover:bg-slate-50 px-3 py-2 rounded-lg transition-all"
+                    >
+                        <ChevronLeft size={16} />
+                        <span>Back to Library</span>
+                    </button>
+                    <div className="flex items-center gap-2">
+                        <span className="px-2 py-1 bg-green-50 text-green-600 border border-green-100 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div> Active
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-300">ID: {product.id}</span>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-auto custom-scrollbar">
+                    {/* Hero Section */}
+                    <div className="max-w-7xl mx-auto p-10">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+                            {/* Left: Image */}
+                            <div className="lg:col-span-5">
+                                <div className="aspect-square bg-slate-50 rounded-3xl overflow-hidden border border-slate-100 relative group shadow-sm">
+                                    {product.image ? (
+                                        <img src={product.image} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt={product.name} />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-slate-200">
+                                            <Box size={80} className="" />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Right: Info & Order */}
+                            <div className="lg:col-span-7 flex flex-col justify-center">
+                                <h1 className="text-4xl font-black text-slate-900 mb-4 tracking-tight leading-tight">{product.name}</h1>
+                                <p className="text-lg text-slate-500 mb-8 leading-relaxed font-medium max-w-2xl">
+                                    {product.description || 'No description provided for this product configuration.'}
+                                </p>
+
+                                <div className="grid grid-cols-2 gap-4 mb-8 max-w-md">
+                                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Source Dataset</div>
+                                        <div className="font-bold text-slate-700 flex items-center gap-2">
+                                            <Database size={14} className="text-indigo-500" />
+                                            {savedDatasets.find(d => d.id === product.datasetId)?.name || 'Unknown'}
+                                        </div>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Configuration View</div>
+                                        <div className="font-bold text-slate-700 flex items-center gap-2">
+                                            <Filter size={14} className="text-indigo-500" />
+                                            {product.viewName}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-1 bg-slate-50 rounded-[20px] max-w-lg shadow-inner">
+                                    <div className="bg-white rounded-2xl border border-slate-100 p-6 flex items-center gap-6 shadow-sm">
+                                        <div className="flex-1">
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Order Quantity</label>
+                                            <div className="flex items-center gap-4">
+                                                <button onClick={() => setOrderQuantity(Math.max(1, orderQuantity - 1))} className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition-colors"><Minus size={14} /></button>
+                                                <input
+                                                    type="number"
+                                                    value={orderQuantity}
+                                                    onChange={(e) => setOrderQuantity(parseInt(e.target.value) || 1)}
+                                                    className="w-16 text-center text-xl font-bold text-slate-800 outline-none border-none bg-transparent"
+                                                />
+                                                <button onClick={() => setOrderQuantity(orderQuantity + 1)} className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition-colors"><Plus size={14} /></button>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                const order = { id: `ord_${Date.now()}`, productId: product.id, quantity: orderQuantity, timestamp: Date.now() };
+                                                setProductOrders([...productOrders, order]);
+                                                addToast('Order Placed Successfully', 'success');
+                                            }}
+                                            className="px-8 py-4 bg-slate-900 text-white rounded-xl font-bold shadow-xl hover:bg-indigo-600 transition-all active:scale-95 flex items-center gap-2"
+                                        >
+                                            <ShoppingCart size={18} /> Place Order
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* BOM Table Section */}
+                        <div className="mt-16">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-xl font-bold text-slate-900">BOM Architecture</h3>
+                                <button className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors">
+                                    <Download size={14} /> Export CSV
+                                </button>
+                            </div>
+                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[300px]">
+                                <div className="overflow-x-auto">
+                                    {renderBOMTable(product.datasetId, product.viewName)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const renderProductSettings = () => (
+        <div className="p-12 max-w-5xl mx-auto animate-in fade-in duration-500 pb-32">
+            <div className="mb-12">
+                <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">系统参数 (Advanced Settings)</h2>
+                <p className="text-slate-500 mt-2 font-medium">配置产品中心及 BOM 引擎的全局运行参数</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-12">
+                <section className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl shadow-slate-200/50">
+                    <h4 className="text-sm font-black text-indigo-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
+                        <SlidersHorizontal size={14} /> 核心运行逻辑
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-3">
+                            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block pl-1">BOM 引擎计算模式 (Calculation Engine)</label>
+                            <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none appearance-none">
+                                <option>实时演算 (Real-time Dynamic)</option>
+                                <option>全量快照同步 (Full Snapshot)</option>
+                                <option>定时增量更新 (Nightly Incremental)</option>
+                            </select>
+                        </div>
+                        <div className="space-y-3">
+                            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block pl-1">外部物料库对接 (API Hook)</label>
+                            <button className="w-full py-[18px] border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 text-sm font-bold hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/30 transition-all">
+                                导入 .JSON 标准配置文件
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <section className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl shadow-slate-200/50">
+                    <h4 className="text-sm font-black text-rose-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
+                        <Layers size={14} /> 数据治理与维护
+                    </h4>
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center p-6 bg-slate-50 rounded-[1.5rem] group hover:bg-slate-100 transition-colors cursor-pointer">
+                            <div>
+                                <span className="text-sm font-bold text-slate-800">自动清理 30 天前的订单记录</span>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Automatic Data Purging</p>
+                            </div>
+                            <div className="w-14 h-7 bg-indigo-600 rounded-full relative shadow-inner">
+                                <div className="absolute right-1 top-1 w-5 h-5 bg-white rounded-full shadow-md"></div>
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center p-6 bg-slate-50 rounded-[1.5rem] group hover:bg-slate-100 transition-colors cursor-pointer">
+                            <div>
+                                <span className="text-sm font-bold text-slate-800">启用 BOM 实时价格变动提醒</span>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Dynamic Price Alerts</p>
+                            </div>
+                            <div className="w-14 h-7 bg-slate-300 rounded-full relative shadow-inner">
+                                <div className="absolute left-1 top-1 w-5 h-5 bg-white rounded-full shadow-md"></div>
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center p-6 bg-slate-50 rounded-[1.5rem] group hover:bg-slate-100 transition-colors cursor-pointer">
+                            <div>
+                                <span className="text-sm font-bold text-slate-800">第三方平台库存库存接口关联 (ERP/MES)</span>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">External Systems Integration</p>
+                            </div>
+                            <div className="w-14 h-7 bg-slate-300 rounded-full relative shadow-inner">
+                                <div className="absolute left-1 top-1 w-5 h-5 bg-white rounded-full shadow-md"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    );
+
+    const renderProductCenter = () => {
+        return (
+            <div className="flex flex-1 overflow-hidden animate-in fade-in duration-300">
+                {/* Left Sidebar Sub-Nav */}
+                <div className="w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 z-20">
+                    <div className="p-6">
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 px-2">Product Center</h3>
+                        <div className="space-y-1">
+                            <button
+                                onClick={() => { setProductSubTab('config'); setSelectedProductId(null); }}
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${productSubTab === 'config' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                            >
+                                <Box size={16} className={productSubTab === 'config' ? 'text-indigo-600' : 'text-slate-400'} />
+                                <span>Define Product</span>
+                            </button>
+                            <button
+                                onClick={() => { setProductSubTab('library'); setSelectedProductId(null); }}
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${productSubTab === 'library' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                            >
+                                <List size={16} className={productSubTab === 'library' ? 'text-indigo-600' : 'text-slate-400'} />
+                                <span>Product Library</span>
+                            </button>
+                            <button
+                                onClick={() => { setProductSubTab('settings'); setSelectedProductId(null); }}
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${productSubTab === 'settings' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                            >
+                                <Settings size={16} className={productSubTab === 'settings' ? 'text-indigo-600' : 'text-slate-400'} />
+                                <span>Settings</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Sidebar Footer Info */}
+                    <div className="mt-auto p-6 border-t border-slate-50">
+                        <div className="flex items-center gap-2 mb-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">System Online</span>
+                        </div>
+                        <p className="text-[10px] text-slate-300">BOM Engine Active</p>
+                    </div>
+                </div>
+
+                {/* Sub-Module Content */}
+                <div className="flex-1 bg-slate-50 overflow-auto relative custom-scrollbar">
+                    {productSubTab === 'config' && renderProductConfig()}
+                    {productSubTab === 'library' && renderProductLibrary()}
+                    {productSubTab === 'settings' && renderProductSettings()}
+                </div>
+            </div>
+        );
+    };
+
     // --- Auto-Fill Confirmation Menu ---
     const renderFillMenu = () => {
         if (!fillConfirmMenu) return null;
@@ -3749,6 +4320,13 @@ export const SuperTable: React.FC = () => {
                 {/* Mode Switcher */}
                 <div className="bg-slate-100 p-1 rounded-lg border border-slate-200 flex">
                     <button
+                        onClick={() => setActiveTab('product_center')}
+                        className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'product_center' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <Package size={14} /> Product Configuration Center
+                    </button>
+                    <div className="w-px bg-gray-200 mx-1 my-1"></div>
+                    <button
                         onClick={() => setActiveTab('data')}
                         className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'data' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
@@ -3780,6 +4358,11 @@ export const SuperTable: React.FC = () => {
 
             {/* Main Content Area */}
             <main className="flex-1 overflow-hidden relative flex flex-col">
+
+                {/* === PRODUCT CENTER MODE === */}
+                {
+                    activeTab === 'product_center' && renderProductCenter()
+                }
 
                 {/* === BUILDER MODE === */}
                 {
