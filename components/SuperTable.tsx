@@ -1849,6 +1849,309 @@ const LogicGuide = () => {
     );
 };
 
+// --- Unified Rule Builder Component ---
+const UnifiedRuleBuilder: React.FC<{
+    schema: any[];
+    records: any[];
+    onAdd: (rule: any) => void;
+}> = ({ schema, records, onAdd }) => {
+    const [activeRuleType, setActiveRuleType] = useState<'logic' | 'mapping'>('logic');
+
+    // Logic Rule State
+    const [conditions, setConditions] = useState<{ fieldId: string, operator: string, value: string }[]>([]);
+    const [logicMode, setLogicMode] = useState<'AND' | 'OR'>('AND');
+    const [targetField, setTargetField] = useState('');
+    const [targetValue, setTargetValue] = useState('');
+
+    // Mapping Rule State
+    const [mSourceField, setMSourceField] = useState('');
+    const [mSourceRowId, setMSourceRowId] = useState(''); // New: Specify a row ID
+    const [mTargetField, setMTargetField] = useState('');
+    const [mMappings, setMMappings] = useState<{ sourceValue: string, targetValue: string }[]>([]);
+
+    const getRecordLabel = (r: any) => {
+        // Try to find a human-readable name, otherwise use ID
+        const candidate = r.name || r.title || r.label || r.product_name;
+        if (candidate) return candidate;
+        const stringVals = Object.values(r).filter(v => typeof v === 'string' && v.length < 30);
+        return stringVals[0] || r._id;
+    }
+
+    // Filter valid fields
+    const selectableFields = schema.filter(f =>
+        !['divider', 'spacer', 'notice'].includes(f.type)
+    );
+
+    const handleAddCondition = () => {
+        setConditions([...conditions, { fieldId: '', operator: 'eq', value: '' }]);
+    };
+
+    const handleRemoveCondition = (idx: number) => {
+        setConditions(conditions.filter((_, i) => i !== idx));
+    };
+
+    const handleUpdateCondition = (idx: number, updates: any) => {
+        setConditions(conditions.map((c, i) => i === idx ? { ...c, ...updates } : c));
+    };
+
+    const handleAddMappingRow = () => {
+        setMMappings([...mMappings, { sourceValue: '', targetValue: '' }]);
+    };
+
+    const handleRemoveMappingRow = (idx: number) => {
+        setMMappings(mMappings.filter((_, i) => i !== idx));
+    };
+
+    const handleUpdateMappingRow = (idx: number, updates: any) => {
+        setMMappings(mMappings.map((m, i) => i === idx ? { ...m, ...updates } : m));
+    };
+
+    const handleAddRule = () => {
+        if (activeRuleType === 'logic') {
+            if (conditions.length > 0 && targetField) {
+                onAdd({
+                    id: `rule_${Date.now()}`,
+                    ruleType: 'logic',
+                    logic: logicMode,
+                    conditions,
+                    targetField,
+                    expression: targetValue
+                });
+                setConditions([]);
+                setTargetField('');
+                setTargetValue('');
+            }
+        } else {
+            if (mSourceField && mTargetField && mMappings.length > 0) {
+                onAdd({
+                    id: `rule_${Date.now()}`,
+                    ruleType: 'mapping',
+                    sourceField: mSourceField,
+                    sourceRowId: mSourceRowId || undefined,
+                    targetField: mTargetField,
+                    mappings: mMappings
+                });
+                setMSourceField('');
+                setMSourceRowId('');
+                setMTargetField('');
+                setMMappings([]);
+            }
+        }
+    };
+
+    const isLogicValid = conditions.length > 0 && conditions.every(c => c.fieldId && c.operator) && targetField;
+    const isMappingValid = mSourceField && mTargetField && mMappings.length > 0 && mMappings.every(m => m.sourceValue);
+
+    return (
+        <div className="space-y-4">
+            {/* Rule Type Tabs */}
+            <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                <button
+                    onClick={() => setActiveRuleType('logic')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 text-[10px] font-bold rounded-lg transition-all ${activeRuleType === 'logic' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    <Layers size={14} />
+                    <span>逻辑规则 (Logic)</span>
+                </button>
+                <button
+                    onClick={() => setActiveRuleType('mapping')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 text-[10px] font-bold rounded-lg transition-all ${activeRuleType === 'mapping' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    <ArrowRight size={14} />
+                    <span>级联映射 (Mapping)</span>
+                </button>
+            </div>
+
+            {activeRuleType === 'logic' ? (
+                <div className="animate-in fade-in slide-in-from-top-2">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            逻辑条件组 (Conditions Group)
+                        </span>
+                        <div className="flex gap-1 bg-slate-100 p-0.5 rounded-md">
+                            <button
+                                onClick={() => setLogicMode('AND')}
+                                className={`px-2 py-0.5 text-[9px] font-bold rounded ${logicMode === 'AND' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >AND</button>
+                            <button
+                                onClick={() => setLogicMode('OR')}
+                                className={`px-2 py-0.5 text-[9px] font-bold rounded ${logicMode === 'OR' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >OR</button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2 mb-4">
+                        {conditions.map((cond, idx) => (
+                            <div key={idx} className="flex gap-1.5 items-center p-1.5 bg-slate-50/50 rounded-xl border border-slate-100/50 group/row transition-all duration-300">
+                                <select
+                                    value={cond.fieldId}
+                                    onChange={(e) => handleUpdateCondition(idx, { fieldId: e.target.value })}
+                                    className="flex-[1.5] min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                >
+                                    <option value="">字段...</option>
+                                    {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                                </select>
+                                <select
+                                    value={cond.operator}
+                                    onChange={(e) => handleUpdateCondition(idx, { operator: e.target.value })}
+                                    className="flex-[0.8] min-w-0 bg-white border border-slate-200 rounded-lg px-1.5 py-1.5 text-[10px] outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                >
+                                    {getOperatorsForType(selectableFields.find(f => f.id === cond.fieldId)?.type || 'text').map(op => (
+                                        <option key={op.val} value={op.val}>{op.label}</option>
+                                    ))}
+                                </select>
+                                <input
+                                    value={cond.value}
+                                    onChange={(e) => handleUpdateCondition(idx, { value: e.target.value })}
+                                    placeholder="值..."
+                                    className="flex-[1] min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                />
+                                <button
+                                    onClick={() => handleRemoveCondition(idx)}
+                                    className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                >
+                                    <Trash2 size={13} />
+                                </button>
+                            </div>
+                        ))}
+                        <button
+                            onClick={handleAddCondition}
+                            className="w-full py-2 border-2 border-dashed border-slate-100 rounded-lg text-[10px] font-bold text-slate-400 hover:border-indigo-100 hover:text-indigo-400 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Plus size={12} />
+                            添加条件 (Add Condition)
+                        </button>
+                    </div>
+
+                    <div className="space-y-3 p-3 bg-indigo-50/30 rounded-xl border border-indigo-100/50">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">目标字段 (Target Field)</label>
+                            <select
+                                value={targetField}
+                                onChange={(e) => setTargetField(e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs outline-none focus:ring-1 focus:ring-indigo-300 font-extrabold"
+                            >
+                                <option value="">选择生效目标...</option>
+                                {selectableFields.map(f => (
+                                    <option key={f.id} value={f.id}>{f.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">设定值 (Value / Expr)</label>
+                            <input
+                                value={targetValue}
+                                onChange={(e) => setTargetValue(e.target.value)}
+                                placeholder="例如: VIP, 100, {f1} * 2"
+                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all"
+                            />
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="animate-in fade-in slide-in-from-bottom-2">
+                    <div className="space-y-4">
+                        <div className="p-3 bg-amber-50/30 rounded-xl border border-amber-100/50 mb-2">
+                            <label className="text-[10px] font-bold text-amber-600 uppercase block mb-1.5 flex items-center gap-1">
+                                <BoxSelect size={12} /> 监听行范围 (Source Row Focus)
+                            </label>
+                            <select
+                                value={mSourceRowId}
+                                onChange={(e) => setMSourceRowId(e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-[11px] outline-none focus:ring-1 focus:ring-amber-500 font-bold"
+                            >
+                                <option value="">当前行 (Current Row Context)</option>
+                                {records.map(r => (
+                                    <option key={r._id} value={String(r._id)}>指定行: {getRecordLabel(r)}</option>
+                                ))}
+                            </select>
+                            <p className="text-[9px] text-slate-400 mt-1.5 italic">
+                                {mSourceRowId ? "已开启‘指定行级联’：该行的变化将影响预览中的所有相关行。" : "‘同行级联’模式：每行根据自身的单元格变化触发映射。"}
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">监听字段 (Source)</label>
+                                <select
+                                    value={mSourceField}
+                                    onChange={(e) => setMSourceField(e.target.value)}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs outline-none focus:ring-1 focus:ring-indigo-300 font-bold"
+                                >
+                                    <option value="">选择监听字段...</option>
+                                    {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">影响字段 (Target)</label>
+                                <select
+                                    value={mTargetField}
+                                    onChange={(e) => setMTargetField(e.target.value)}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs outline-none focus:ring-1 focus:ring-indigo-300 font-bold"
+                                >
+                                    <option value="">选择目标字段...</option>
+                                    {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                    映射表 (Mapping Table)
+                                </span>
+                                <span className="text-[9px] text-slate-400">输入源值与对应目标值</span>
+                            </div>
+
+                            <div className="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                                {mMappings.map((m, idx) => (
+                                    <div key={idx} className="flex items-center gap-1.5 group/mapping">
+                                        <input
+                                            value={m.sourceValue}
+                                            onChange={(e) => handleUpdateMappingRow(idx, { sourceValue: e.target.value })}
+                                            placeholder="选项值 (Enum)"
+                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none focus:border-indigo-500"
+                                        />
+                                        <div className="text-slate-300"><ArrowRight size={12} /></div>
+                                        <input
+                                            value={m.targetValue}
+                                            onChange={(e) => handleUpdateMappingRow(idx, { targetValue: e.target.value })}
+                                            placeholder="目标结果"
+                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-medium outline-none focus:border-indigo-500"
+                                        />
+                                        <button
+                                            onClick={() => handleRemoveMappingRow(idx)}
+                                            className="p-1 text-slate-300 hover:text-red-500 transition-colors"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button
+                                onClick={handleAddMappingRow}
+                                className="w-full py-2 border border-dashed border-slate-200 rounded-lg text-[9px] font-bold text-slate-500 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Plus size={12} /> 增加映射行 (Add Row)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <button
+                onClick={handleAddRule}
+                disabled={activeRuleType === 'logic' ? !isLogicValid : !isMappingValid}
+                className={`w-full py-3 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95 ${activeRuleType === 'logic' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+            >
+                <Save size={14} />
+                <span>保存{activeRuleType === 'logic' ? '逻辑规则' : '级联逻辑'}</span>
+            </button>
+        </div>
+    );
+};
 // --- Main App Component ---
 export const SuperTable: React.FC = () => {
     const { addToast } = useToast();
@@ -1866,6 +2169,39 @@ export const SuperTable: React.FC = () => {
     };
 
     // State
+    const [sidebarWidth, setSidebarWidth] = useState(() => loadFromStorage('erp_sidebar_width', 400));
+    const isResizingSidebarRef = useRef(false);
+
+    const handleSidebarResizeStart = useCallback((e: React.MouseEvent) => {
+        isResizingSidebarRef.current = true;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+    }, []);
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isResizingSidebarRef.current) return;
+            const newWidth = Math.max(300, Math.min(800, e.clientX));
+            setSidebarWidth(newWidth);
+        };
+
+        const handleMouseUp = () => {
+            if (isResizingSidebarRef.current) {
+                isResizingSidebarRef.current = false;
+                document.body.style.cursor = 'default';
+                document.body.style.userSelect = 'auto';
+                window.localStorage.setItem('erp_sidebar_width', JSON.stringify(sidebarWidth));
+            }
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [sidebarWidth]);
+
     const [activeTab, setActiveTab] = useState<'builder' | 'data' | 'library' | 'guide' | 'product_center'>(() => loadFromStorage('erp_active_tab', 'data'));
     const [productSubTab, setProductSubTab] = useState<'config' | 'library' | 'settings'>(() => loadFromStorage('erp_product_sub_tab', 'config'));
     const [subView, setSubView] = useState<'table' | 'preview' | 'batch'>(() => loadFromStorage('erp_sub_view', 'table')); // Data sub-views
@@ -1925,11 +2261,12 @@ export const SuperTable: React.FC = () => {
 
     const [pendingFilter, setPendingFilter] = useState({ fieldId: '', operator: '', value: '', value2: '' });
 
-    const [savedViews, setSavedViews] = useState<{ name: string, filterGroups: any[], rootFilterMode: 'AND' | 'OR', datasetId?: string | null }[]>(() => loadFromStorage('erp_saved_views_v2', [
+    const [savedViews, setSavedViews] = useState<{ name: string, filterGroups: any[], rootFilterMode: 'AND' | 'OR', datasetId?: string | null, configRules?: any[] }[]>(() => loadFromStorage('erp_saved_views_v2', [
         {
             name: '示例视图 (Example)',
             filterGroups: [{ id: 'g1', logic: 'AND', conditions: [{ id: 'demo_1', fieldId: 'f3', operator: 'lt', value: '10' }] }],
-            rootFilterMode: 'AND'
+            rootFilterMode: 'AND',
+            configRules: []
         }
     ]));
 
@@ -1937,6 +2274,9 @@ export const SuperTable: React.FC = () => {
     const [savedDatasets, setSavedDatasets] = useState<{ id: string, name: string, groupId?: string, timestamp: number, schema: any[], records: any[], formId?: string }[]>(() => loadFromStorage('erp_saved_datasets', []));
     const [activeDatasetId, setActiveDatasetId] = useState<string | null>(() => loadFromStorage('erp_active_dataset_id', null));
     const [activeFormId, setActiveFormId] = useState<string | null>(() => loadFromStorage('erp_active_form_id', 'form_default'));
+
+    // Rule Presets State
+    const [savedRulePresets, setSavedRulePresets] = useState<{ id: string, name: string, rules: any[] }[]>(() => loadFromStorage('erp_rule_presets', []));
 
     // Product Center State
     const [products, setProducts] = useState<{
@@ -1948,6 +2288,18 @@ export const SuperTable: React.FC = () => {
         viewName: string;
         timestamp: number;
         baseInfo: any;
+        defaultOverrides?: any; // Saved overrides/cascading values
+        configRules: {
+            id: string;
+            ruleType: 'logic' | 'mapping';
+            logic?: 'AND' | 'OR';
+            conditions?: { fieldId: string, operator: string, value: string }[];
+            targetField: string;
+            expression?: string;
+            sourceField?: string;
+            sourceRowId?: string;
+            mappings?: { sourceValue: string, targetValue: string }[];
+        }[];
     }[]>(() => loadFromStorage('erp_products', []));
 
     const [productOrders, setProductOrders] = useState<{
@@ -1962,11 +2314,42 @@ export const SuperTable: React.FC = () => {
         viewName: '',
         name: '',
         description: '',
-        image: ''
+        image: '',
+        // Configuration Rules: Group Logic focused
+        configRules: [] as {
+            id: string;
+            ruleType: 'logic' | 'mapping';
+            logic?: 'AND' | 'OR';
+            conditions?: { fieldId: string, operator: string, value: string }[];
+            targetField: string;
+            expression?: string;
+            sourceField?: string;
+            sourceRowId?: string;
+            mappings?: { sourceValue: string, targetValue: string }[];
+        }[]
     });
+
+    // Preview Overrides for BOM Table (Real-time cascading updates)
+    const [previewOverrides, setPreviewOverrides] = useState<Record<string, Record<string, any>>>(() => loadFromStorage('erp_preview_overrides', {}));
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_preview_overrides', JSON.stringify(previewOverrides));
+    }, [previewOverrides]);
 
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
     const [orderQuantity, setOrderQuantity] = useState<number>(1);
+
+    // Load saved key configurations when product is selected
+    useEffect(() => {
+        if (selectedProductId) {
+            const product = products.find(p => p.id === selectedProductId);
+            if (product && product.defaultOverrides) {
+                setPreviewOverrides(product.defaultOverrides);
+            } else {
+                setPreviewOverrides({});
+            }
+        }
+    }, [selectedProductId]);
 
     // Dataset Groups State
     const [datasetGroups, setDatasetGroups] = useState<{ id: string, name: string }[]>(() => loadFromStorage('erp_dataset_groups', []));
@@ -1983,6 +2366,10 @@ export const SuperTable: React.FC = () => {
     useEffect(() => {
         if (typeof window !== 'undefined') window.localStorage.setItem('erp_product_orders', JSON.stringify(productOrders));
     }, [productOrders]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_rule_presets', JSON.stringify(savedRulePresets));
+    }, [savedRulePresets]);
 
     useEffect(() => {
         if (typeof window !== 'undefined') window.localStorage.setItem('erp_active_tab', activeTab);
@@ -2037,7 +2424,7 @@ export const SuperTable: React.FC = () => {
             // Get target item to inherit its group (if any) or validation
             const targetItem = listDisplaced[targetIndex];
 
-            // Should dragging onto an item adopt its group? 
+            // Should dragging onto an item adopt its group?
             // Yes, standard filesystems do this if mixed. But here we have visual groups.
             // If we drag onto an item, we likely want to be neighbors. So yes, adopt group.
             const updatedDraggedItem = { ...draggedItem, groupId: targetItem.groupId };
@@ -3150,13 +3537,14 @@ export const SuperTable: React.FC = () => {
             name: viewName,
             filterGroups: [...filterGroups],
             rootFilterMode,
-            datasetId: activeDatasetId // Associate with current dataset
+            datasetId: activeDatasetId, // Associate with current dataset
+            configRules: [...configState.configRules] // Capture current rules into the preset view
         }]);
         setViewName('');
         addToast(`View "${viewName}" saved to current table`, 'success');
     };
 
-    const handleLoadView = (view: { name: string, filterGroups: any[], rootFilterMode?: 'AND' | 'OR' }, isAdditive: boolean = false) => {
+    const handleLoadView = (view: { name: string, filterGroups: any[], rootFilterMode?: 'AND' | 'OR', configRules?: any[] }, isAdditive: boolean = false) => {
         if (!isAdditive) {
             // Standard replacement logic
             const newGroups = view.filterGroups.map(g => ({
@@ -3167,6 +3555,9 @@ export const SuperTable: React.FC = () => {
             setFilterGroups(newGroups);
             if (view.rootFilterMode) setRootFilterMode(view.rootFilterMode);
             if (newGroups.length > 0) setActiveGroupId(newGroups[0].id);
+            if (view.configRules) {
+                setConfigState(prev => ({ ...prev, configRules: view.configRules || [] }));
+            }
             addToast(`Applied view: ${view.name}`, 'info');
         } else {
             // Additive/Toggle logic
@@ -3594,37 +3985,102 @@ export const SuperTable: React.FC = () => {
     // --- Product Configuration Center Helpers ---
     const [productConfigHiddenFields, setProductConfigHiddenFields] = useState<string[]>([]);
     const handleSaveProduct = () => {
-        if (!configState.name || !configState.datasetId || !configState.viewName) {
-            addToast('请完成所有必填配置', 'warning');
-            return;
+        // Validation with specific feedback
+        if (!configState.datasetId) { addToast('Missing Dataset', 'warning'); return; }
+        // View Name is now optional
+        if (!configState.name) { addToast('Missing Product Name', 'warning'); return; }
+
+        try {
+            const newProduct = {
+                id: `prod_${Date.now()}`,
+                name: configState.name,
+                description: configState.description || '',
+                image: configState.image || '',
+                datasetId: configState.datasetId,
+                viewName: configState.viewName,
+                configRules: configState.configRules || [],
+                defaultOverrides: JSON.parse(JSON.stringify(previewOverrides || {})), // Deep copy to ensure no reference issues
+                timestamp: Date.now(),
+                baseInfo: {}
+            };
+
+            setProducts(prev => {
+                const updated = [...prev, newProduct];
+                // Force save to local storage immediately to mitigate async state issues
+                if (typeof window !== 'undefined') window.localStorage.setItem('erp_products', JSON.stringify(updated));
+                return updated;
+            });
+
+            addToast('Product saved successfully!', 'success');
+
+            // Clear state and navigate
+            setTimeout(() => {
+                setProductSubTab('library');
+                setConfigState({ datasetId: '', viewName: '', name: '', description: '', image: '', configRules: [] });
+            }, 100);
+
+        } catch (e: any) {
+            console.error(e);
+            alert(`Error saving product: ${e.message}`); // Fallback if toast fails
         }
-
-        const newProduct = {
-            id: `prod_${Date.now()}`,
-            name: configState.name,
-            description: configState.description,
-            image: configState.image,
-            datasetId: configState.datasetId,
-            viewName: configState.viewName,
-            timestamp: Date.now(),
-            baseInfo: {}
-        };
-
-        setProducts([...products, newProduct]);
-        addToast('产品已发布至库 (Product Published)', 'success');
-        setProductSubTab('library');
-        setConfigState({ datasetId: '', viewName: '', name: '', description: '', image: '' });
     };
 
-    const renderBOMTable = (datasetId: string, viewName: string, hiddenFields: string[] = []) => {
+    const renderBOMTable = (
+        datasetId: string,
+        viewName: string,
+        hiddenFields: string[] = [],
+        configRules: any[] = []
+    ) => {
         const dataset = savedDatasets.find(d => d.id === datasetId);
         if (!dataset) return <div className="p-8 text-center text-gray-400 italic">Dataset not found</div>;
 
-        let filtered = [...dataset.records];
+        // --- Apply Cascading Logic to Records ---
+        const rawRecords = [...dataset.records];
+        const processedRecords = rawRecords.map(r => ({
+            ...r,
+            ...(previewOverrides[r._id] || {})
+        }));
 
-        // Only apply filters if a viewName is provided
+        // Iterative application to handle cascading (up to 4 passes for cross-row dependencies)
+        for (let i = 0; i < 4; i++) {
+            let changed = false;
+            const snapshot = JSON.stringify(processedRecords);
+
+            configRules.forEach(rule => {
+                if (rule.ruleType === 'mapping') {
+                    if (rule.sourceRowId) {
+                        // Master Row Logic: Only the specified row drives itself
+                        // (User feedback: Don't update the entire column, only the specific row)
+                        const sourceRecord = processedRecords.find(r => String(r._id) === String(rule.sourceRowId));
+                        if (sourceRecord) {
+                            const sourceVal = sourceRecord[rule.sourceField];
+                            const match = rule.mappings?.find((m: any) => String(m.sourceValue) === String(sourceVal));
+
+                            if (match && String(sourceRecord[rule.targetField]) !== String(match.targetValue)) {
+                                sourceRecord[rule.targetField] = match.targetValue;
+                            }
+                        }
+                    } else {
+                        // Same Row Logic: Every row drives itself
+                        processedRecords.forEach(r => {
+                            const sourceVal = r[rule.sourceField];
+                            const match = rule.mappings?.find((m: any) => String(m.sourceValue) === String(sourceVal));
+                            if (match && String(r[rule.targetField]) !== String(match.targetValue)) {
+                                r[rule.targetField] = match.targetValue;
+                            }
+                        });
+                    }
+                }
+            });
+
+            if (JSON.stringify(processedRecords) === snapshot) break;
+        }
+
+        let filtered = processedRecords;
+
+        // Apply View Filters
         if (viewName) {
-            const view = savedViews.find(v => v.name === viewName && (v as any).datasetId === datasetId);
+            const view = savedViews.find(v => v.name === viewName && v.datasetId === datasetId);
             if (view) {
                 view.filterGroups.forEach(group => {
                     const groupMatch = (r: any) => {
@@ -3640,22 +4096,152 @@ export const SuperTable: React.FC = () => {
             .filter(f => !['divider', 'spacer', 'notice'].includes(f.type))
             .filter(f => !hiddenFields.includes(f.id));
 
+        // Determine which cells are affected by rules or are active monitors
+        const getCellStatus = (record: any, fieldId: string) => {
+            // Priority 1: Check if it's a source field (monitor)
+            const sourceRules = configRules.filter(r => {
+                if (r.ruleType !== 'mapping' || r.sourceField !== fieldId) return false;
+                if (r.sourceRowId) return String(record._id) === String(r.sourceRowId);
+                return true;
+            });
+
+            if (sourceRules.length > 0) {
+                const allEnumValues = Array.from(new Set(sourceRules.flatMap(r => r.mappings.map((m: any) => m.sourceValue))));
+                return {
+                    type: 'source',
+                    options: allEnumValues,
+                    isMaster: sourceRules.some(r => r.sourceRowId)
+                };
+            }
+
+            // Priority 2: Check if it's a target field
+            for (const rule of configRules) {
+                if (fieldId !== rule.targetField) continue;
+
+                if (rule.ruleType === 'logic') {
+                    const conditionResults = rule.conditions.map((c: any) => evaluateFilter(record, c as any));
+                    const match = rule.logic === 'AND' ? conditionResults.every((r: any) => r) : conditionResults.some((r: any) => r);
+                    if (match) return { type: 'target', subtype: 'logic', color: 'bg-indigo-50/50 text-indigo-700 font-bold border-indigo-200', value: rule.expression };
+                } else if (rule.ruleType === 'mapping') {
+                    // Check logic based on source row
+                    let sourceVal;
+                    if (rule.sourceRowId) {
+                        const sourceRecord = processedRecords.find(r => String(r._id) === String(rule.sourceRowId));
+                        sourceVal = sourceRecord ? sourceRecord[rule.sourceField] : undefined;
+                    } else {
+                        sourceVal = record[rule.sourceField];
+                    }
+
+                    const match = rule.mappings?.find((m: any) => String(m.sourceValue) === String(sourceVal));
+                    if (match) return {
+                        type: 'target',
+                        subtype: 'mapping',
+                        color: 'bg-emerald-50/50 text-emerald-700 font-bold border-emerald-200',
+                        value: match.targetValue,
+                        isFromMaster: !!rule.sourceRowId
+                    };
+                }
+            }
+            return { type: 'normal' };
+        };
+
+        const stats = {
+            affected: processedRecords.filter(r => configRules.some(rule => {
+                if (rule.ruleType !== 'mapping') return false;
+                let sVal;
+                if (rule.sourceRowId) {
+                    const sRec = processedRecords.find(sr => String(sr._id) === String(rule.sourceRowId));
+                    sVal = sRec ? sRec[rule.sourceField] : undefined;
+                } else {
+                    sVal = r[rule.sourceField];
+                }
+                return rule.mappings?.some((m: any) => String(m.sourceValue) === String(sVal));
+            })).length,
+            valid: processedRecords.length
+        };
+
         return (
             <div className="min-w-full inline-block align-middle">
+                {configRules.length > 0 && (
+                    <div className="bg-slate-50 border-b border-slate-200 px-6 py-2 flex items-center justify-between animate-in slide-in-from-top-2">
+                        <div className="flex items-center gap-4">
+                            <span className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                                <Layers size={10} />
+                                {configRules.length} 规则
+                            </span>
+                            <button
+                                onClick={() => setPreviewOverrides({})}
+                                className="text-[10px] font-bold text-slate-400 hover:text-indigo-600 flex items-center gap-1"
+                            >
+                                <RefreshCw size={10} /> 重置覆盖
+                            </button>
+                        </div>
+                        <div className="flex items-center gap-3 text-[10px]">
+                            <span className="text-slate-500">
+                                覆盖 {stats.affected} / {filtered.length} 行
+                            </span>
+                        </div>
+                    </div>
+                )}
                 <table className="min-w-full text-left text-sm whitespace-nowrap">
                     <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10 shadow-sm">
                         <tr>
-                            {displayFields.map(f => (
-                                <th key={f.id} className="px-4 py-3 font-extrabold text-slate-500 uppercase text-[10px] tracking-wider bg-slate-50">{f.label}</th>
-                            ))}
+                            {displayFields.map(f => {
+                                const isRuleRelated = configRules.some(r =>
+                                    r.targetField === f.id || r.sourceField === f.id || r.conditions?.some((c: any) => c.fieldId === f.id)
+                                );
+                                return (
+                                    <th key={f.id} className={`px-4 py-3 font-extrabold uppercase text-[10px] tracking-wider bg-slate-50 ${isRuleRelated ? 'text-indigo-600' : 'text-slate-500'}`}>
+                                        {f.label}
+                                        {isRuleRelated && <span className="ml-1 inline-block w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>}
+                                    </th>
+                                );
+                            })}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                         {filtered.map((r, i) => (
                             <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                {displayFields.map(f => (
-                                    <td key={f.id} className="px-4 py-3 text-slate-600 max-w-[300px] truncate" title={String(r[f.id] || '')}>{safeRenderValue(r[f.id])}</td>
-                                ))}
+                                {displayFields.map(f => {
+                                    const status = getCellStatus(r, f.id);
+                                    return (
+                                        <td
+                                            key={f.id}
+                                            className={`px-4 py-2 max-w-[300px] truncate transition-all duration-300 ${status.type === 'target' ? (status.color || 'bg-blue-50/30 text-blue-700') : 'text-slate-600'}`}
+                                        >
+                                            {status.type === 'source' ? (
+                                                <div className="relative group/select">
+                                                    <select
+                                                        value={String(r[f.id] || '')}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setPreviewOverrides(prev => ({
+                                                                ...prev,
+                                                                [r._id]: { ...(prev[r._id] || {}), [f.id]: val }
+                                                            }));
+                                                        }}
+                                                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-bold text-indigo-600 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none cursor-pointer shadow-sm hover:border-indigo-300 transition-all"
+                                                    >
+                                                        <option value="">(选择选项...)</option>
+                                                        {status.options?.map((opt: string) => (
+                                                            <option key={opt} value={opt}>{opt}</option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none group-hover/select:text-indigo-400">
+                                                        <ChevronDown size={10} />
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2">
+                                                    {status.type === 'target' && <ArrowRight size={10} className="text-current opacity-50 shrink-0" />}
+                                                    <span className="truncate" title={String(r[f.id] || '')}>
+                                                        {safeRenderValue(r[f.id]) || <span className="text-gray-300 italic">-</span>}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </td>
+                                    );
+                                })}
                             </tr>
                         ))}
                     </tbody>
@@ -3672,12 +4258,16 @@ export const SuperTable: React.FC = () => {
         return (
             <div className="flex h-full animate-in fade-in duration-500">
                 {/* Left: Configuration Panel */}
-                <div className="w-[400px] flex-shrink-0 bg-white border-r border-slate-100 flex flex-col h-full overflow-y-auto custom-scrollbar z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
+                <div
+                    style={{ width: sidebarWidth }}
+                    className="flex-shrink-0 bg-white border-r border-slate-100 flex flex-col h-full overflow-y-auto custom-scrollbar z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)] transition-none"
+                >
                     <div className="p-8 space-y-8">
                         <div>
                             <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">定义产品</h3>
                             <p className="text-sm text-slate-400 font-medium mt-1">Define Product Parameters</p>
                         </div>
+
 
                         {/* Step 1: Data Source */}
                         <div className="space-y-4">
@@ -3715,13 +4305,165 @@ export const SuperTable: React.FC = () => {
                             </div>
                         </div>
 
+                        {/* Unified Configuration Rules */}
+                        {configState.datasetId && (
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-indigo-600">
+                                        <Layers size={16} />
+                                        <span className="text-xs font-bold uppercase tracking-widest">2. 配置规则 (Configuration Rules)</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="relative group/preset">
+                                            <button className="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-indigo-600 transition-colors">
+                                                <Bookmark size={12} />
+                                                <span>Presets</span>
+                                            </button>
+
+                                            {/* Preset Menu */}
+                                            <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-2 opacity-0 invisible group-hover/preset:opacity-100 group-hover/preset:visible transition-all z-50">
+                                                <div className="text-[10px] uppercase font-bold text-gray-400 px-2 py-1 border-b border-gray-50 mb-1">Load Preset</div>
+                                                {savedRulePresets.length === 0 ? (
+                                                    <div className="text-[10px] text-gray-300 px-2 py-1 italic">No presets saved</div>
+                                                ) : (
+                                                    <div className="max-h-32 overflow-y-auto custom-scrollbar space-y-0.5">
+                                                        {savedRulePresets.map(preset => (
+                                                            <div key={preset.id} className="flex items-center justify-between group/item px-2 py-1.5 hover:bg-indigo-50 rounded cursor-pointer">
+                                                                <span
+                                                                    className="text-xs text-slate-600 font-medium truncate flex-1"
+                                                                    onClick={() => {
+                                                                        setConfigState(prev => ({ ...prev, configRules: [...prev.configRules, ...preset.rules] }));
+                                                                        addToast(`Loaded preset: ${preset.name}`, 'success');
+                                                                    }}
+                                                                >
+                                                                    {preset.name}
+                                                                </span>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id));
+                                                                    }}
+                                                                    className="text-gray-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-opacity"
+                                                                >
+                                                                    <X size={10} />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                <div className="border-t border-gray-50 mt-1 pt-1">
+                                                    <button
+                                                        disabled={configState.configRules.length === 0}
+                                                        onClick={() => {
+                                                            const name = window.prompt("Enter name for this rule preset:");
+                                                            if (name) {
+                                                                setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name, rules: configState.configRules }]);
+                                                                addToast('Rule preset saved', 'success');
+                                                            }
+                                                        }}
+                                                        className="w-full text-left px-2 py-1.5 text-xs text-indigo-600 font-bold hover:bg-indigo-50 rounded flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        <Plus size={10} /> Save Current Rules
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Existing Rules List */}
+                                {configState.configRules.length > 0 && (
+                                    <div className="space-y-2">
+                                        {configState.configRules.map((rule) => (
+                                            <div key={rule.id} className={`border rounded-xl p-3 relative group transition-all hover:border-indigo-200 ${rule.ruleType === 'mapping' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-indigo-50/50 border-indigo-100'}`}>
+                                                <button
+                                                    onClick={() => setConfigState({
+                                                        ...configState,
+                                                        configRules: configState.configRules.filter(r => r.id !== rule.id)
+                                                    })}
+                                                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shadow-sm hover:bg-red-600 z-10"
+                                                >×</button>
+
+                                                {rule.ruleType === 'mapping' ? (
+                                                    <div className="flex flex-col gap-2">
+                                                        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                                                            <span className="bg-emerald-600 text-white px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Mapping</span>
+                                                            {rule.sourceRowId && (
+                                                                <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold border border-amber-200 flex items-center gap-1">
+                                                                    <BoxSelect size={10} /> Row
+                                                                </span>
+                                                            )}
+                                                            <span className="text-slate-400 font-medium">When:</span>
+                                                            <span className="bg-white border border-emerald-100 px-1.5 py-0.5 rounded text-emerald-700 font-bold">
+                                                                {rule.sourceField}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 text-[10px] border-t border-emerald-100 pt-2 mt-1">
+                                                            <ArrowRight size={10} className="text-emerald-400" />
+                                                            <span className="text-slate-500 font-medium">Update</span>
+                                                            <b className="text-slate-700 font-black px-1.5 py-0.5 bg-white rounded border border-emerald-100 shadow-sm">{rule.targetField}</b>
+                                                            <span className="text-slate-300">with</span>
+                                                            <span className="text-emerald-600 font-bold">{rule.mappings?.length || 0} mappings</span>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col gap-2">
+                                                        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                                                            <span className="bg-indigo-600 text-white px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Logic</span>
+                                                            <span className="text-slate-400 font-medium">When:</span>
+                                                            {rule.conditions?.map((c, i) => (
+                                                                <React.Fragment key={i}>
+                                                                    <span className="bg-white border border-indigo-100 px-1.5 py-0.5 rounded text-indigo-700 font-bold">
+                                                                        {c.fieldId} {c.operator} {c.value}
+                                                                    </span>
+                                                                    {i < (rule.conditions?.length || 0) - 1 && (
+                                                                        <span className="text-indigo-400 font-black px-1">{rule.logic}</span>
+                                                                    )}
+                                                                </React.Fragment>
+                                                            ))}
+                                                        </div>
+                                                        <div className="flex items-center gap-2 text-[10px] border-t border-indigo-100 pt-2 mt-1">
+                                                            <ArrowRight size={10} className="text-indigo-400" />
+                                                            <span className="text-slate-500 font-medium">Set</span>
+                                                            <b className="text-slate-700 font-black px-1.5 py-0.5 bg-white rounded border border-indigo-100 shadow-sm">{rule.targetField}</b>
+                                                            <span className="text-slate-300">=</span>
+                                                            <b className="text-indigo-600 font-black">{rule.expression || '-'}</b>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Unified Rule Builder */}
+                                <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-3 flex items-center gap-2">
+                                        <Plus size={12} />
+                                        添加新规则
+                                    </div>
+                                    <UnifiedRuleBuilder
+                                        schema={selectedDataset?.schema || []}
+                                        records={selectedDataset?.records || []}
+                                        onAdd={(rule) => {
+                                            setConfigState({
+                                                ...configState,
+                                                configRules: [...configState.configRules, { ...rule, id: `rule_${Date.now()}` }]
+                                            });
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
                         <div className="w-full h-px bg-slate-100 my-2"></div>
 
-                        {/* Step 2: Basic Info */}
+                        {/* Step 4: Basic Info */}
                         <div className="space-y-4">
                             <div className="flex items-center gap-2 text-indigo-600 mb-2">
                                 <Box size={16} />
-                                <span className="text-xs font-bold uppercase tracking-widest">2. Product Identity</span>
+                                <span className="text-xs font-bold uppercase tracking-widest">3. Product Identity</span>
                             </div>
                             <div className="space-y-3">
                                 <input
@@ -3749,14 +4491,21 @@ export const SuperTable: React.FC = () => {
                         <div className="pt-4">
                             <button
                                 onClick={handleSaveProduct}
-                                disabled={!configState.datasetId || !configState.viewName || !configState.name}
-                                className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-bold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                                className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-bold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 active:scale-95"
                             >
                                 <Save size={18} />
-                                <span>Publish Configuration</span>
+                                <span>Save to Product Library</span>
                             </button>
                         </div>
                     </div>
+                </div>
+
+                {/* Resize Handle */}
+                <div
+                    onMouseDown={handleSidebarResizeStart}
+                    className="w-1.5 hover:w-2 bg-transparent hover:bg-indigo-400/30 cursor-col-resize flex-shrink-0 transition-all z-20 group relative -ml-0.5"
+                >
+                    <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-slate-100 group-hover:bg-indigo-300"></div>
                 </div>
 
                 {/* Right: Live Preview */}
@@ -3819,7 +4568,7 @@ export const SuperTable: React.FC = () => {
                     <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative min-h-0">
                         {configState.datasetId ? (
                             <div className="absolute inset-0 overflow-auto custom-scrollbar">
-                                {renderBOMTable(configState.datasetId, configState.viewName, productConfigHiddenFields)}
+                                {renderBOMTable(configState.datasetId, configState.viewName, productConfigHiddenFields, configState.configRules)}
                             </div>
                         ) : (
                             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300">
@@ -3993,6 +4742,73 @@ export const SuperTable: React.FC = () => {
                                     </div>
                                 </div>
 
+                                {/* Unified Configuration Rules Display */}
+                                {(product as any).configRules?.length > 0 && (
+                                    <div className="mb-8 max-w-lg">
+                                        <div className="flex items-center gap-2 text-indigo-600 mb-3">
+                                            <Layers size={14} />
+                                            <span className="text-xs font-bold uppercase tracking-widest">Configuration Rules</span>
+                                            <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">{(product as any).configRules.length}</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {(product as any).configRules.map((rule: any, i: number) => (
+                                                <div key={i} className={`border rounded-xl p-3 ${rule.ruleType === 'mapping' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-indigo-50/50 border-indigo-100'}`}>
+                                                    {rule.ruleType === 'mapping' ? (
+                                                        <div className="space-y-2">
+                                                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                                                                <span className="bg-emerald-500 text-white px-1.5 py-0.5 rounded text-[10px] font-bold uppercase transition-all">Cascading</span>
+                                                                {rule.sourceRowId && (
+                                                                    <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200 flex items-center gap-1">
+                                                                        <BoxSelect size={10} /> Specified Row
+                                                                    </span>
+                                                                )}
+                                                                <span className="text-slate-600 font-medium">When</span>
+                                                                <b className="text-indigo-600 font-extrabold">{rule.sourceField}</b>
+                                                                <span className="text-slate-400">changes</span>
+                                                            </div>
+                                                            <div className="pl-4 border-l-2 border-emerald-200 space-y-1">
+                                                                <div className="text-[10px] text-slate-400 font-bold uppercase mb-1 flex items-center gap-1">
+                                                                    <ArrowRight size={10} /> Update {rule.targetField}
+                                                                </div>
+                                                                <div className="flex flex-wrap gap-1.5">
+                                                                    {rule.mappings?.map((m: any, idx: number) => (
+                                                                        <div key={idx} className="flex items-center bg-white border border-emerald-100 rounded-md px-2 py-0.5 text-[10px] shadow-sm">
+                                                                            <span className="font-bold text-emerald-700">{m.sourceValue}</span>
+                                                                            <ArrowRight size={8} className="mx-1 text-slate-300" />
+                                                                            <span className="text-slate-600">{m.targetValue}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <div className="flex items-center gap-2 text-xs">
+                                                                <span className="bg-indigo-500 text-white px-1.5 py-0.5 rounded text-[10px] font-bold uppercase transition-all">Logic</span>
+                                                                <span className="text-slate-600 font-medium">If</span>
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {rule.conditions?.map((c: any, ci: number) => (
+                                                                        <span key={ci} className="bg-white border border-indigo-100 px-1.5 py-0.5 rounded text-indigo-700 font-bold">
+                                                                            {c.fieldId} {c.operator} {c.value}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 text-xs pt-1.5 border-t border-indigo-50/50 mt-1">
+                                                                <ArrowRight size={12} className="text-indigo-400" />
+                                                                <span className="text-slate-500">Set</span>
+                                                                <b className="text-slate-800">{rule.targetField}</b>
+                                                                <span className="text-slate-400">=</span>
+                                                                <span className="text-indigo-600 font-black">{rule.expression}</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="p-1 bg-slate-50 rounded-[20px] max-w-lg shadow-inner">
                                     <div className="bg-white rounded-2xl border border-slate-100 p-6 flex items-center gap-6 shadow-sm">
                                         <div className="flex-1">
@@ -4033,7 +4849,7 @@ export const SuperTable: React.FC = () => {
                             </div>
                             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[300px]">
                                 <div className="overflow-x-auto">
-                                    {renderBOMTable(product.datasetId, product.viewName)}
+                                    {renderBOMTable(product.datasetId, product.viewName, [], (product as any).configRules || [])}
                                 </div>
                             </div>
                         </div>
@@ -4845,10 +5661,7 @@ export const SuperTable: React.FC = () => {
                                                     if (draggedId) handleReorderDataset(draggedId, ds.id);
                                                 }}
                                                 onDoubleClick={() => handleLoadDataset(ds)}
-                                                className={`p-3 rounded-lg cursor-pointer transition-all border group relative ${ds.id === activeDatasetId
-                                                    ? 'bg-indigo-50/80 border-transparent shadow-sm'
-                                                    : 'bg-transparent border-transparent hover:bg-white hover:shadow-sm hover:border-slate-100'
-                                                    }`}
+                                                className={`p-3 rounded-lg cursor-pointer transition-all border group relative ${ds.id === activeDatasetId ? 'bg-indigo-50/80 border-transparent shadow-sm' : 'bg-transparent border-transparent hover:bg-white hover:shadow-sm hover:border-slate-100'}`}
                                             >
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <TableIcon size={14} className={`${ds.id === activeDatasetId ? 'text-indigo-600' : 'text-indigo-400'} shrink-0`} />
@@ -5347,11 +6160,11 @@ export const SuperTable: React.FC = () => {
                                                         .filter(view => {
                                                             // Match by datasetId specifically
                                                             if (activeDatasetId) {
-                                                                return (view as any).datasetId === activeDatasetId;
+                                                                return view.datasetId === activeDatasetId;
                                                             }
                                                             // For templates without activeDatasetId, use schema matching fallback
                                                             const schemaFieldIds = new Set(schema.map(f => f.id));
-                                                            return !(view as any).datasetId && view.filterGroups.every(group =>
+                                                            return !view.datasetId && view.filterGroups.every(group =>
                                                                 group.conditions.every((cond: { fieldId: string }) => schemaFieldIds.has(cond.fieldId))
                                                             );
                                                         })
