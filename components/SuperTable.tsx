@@ -3592,6 +3592,7 @@ export const SuperTable: React.FC = () => {
     };
 
     // --- Product Configuration Center Helpers ---
+    const [productConfigHiddenFields, setProductConfigHiddenFields] = useState<string[]>([]);
     const handleSaveProduct = () => {
         if (!configState.name || !configState.datasetId || !configState.viewName) {
             addToast('请完成所有必填配置', 'warning');
@@ -3615,44 +3616,51 @@ export const SuperTable: React.FC = () => {
         setConfigState({ datasetId: '', viewName: '', name: '', description: '', image: '' });
     };
 
-    const renderBOMTable = (datasetId: string, viewName: string) => {
+    const renderBOMTable = (datasetId: string, viewName: string, hiddenFields: string[] = []) => {
         const dataset = savedDatasets.find(d => d.id === datasetId);
         if (!dataset) return <div className="p-8 text-center text-gray-400 italic">Dataset not found</div>;
 
-        const view = savedViews.find(v => v.name === viewName && (v as any).datasetId === datasetId);
-        if (!view) return <div className="p-8 text-center text-gray-400 italic">View preset not found</div>;
-
         let filtered = [...dataset.records];
-        view.filterGroups.forEach(group => {
-            const groupMatch = (r: any) => {
-                const results = group.conditions.map((f: any) => evaluateFilter(r, f));
-                return group.logic === 'AND' ? results.every(res => res) : results.some(res => res);
-            };
-            filtered = filtered.filter(groupMatch);
-        });
 
-        const displayFields = dataset.schema.filter(f => !['divider', 'spacer', 'notice'].includes(f.type));
+        // Only apply filters if a viewName is provided
+        if (viewName) {
+            const view = savedViews.find(v => v.name === viewName && (v as any).datasetId === datasetId);
+            if (view) {
+                view.filterGroups.forEach(group => {
+                    const groupMatch = (r: any) => {
+                        const results = group.conditions.map((f: any) => evaluateFilter(r, f));
+                        return group.logic === 'AND' ? results.every(res => res) : results.some(res => res);
+                    };
+                    filtered = filtered.filter(groupMatch);
+                });
+            }
+        }
+
+        const displayFields = dataset.schema
+            .filter(f => !['divider', 'spacer', 'notice'].includes(f.type))
+            .filter(f => !hiddenFields.includes(f.id));
 
         return (
-            <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-100">
+            <div className="min-w-full inline-block align-middle">
+                <table className="min-w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10 shadow-sm">
                         <tr>
-                            {displayFields.slice(0, 8).map(f => (
-                                <th key={f.id} className="px-4 py-3 font-extrabold text-slate-500 uppercase text-[10px] tracking-wider whitespace-nowrap">{f.label}</th>
+                            {displayFields.map(f => (
+                                <th key={f.id} className="px-4 py-3 font-extrabold text-slate-500 uppercase text-[10px] tracking-wider bg-slate-50">{f.label}</th>
                             ))}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                         {filtered.map((r, i) => (
                             <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                {displayFields.slice(0, 8).map(f => (
-                                    <td key={f.id} className="px-4 py-3 text-slate-600 truncate max-w-[200px]">{safeRenderValue(r[f.id])}</td>
+                                {displayFields.map(f => (
+                                    <td key={f.id} className="px-4 py-3 text-slate-600 max-w-[300px] truncate" title={String(r[f.id] || '')}>{safeRenderValue(r[f.id])}</td>
                                 ))}
                             </tr>
                         ))}
                     </tbody>
                 </table>
+                {filtered.length === 0 && <div className="p-8 text-center text-slate-400 italic text-xs">No records match the current view.</div>}
             </div>
         );
     };
@@ -3752,36 +3760,77 @@ export const SuperTable: React.FC = () => {
                 </div>
 
                 {/* Right: Live Preview */}
-                <div className="flex-1 bg-slate-50/50 p-8 overflow-y-auto custom-scrollbar flex flex-col">
-                    <div className="flex items-center justify-between mb-6">
+                <div className="flex-1 bg-slate-50/50 p-8 overflow-hidden flex flex-col">
+                    <div className="flex items-center justify-between mb-6 shrink-0">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400">
                                 <Eye size={16} />
                             </div>
                             <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Live BOM Preview</h3>
                         </div>
-                        {configState.datasetId && configState.viewName && (
-                            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
-                                Active View: {configState.viewName}
-                            </span>
-                        )}
+                        <div className="flex items-center gap-3">
+                            {/* Column Toggle Menu */}
+                            {configState.datasetId && (
+                                <div className="relative group/cols z-30">
+                                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm">
+                                        <Columns size={14} />
+                                        <span>Columns</span>
+                                    </button>
+                                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 p-2 opacity-0 invisible group-hover/cols:opacity-100 group-hover/cols:visible transition-all transform origin-top-right">
+                                        <div className="mb-2 px-2 py-1 border-b border-gray-50 flex justify-between items-center">
+                                            <span className="text-[10px] font-bold uppercase text-gray-400">Toggle Fields</span>
+                                            <button
+                                                onClick={() => setProductConfigHiddenFields([])}
+                                                className="text-[10px] font-bold text-indigo-500 hover:text-indigo-600"
+                                            >
+                                                Reset
+                                            </button>
+                                        </div>
+                                        <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-0.5">
+                                            {selectedDataset && selectedDataset.schema
+                                                .filter(f => !['divider', 'spacer', 'notice'].includes(f.type))
+                                                .map(f => (
+                                                    <label key={f.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="rounded text-indigo-500 focus:ring-indigo-500/20 border-gray-300 w-3.5 h-3.5"
+                                                            checked={!productConfigHiddenFields.includes(f.id)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) setProductConfigHiddenFields(prev => prev.filter(id => id !== f.id));
+                                                                else setProductConfigHiddenFields(prev => [...prev, f.id]);
+                                                            }}
+                                                        />
+                                                        <span className={`text-xs font-medium truncate ${productConfigHiddenFields.includes(f.id) ? 'text-gray-400 line-through' : 'text-gray-700'}`}>{f.label}</span>
+                                                    </label>
+                                                ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {configState.datasetId && (
+                                <span className={`text-xs font-bold px-3 py-1 rounded-full border ${configState.viewName ? 'text-indigo-600 bg-indigo-50 border-indigo-100' : 'text-slate-500 bg-slate-100 border-slate-200'}`}>
+                                    {configState.viewName ? `Active View: ${configState.viewName}` : 'Full Dataset (Raw)'}
+                                </span>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative min-h-[400px]">
-                        {configState.datasetId && configState.viewName ? (
+                    <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative min-h-0">
+                        {configState.datasetId ? (
                             <div className="absolute inset-0 overflow-auto custom-scrollbar">
-                                {renderBOMTable(configState.datasetId, configState.viewName)}
+                                {renderBOMTable(configState.datasetId, configState.viewName, productConfigHiddenFields)}
                             </div>
                         ) : (
                             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300">
                                 <div className="w-20 h-20 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center mb-4">
                                     <TableIcon size={32} />
                                 </div>
-                                <p className="font-medium text-sm">Select a Data Source & View to preview BOM</p>
+                                <p className="font-medium text-sm">Select a Data Source to preview BOM</p>
                             </div>
                         )}
                     </div>
-                    <p className="mt-4 text-center text-[10px] text-slate-400 font-medium">BOM Engine v2.4 • Real-time Data Binding</p>
+                    <p className="mt-4 text-center text-[10px] text-slate-400 font-medium shrink-0">BOM Engine v2.4 • Real-time Data Binding</p>
                 </div>
             </div>
         );
@@ -4064,51 +4113,52 @@ export const SuperTable: React.FC = () => {
 
     const renderProductCenter = () => {
         return (
-            <div className="flex flex-1 overflow-hidden animate-in fade-in duration-300">
-                {/* Left Sidebar Sub-Nav */}
-                <div className="w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 z-20">
-                    <div className="p-6">
-                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 px-2">Product Center</h3>
-                        <div className="space-y-1">
+            <div className="flex flex-col flex-1 overflow-hidden animate-in fade-in duration-300">
+                {/* Top Navigation Bar */}
+                <div className="bg-white border-b border-gray-100 flex items-center justify-between px-6 py-3 shrink-0 z-20">
+                    <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-2 pr-6 border-r border-gray-100">
+                            <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600">
+                                <BoxSelect size={18} />
+                            </div>
+                            <span className="text-sm font-black text-slate-800 uppercase tracking-wide">Product Center</span>
+                        </div>
+                        <div className="flex items-center gap-2">
                             <button
                                 onClick={() => { setProductSubTab('config'); setSelectedProductId(null); }}
-                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${productSubTab === 'config' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all border ${productSubTab === 'config' ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-white border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
                             >
-                                <Box size={16} className={productSubTab === 'config' ? 'text-indigo-600' : 'text-slate-400'} />
+                                <Box size={14} className={productSubTab === 'config' ? 'text-indigo-600' : 'text-slate-400'} />
                                 <span>Define Product</span>
                             </button>
                             <button
                                 onClick={() => { setProductSubTab('library'); setSelectedProductId(null); }}
-                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${productSubTab === 'library' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all border ${productSubTab === 'library' ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-white border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
                             >
-                                <List size={16} className={productSubTab === 'library' ? 'text-indigo-600' : 'text-slate-400'} />
+                                <List size={14} className={productSubTab === 'library' ? 'text-indigo-600' : 'text-slate-400'} />
                                 <span>Product Library</span>
                             </button>
                             <button
                                 onClick={() => { setProductSubTab('settings'); setSelectedProductId(null); }}
-                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${productSubTab === 'settings' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all border ${productSubTab === 'settings' ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-white border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
                             >
-                                <Settings size={16} className={productSubTab === 'settings' ? 'text-indigo-600' : 'text-slate-400'} />
+                                <Settings size={14} className={productSubTab === 'settings' ? 'text-indigo-600' : 'text-slate-400'} />
                                 <span>Settings</span>
                             </button>
                         </div>
                     </div>
 
-                    {/* Sidebar Footer Info */}
-                    <div className="mt-auto p-6 border-t border-slate-50">
-                        <div className="flex items-center gap-2 mb-1">
-                            <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">System Online</span>
-                        </div>
-                        <p className="text-[10px] text-slate-300">BOM Engine Active</p>
+                    <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Engine Active</span>
                     </div>
                 </div>
 
                 {/* Sub-Module Content */}
-                <div className="flex-1 bg-slate-50 overflow-auto relative custom-scrollbar">
+                <div className="flex-1 bg-slate-50 overflow-hidden relative">
                     {productSubTab === 'config' && renderProductConfig()}
                     {productSubTab === 'library' && renderProductLibrary()}
-                    {productSubTab === 'settings' && renderProductSettings()}
+                    {productSubTab === 'settings' && <div className="h-full overflow-auto custom-scrollbar">{renderProductSettings()}</div>}
                 </div>
             </div>
         );
@@ -5359,8 +5409,8 @@ export const SuperTable: React.FC = () => {
 
                                     {/* TABLE VIEW */}
                                     {subView === 'table' && (
-                                        <div className="h-full overflow-auto custom-scrollbar p-6">
-                                            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto min-h-[400px]">
+                                        <div className="h-full flex flex-col overflow-hidden p-6">
+                                            <div className="flex-1 bg-white border border-gray-200 rounded-xl shadow-sm overflow-auto min-h-0">
                                                 <table className="w-full text-left border-collapse">
                                                     <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10 shadow-sm">
                                                         <tr>
