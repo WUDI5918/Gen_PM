@@ -11,7 +11,7 @@ import {
     ToggleLeft, FileText, PenTool, Star, CreditCard, Clock, Link,
     ListOrdered, Folder, Sidebar, FormInput, BookOpen, Lightbulb, FunctionSquare, Calculator, Regex, Sparkles,
     ArrowDownUp, ArrowDownAZ, ArrowUpAZ, ArrowUp,
-    Package, Box, Settings, ChevronLeft, ShoppingCart, MousePointerClick, Tag
+    Package, Box, Settings, ChevronLeft, ShoppingCart, MousePointerClick, Tag, Bot
 } from 'lucide-react';
 import { read, utils } from 'xlsx';
 import { generateFormSchemaFromData, generateFormFromDescription, generateFormLogic } from '../services/geminiService';
@@ -4348,7 +4348,7 @@ export const SuperTable: React.FC = () => {
                 {/* Left: Configuration Panel */}
                 <div
                     style={{ width: sidebarWidth }}
-                    className="flex-shrink-0 bg-white border-r border-slate-100 flex flex-col h-full overflow-y-auto custom-scrollbar z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)] transition-none"
+                    className="flex-shrink-0 bg-white border-r border-slate-200 flex flex-col h-full overflow-y-auto custom-scrollbar z-10 transition-none"
                 >
                     <div className="p-4 space-y-3 flex flex-col h-full overflow-hidden">
                         {/* Header: Fixed */}
@@ -4382,45 +4382,47 @@ export const SuperTable: React.FC = () => {
 
                         <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4">
                             {/* Section 1: Data Source (Collapsible) */}
-                            <div className="group border border-slate-100 rounded-2xl overflow-hidden shadow-sm bg-white transition-all hover:border-indigo-200">
+                            <div className="border-b border-slate-100 last:border-0">
                                 <button
                                     onClick={() => toggleSection('datasource')}
-                                    className="w-full flex items-center justify-between p-4 bg-slate-50/50 hover:bg-white transition-colors text-left"
+                                    className="w-full flex items-center justify-between py-4 hover:opacity-70 transition-opacity text-left group"
                                 >
-                                    <div className="flex items-center gap-2.5 text-slate-700">
-                                        <div className={`p-1.5 rounded-lg ${expandedSections['datasource'] ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                            <Database size={14} />
+                                    <div className="flex items-center gap-2.5 text-slate-800">
+                                        <div className={`text-slate-400 group-hover:text-indigo-600 transition-colors`}>
+                                            <Database size={16} />
                                         </div>
-                                        <span className="text-xs font-bold uppercase tracking-widest text-slate-600">1. Data Source</span>
+                                        <span className="text-sm font-bold tracking-tight">1. Data Source</span>
                                     </div>
                                     {expandedSections['datasource'] ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
                                 </button>
 
                                 {expandedSections['datasource'] && (
-                                    <div className="p-4 pt-0 space-y-3 animate-in slide-in-from-top-2 duration-200">
-                                        <div className="grid grid-cols-1 gap-3">
+                                    <div className="pb-6 pt-0 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                                        <div className="space-y-4">
                                             {/* Select Table */}
-                                            <div className="relative group/select">
-                                                <div className="absolute left-3 top-2 text-[10px] font-black text-slate-500 uppercase tracking-tighter z-10">Database</div>
-                                                <select
-                                                    value={configState.datasetId}
-                                                    onChange={(e) => setConfigState({ ...configState, datasetId: e.target.value, viewNames: [] })}
-                                                    className="w-full bg-slate-50 hover:bg-slate-100 border-none rounded-xl px-3 pt-6 pb-2 text-sm font-bold text-slate-700 appearance-none cursor-pointer focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent hover:border-slate-200"
-                                                >
-                                                    <option value="">Choose Dataset...</option>
-                                                    {savedDatasets.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                                                </select>
-                                                <ChevronDown size={14} className="absolute right-3 bottom-3 text-slate-400 pointer-events-none" />
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Database</label>
+                                                <div className="relative">
+                                                    <select
+                                                        value={configState.datasetId}
+                                                        onChange={(e) => setConfigState({ ...configState, datasetId: e.target.value, viewNames: [] })}
+                                                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 appearance-none cursor-pointer focus:ring-2 focus:ring-indigo-100 outline-none transition-all hover:border-slate-300"
+                                                    >
+                                                        <option value="">Choose Dataset...</option>
+                                                        {savedDatasets.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                                    </select>
+                                                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                                </div>
                                             </div>
 
                                             {/* Select View (Multi-select UI) */}
-                                            <div className="space-y-2">
-                                                <div className="text-[10px] font-black text-slate-500 uppercase tracking-tighter px-1">Filter Presets (Multi-select)</div>
-                                                <div className="flex flex-wrap gap-1.5 min-h-[44px] p-2 bg-slate-50 rounded-xl border border-transparent hover:border-slate-200 transition-all">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filter Presets</label>
+                                                <div className="flex flex-wrap gap-2 min-h-[40px]">
                                                     {!configState.datasetId ? (
-                                                        <span className="text-[10px] text-slate-300 italic p-1.5 w-full text-center">First select a database...</span>
+                                                        <span className="text-[11px] text-slate-300 italic py-1">Select a database first...</span>
                                                     ) : availableViewsForDataset.length === 0 ? (
-                                                        <span className="text-[10px] text-slate-400 italic p-1.5 w-full text-center">No views for this dataset</span>
+                                                        <span className="text-[11px] text-slate-300 italic py-1">No views found</span>
                                                     ) : (
                                                         availableViewsForDataset.map(v => {
                                                             const isSelected = configState.viewNames.includes(v.name);
@@ -4433,9 +4435,9 @@ export const SuperTable: React.FC = () => {
                                                                             : [...configState.viewNames, v.name];
                                                                         setConfigState({ ...configState, viewNames: next });
                                                                     }}
-                                                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all border ${isSelected
-                                                                        ? 'bg-indigo-50 text-indigo-600 border-indigo-200 shadow-sm'
-                                                                        : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200 hover:text-slate-600'}`}
+                                                                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border ${isSelected
+                                                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                                                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'}`}
                                                                 >
                                                                     {v.name}
                                                                 </button>
@@ -4451,80 +4453,97 @@ export const SuperTable: React.FC = () => {
 
                             {/* Section 2: Rule Engine (Collapsible) */}
                             {configState.datasetId && (
-                                <div className="group border border-slate-100 rounded-2xl overflow-hidden shadow-sm bg-white transition-all hover:border-indigo-200">
+                                <div className="border-b border-slate-100 last:border-0">
                                     <button
                                         onClick={() => toggleSection('rules')}
-                                        className="w-full flex items-center justify-between p-4 bg-slate-50/50 hover:bg-white transition-colors text-left"
+                                        className="w-full flex items-center justify-between py-4 hover:opacity-70 transition-opacity text-left group"
                                     >
-                                        <div className="flex items-center gap-2.5 text-slate-700">
-                                            <div className={`p-1.5 rounded-lg ${expandedSections['rules'] ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                                <Layers size={14} />
+                                        <div className="flex items-center gap-2.5 text-slate-800">
+                                            <div className={`text-slate-400 group-hover:text-indigo-600 transition-colors`}>
+                                                <Layers size={16} />
                                             </div>
-                                            <span className="text-xs font-bold uppercase tracking-widest text-slate-600">2. Rule Engine</span>
+                                            <span className="text-sm font-bold tracking-tight">2. Rule Engine</span>
                                         </div>
                                         {expandedSections['rules'] ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
                                     </button>
 
                                     {expandedSections['rules'] && (
-                                        <div className="p-4 pt-0 space-y-5 animate-in slide-in-from-top-2 duration-200">
-                                            {/* Preset Library: Integrated and Visible */}
-                                            <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-                                                <div className="flex items-center justify-between mb-3 px-1">
-                                                    <div className="flex items-center gap-1.5 text-slate-500">
-                                                        <Bookmark size={12} />
-                                                        <span className="text-[10px] font-black uppercase tracking-tighter text-slate-500">预设模板库 (Library)</span>
+                                        <div className="pb-6 pt-0 space-y-6 animate-in slide-in-from-top-2 duration-200">
+
+                                            {/* Presets Split by Type */}
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {/* Logic Presets */}
+                                                <div className="space-y-2">
+                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                                        <Bot size={12} /> Logic Templates
+                                                    </div>
+                                                    <div className="flex flex-col gap-1.5">
+                                                        {savedRulePresets.filter(p => !p.rules[0] || p.rules[0].ruleType === 'logic').length === 0 && (
+                                                            <div className="text-[10px] text-slate-300 italic pl-1">Empty</div>
+                                                        )}
+                                                        {savedRulePresets.filter(p => !p.rules[0] || p.rules[0].ruleType === 'logic').map(preset => (
+                                                            <div key={preset.id} className="group/pill flex items-center justify-between bg-white border border-slate-200 pl-2 pr-1 py-1.5 rounded-lg hover:border-indigo-300 transition-all cursor-pointer shadow-sm hover:shadow-md">
+                                                                <span
+                                                                    className="text-[10px] font-bold text-slate-600 truncate max-w-[100px]"
+                                                                    onClick={() => {
+                                                                        const currentRuleSignatures = new Set(configState.configRules.map(r => JSON.stringify({ ...r, id: undefined })));
+                                                                        const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
+                                                                        if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
+                                                                        setConfigState(prev => ({ ...prev, configRules: [...prev.configRules, ...newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }))] }));
+                                                                        addToast(`Added ${preset.name}`, 'success');
+                                                                    }}
+                                                                >
+                                                                    {preset.name}
+                                                                </span>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        triggerConfirm('Delete', `Delete "${preset.name}"?`, () => setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id)), 'danger', 'Confirm');
+                                                                    }}
+                                                                    className="text-slate-300 hover:text-red-500 opacity-0 group-hover/pill:opacity-100 p-0.5"
+                                                                >
+                                                                    <X size={10} />
+                                                                </button>
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 </div>
 
-                                                <div className="flex flex-wrap gap-1.5 pt-1">
-                                                    {savedRulePresets.length === 0 ? (
-                                                        <div className="w-full py-4 text-center text-[10px] text-slate-400 italic bg-white/50 rounded-lg border border-dashed border-slate-200">
-                                                            No templates saved yet
-                                                        </div>
-                                                    ) : savedRulePresets.map(preset => (
-                                                        <div key={preset.id} className="group/pill flex items-center gap-1.5 bg-slate-50 border border-transparent px-2.5 py-1 rounded-xl hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all cursor-pointer">
-                                                            <Bookmark size={10} className="text-slate-300 group-hover/pill:text-indigo-400" />
-                                                            <span
-                                                                className="text-[10px] font-bold text-slate-500 group-hover/pill:text-slate-700"
-                                                                onClick={() => {
-                                                                    // Duplication check: filter out rules already in the stack
-                                                                    const currentRuleSignatures = new Set(configState.configRules.map(r => JSON.stringify({ ...r, id: undefined })));
-                                                                    const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
-
-                                                                    if (newRules.length === 0) {
-                                                                        addToast('此预设中的规则已存在于栈中', 'info');
-                                                                        return;
-                                                                    }
-
-                                                                    setConfigState(prev => ({
-                                                                        ...prev,
-                                                                        configRules: [...prev.configRules, ...newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }))]
-                                                                    }));
-                                                                    addToast(`Added ${newRules.length} rules from: ${preset.name}`, 'success');
-                                                                }}
-                                                            >
-                                                                {preset.name}
-                                                            </span>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    triggerConfirm(
-                                                                        'Delete Preset',
-                                                                        `Delete preset "${preset.name}"?`,
-                                                                        () => {
-                                                                            setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id));
-                                                                            addToast('Preset deleted', 'success');
-                                                                        },
-                                                                        'danger',
-                                                                        'Delete'
-                                                                    );
-                                                                }}
-                                                                className="opacity-0 group-hover/pill:opacity-100 hover:text-red-500 text-slate-300 transition-all"
-                                                            >
-                                                                <X size={10} />
-                                                            </button>
-                                                        </div>
-                                                    ))}
+                                                {/* Mapping Presets */}
+                                                <div className="space-y-2">
+                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                                        <ArrowRight size={12} /> Map Templates
+                                                    </div>
+                                                    <div className="flex flex-col gap-1.5">
+                                                        {savedRulePresets.filter(p => p.rules[0]?.ruleType === 'mapping').length === 0 && (
+                                                            <div className="text-[10px] text-slate-300 italic pl-1">Empty</div>
+                                                        )}
+                                                        {savedRulePresets.filter(p => p.rules[0]?.ruleType === 'mapping').map(preset => (
+                                                            <div key={preset.id} className="group/pill flex items-center justify-between bg-white border border-slate-200 pl-2 pr-1 py-1.5 rounded-lg hover:border-emerald-300 transition-all cursor-pointer shadow-sm hover:shadow-md">
+                                                                <span
+                                                                    className="text-[10px] font-bold text-slate-600 truncate max-w-[100px]"
+                                                                    onClick={() => {
+                                                                        const currentRuleSignatures = new Set(configState.configRules.map(r => JSON.stringify({ ...r, id: undefined })));
+                                                                        const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
+                                                                        if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
+                                                                        setConfigState(prev => ({ ...prev, configRules: [...prev.configRules, ...newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }))] }));
+                                                                        addToast(`Added ${preset.name}`, 'success');
+                                                                    }}
+                                                                >
+                                                                    {preset.name}
+                                                                </span>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        triggerConfirm('Delete', `Delete "${preset.name}"?`, () => setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id)), 'danger', 'Confirm');
+                                                                    }}
+                                                                    className="text-slate-300 hover:text-red-500 opacity-0 group-hover/pill:opacity-100 p-0.5"
+                                                                >
+                                                                    <X size={10} />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -4692,38 +4711,41 @@ export const SuperTable: React.FC = () => {
                             )}
 
                             {/* Section 3: Identity (Collapsible) */}
-                            <div className="group border border-slate-100 rounded-2xl overflow-hidden shadow-sm bg-white transition-all hover:border-indigo-200">
+                            <div className="border-b border-slate-100 last:border-0">
                                 <button
                                     onClick={() => toggleSection('identity')}
-                                    className="w-full flex items-center justify-between p-4 bg-slate-50/50 hover:bg-white transition-colors text-left"
+                                    className="w-full flex items-center justify-between py-4 hover:opacity-70 transition-opacity text-left group"
                                 >
-                                    <div className="flex items-center gap-2.5 text-slate-700">
-                                        <div className={`p-1.5 rounded-lg ${expandedSections['identity'] ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                            <Box size={14} />
+                                    <div className="flex items-center gap-2.5 text-slate-800">
+                                        <div className={`text-slate-400 group-hover:text-indigo-600 transition-colors`}>
+                                            <Box size={16} />
                                         </div>
-                                        <span className="text-xs font-bold uppercase tracking-widest text-slate-600">3. Product Identity</span>
+                                        <span className="text-sm font-bold tracking-tight">3. Product Identity</span>
                                     </div>
                                     {expandedSections['identity'] ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
                                 </button>
 
                                 {expandedSections['identity'] && (
-                                    <div className="p-4 pt-0 space-y-3 animate-in slide-in-from-top-2 duration-200">
+                                    <div className="pb-6 pt-0 space-y-4 animate-in slide-in-from-top-2 duration-200">
                                         <div className="space-y-4">
-                                            <div className="relative group/field">
-                                                <div className="absolute left-3 top-2 text-[10px] font-black text-slate-500 uppercase tracking-tighter z-10">Product Name</div>
+
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Product Name</label>
                                                 <input
-                                                    className="w-full bg-slate-50 border-none rounded-xl px-3 pt-6 pb-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-100 transition-all"
+                                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-100 outline-none transition-all hover:border-slate-300 placeholder:font-normal"
                                                     value={configState.name}
                                                     onChange={e => setConfigState({ ...configState, name: e.target.value })}
+                                                    placeholder="e.g. Solar Panel X500"
                                                 />
                                             </div>
 
-                                            <div className="relative group/field">
-                                                <div className="absolute left-3 top-2 text-[10px] font-black text-slate-500 uppercase tracking-tighter z-10">Brief Description</div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Brief Description</label>
                                                 <textarea
-                                                    className="w-full bg-slate-50 border-none rounded-xl px-3 pt-6 pb-2 text-sm font-medium text-slate-600 focus:ring-2 focus:ring-indigo-100 transition-all resize-none h-20"
+                                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 focus:ring-2 focus:ring-indigo-100 outline-none transition-all resize-none h-20 hover:border-slate-300 placeholder:font-normal"
                                                     value={configState.description}
                                                     onChange={e => setConfigState({ ...configState, description: e.target.value })}
+                                                    placeholder="Describe the product context..."
                                                 />
                                             </div>
 
