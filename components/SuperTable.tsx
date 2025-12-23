@@ -16,6 +16,7 @@ import {
 import { read, utils } from 'xlsx';
 import { generateFormSchemaFromData, generateFormFromDescription, generateFormLogic } from '../services/geminiService';
 import { useToast } from '../contexts/ToastContext';
+import { ConfirmDialog } from './ConfirmDialog';
 
 // --- Configuration Constants ---
 const InitialSchema = [
@@ -1854,7 +1855,8 @@ const UnifiedRuleBuilder: React.FC<{
     schema: any[];
     records: any[];
     onAdd: (rule: any) => void;
-}> = ({ schema, records, onAdd }) => {
+    onSaveAsPreset: (name: string, rule: any) => void;
+}> = ({ schema, records, onAdd, onSaveAsPreset }) => {
     const [activeRuleType, setActiveRuleType] = useState<'logic' | 'mapping'>('logic');
 
     // Logic Rule State
@@ -1868,6 +1870,9 @@ const UnifiedRuleBuilder: React.FC<{
     const [mSourceRowId, setMSourceRowId] = useState(''); // New: Specify a row ID
     const [mTargetField, setMTargetField] = useState('');
     const [mMappings, setMMappings] = useState<{ sourceValue: string, targetValue: string }[]>([]);
+
+    const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+    const [templateName, setTemplateName] = useState('');
 
     const getRecordLabel = (r: any) => {
         // Try to find a human-readable name, otherwise use ID
@@ -1907,36 +1912,60 @@ const UnifiedRuleBuilder: React.FC<{
     };
 
     const handleAddRule = () => {
+        const ruleData = activeRuleType === 'logic'
+            ? {
+                id: `rule_${Date.now()}`,
+                ruleType: 'logic',
+                logic: logicMode,
+                conditions,
+                targetField,
+                expression: targetValue
+            }
+            : {
+                id: `rule_${Date.now()}`,
+                ruleType: 'mapping',
+                sourceField: mSourceField,
+                sourceRowId: mSourceRowId || undefined,
+                targetField: mTargetField,
+                mappings: mMappings
+            };
+
+        onAdd(ruleData);
         if (activeRuleType === 'logic') {
-            if (conditions.length > 0 && targetField) {
-                onAdd({
-                    id: `rule_${Date.now()}`,
-                    ruleType: 'logic',
-                    logic: logicMode,
-                    conditions,
-                    targetField,
-                    expression: targetValue
-                });
-                setConditions([]);
-                setTargetField('');
-                setTargetValue('');
-            }
+            setConditions([]);
+            setTargetField('');
+            setTargetValue('');
         } else {
-            if (mSourceField && mTargetField && mMappings.length > 0) {
-                onAdd({
-                    id: `rule_${Date.now()}`,
-                    ruleType: 'mapping',
-                    sourceField: mSourceField,
-                    sourceRowId: mSourceRowId || undefined,
-                    targetField: mTargetField,
-                    mappings: mMappings
-                });
-                setMSourceField('');
-                setMSourceRowId('');
-                setMTargetField('');
-                setMMappings([]);
-            }
+            setMSourceField('');
+            setMSourceRowId('');
+            setMTargetField('');
+            setMMappings([]);
         }
+    };
+
+    const handleSaveAsTemplate = () => {
+        if (!templateName.trim()) return;
+        const ruleData = activeRuleType === 'logic'
+            ? {
+                id: `rule_${Date.now()}`,
+                ruleType: 'logic',
+                logic: logicMode,
+                conditions,
+                targetField,
+                expression: targetValue
+            }
+            : {
+                id: `rule_${Date.now()}`,
+                ruleType: 'mapping',
+                sourceField: mSourceField,
+                sourceRowId: mSourceRowId || undefined,
+                targetField: mTargetField,
+                mappings: mMappings
+            };
+
+        onSaveAsPreset(templateName.trim(), [ruleData]);
+        setTemplateName('');
+        setIsSavingTemplate(false);
     };
 
     const isLogicValid = conditions.length > 0 && conditions.every(c => c.fieldId && c.operator) && targetField;
@@ -2141,14 +2170,47 @@ const UnifiedRuleBuilder: React.FC<{
                 </div>
             )}
 
-            <button
-                onClick={handleAddRule}
-                disabled={activeRuleType === 'logic' ? !isLogicValid : !isMappingValid}
-                className={`w-full py-3 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95 ${activeRuleType === 'logic' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-            >
-                <Save size={14} />
-                <span>保存{activeRuleType === 'logic' ? '逻辑规则' : '级联逻辑'}</span>
-            </button>
+            <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleAddRule}
+                        disabled={activeRuleType === 'logic' ? !isLogicValid : !isMappingValid}
+                        className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95 disabled:opacity-30 disabled:grayscale ${activeRuleType === 'logic' ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100' : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100'}`}
+                    >
+                        <Plus size={14} />
+                        <span>应用到当前规则栈</span>
+                    </button>
+                    <button
+                        onClick={() => setIsSavingTemplate(!isSavingTemplate)}
+                        disabled={activeRuleType === 'logic' ? !isLogicValid : !isMappingValid}
+                        className="px-3 py-2.5 rounded-xl text-slate-400 bg-slate-50 hover:bg-slate-100 border border-slate-100 hover:text-indigo-600 transition-all disabled:opacity-30 disabled:grayscale"
+                        title="收藏为预设"
+                    >
+                        <Bookmark size={14} className={isSavingTemplate ? 'fill-indigo-600 text-indigo-600' : ''} />
+                    </button>
+                </div>
+
+                {isSavingTemplate && (
+                    <div className="flex gap-1.5 p-2 bg-indigo-50/50 rounded-xl border border-indigo-100 animate-in slide-in-from-top-1">
+                        <input
+                            autoFocus
+                            placeholder="预设名称..."
+                            value={templateName}
+                            onChange={e => setTemplateName(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleSaveAsTemplate()}
+                            className="flex-1 bg-white border-none rounded-lg px-2 text-[10px] font-bold text-slate-700 focus:ring-1 focus:ring-indigo-400 h-8"
+                        />
+                        <button
+                            onClick={handleSaveAsTemplate}
+                            disabled={!templateName.trim()}
+                            className="px-3 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase tracking-tight hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                            存入库
+                        </button>
+                        <button onClick={() => setIsSavingTemplate(false)} className="p-1.5 hover:bg-white text-slate-400 rounded-lg"><X size={12} /></button>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
@@ -2285,7 +2347,7 @@ export const SuperTable: React.FC = () => {
         description: string;
         image: string;
         datasetId: string;
-        viewName: string;
+        viewNames: string[];
         timestamp: number;
         baseInfo: any;
         defaultOverrides?: any; // Saved overrides/cascading values
@@ -2311,7 +2373,7 @@ export const SuperTable: React.FC = () => {
 
     const [configState, setConfigState] = useState({
         datasetId: '',
-        viewName: '',
+        viewNames: [] as string[],
         name: '',
         description: '',
         image: '',
@@ -3984,6 +4046,16 @@ export const SuperTable: React.FC = () => {
 
     // --- Product Configuration Center Helpers ---
     const [productConfigHiddenFields, setProductConfigHiddenFields] = useState<string[]>([]);
+
+    // UI State for Configurator
+    const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+        'datasource': true,
+        'rules': true,
+        'identity': true
+    });
+    const toggleSection = (id: string) => setExpandedSections(prev => ({ ...prev, [id]: !prev[id] }));
+    const [isSavingPreset, setIsSavingPreset] = useState(false);
+    const [presetNameInput, setPresetNameInput] = useState('');
     const handleSaveProduct = () => {
         // Validation with specific feedback
         if (!configState.datasetId) { addToast('Missing Dataset', 'warning'); return; }
@@ -3997,7 +4069,7 @@ export const SuperTable: React.FC = () => {
                 description: configState.description || '',
                 image: configState.image || '',
                 datasetId: configState.datasetId,
-                viewName: configState.viewName,
+                viewNames: configState.viewNames,
                 configRules: configState.configRules || [],
                 defaultOverrides: JSON.parse(JSON.stringify(previewOverrides || {})), // Deep copy to ensure no reference issues
                 timestamp: Date.now(),
@@ -4016,18 +4088,18 @@ export const SuperTable: React.FC = () => {
             // Clear state and navigate
             setTimeout(() => {
                 setProductSubTab('library');
-                setConfigState({ datasetId: '', viewName: '', name: '', description: '', image: '', configRules: [] });
+                setConfigState({ datasetId: '', viewNames: [], name: '', description: '', image: '', configRules: [] });
             }, 100);
 
         } catch (e: any) {
             console.error(e);
-            alert(`Error saving product: ${e.message}`); // Fallback if toast fails
+            addToast(`Error saving product: ${e.message}`, 'error');
         }
     };
 
     const renderBOMTable = (
         datasetId: string,
-        viewName: string,
+        viewNames: string[],
         hiddenFields: string[] = [],
         configRules: any[] = []
     ) => {
@@ -4079,17 +4151,19 @@ export const SuperTable: React.FC = () => {
         let filtered = processedRecords;
 
         // Apply View Filters
-        if (viewName) {
-            const view = savedViews.find(v => v.name === viewName && v.datasetId === datasetId);
-            if (view) {
-                view.filterGroups.forEach(group => {
-                    const groupMatch = (r: any) => {
-                        const results = group.conditions.map((f: any) => evaluateFilter(r, f));
-                        return group.logic === 'AND' ? results.every(res => res) : results.some(res => res);
-                    };
-                    filtered = filtered.filter(groupMatch);
-                });
-            }
+        if (viewNames && viewNames.length > 0) {
+            viewNames.forEach(vName => {
+                const view = savedViews.find(v => v.name === vName && v.datasetId === datasetId);
+                if (view) {
+                    view.filterGroups.forEach(group => {
+                        const groupMatch = (r: any) => {
+                            const results = group.conditions.map((f: any) => evaluateFilter(r, f));
+                            return group.logic === 'AND' ? results.every(res => res) : results.some(res => res);
+                        };
+                        filtered = filtered.filter(groupMatch);
+                    });
+                }
+            });
         }
 
         const displayFields = dataset.schema
@@ -4255,6 +4329,13 @@ export const SuperTable: React.FC = () => {
         const selectedDataset = savedDatasets.find(d => d.id === configState.datasetId);
         const availableViewsForDataset = savedViews.filter(v => (v as any).datasetId === configState.datasetId);
 
+        const isConfigComplete = !!configState.datasetId && !!configState.name && configState.configRules.length > 0;
+        const missingSteps = [
+            !configState.datasetId && "Data Source",
+            configState.configRules.length === 0 && "Rules",
+            !configState.name && "Product Identity"
+        ].filter(Boolean);
+
         return (
             <div className="flex h-full animate-in fade-in duration-500">
                 {/* Left: Configuration Panel */}
@@ -4262,240 +4343,367 @@ export const SuperTable: React.FC = () => {
                     style={{ width: sidebarWidth }}
                     className="flex-shrink-0 bg-white border-r border-slate-100 flex flex-col h-full overflow-y-auto custom-scrollbar z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)] transition-none"
                 >
-                    <div className="p-8 space-y-8">
-                        <div>
-                            <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">定义产品</h3>
-                            <p className="text-sm text-slate-400 font-medium mt-1">Define Product Parameters</p>
-                        </div>
-
-
-                        {/* Step 1: Data Source */}
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-2 text-indigo-600 mb-2">
-                                <Database size={16} />
-                                <span className="text-xs font-bold uppercase tracking-widest">1. Data Source</span>
-                            </div>
-                            <div className="space-y-3">
-                                <div className="group relative">
-                                    <label className="absolute left-4 top-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider group-focus-within:text-indigo-500 transition-colors">Select Table</label>
-                                    <select
-                                        value={configState.datasetId}
-                                        onChange={(e) => setConfigState({ ...configState, datasetId: e.target.value, viewName: '' })}
-                                        className="w-full bg-slate-50 hover:bg-slate-100 border-none rounded-xl px-4 pt-8 pb-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none appearance-none cursor-pointer"
-                                    >
-                                        <option value="">--- Choose a Database ---</option>
-                                        {savedDatasets.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                                    </select>
-                                    <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <div className="p-4 space-y-3 flex flex-col h-full overflow-hidden">
+                        {/* Header: Fixed */}
+                        <div className="px-2 mb-2 flex-shrink-0">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                                        <Sparkles className="text-indigo-500" size={20} />
+                                        定义产品
+                                    </h3>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 opacity-80">Product Configurator Studio</p>
                                 </div>
-
-                                <div className="group relative">
-                                    <label className="absolute left-4 top-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider group-focus-within:text-indigo-500 transition-colors">Select View</label>
-                                    <select
-                                        disabled={!configState.datasetId}
-                                        value={configState.viewName}
-                                        onChange={(e) => setConfigState({ ...configState, viewName: e.target.value })}
-                                        className="w-full bg-slate-50 hover:bg-slate-100 border-none rounded-xl px-4 pt-8 pb-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        <option value="">--- Choose Filter Preset ---</option>
-                                        {availableViewsForDataset.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
-                                    </select>
-                                    <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                                </div>
+                                <button
+                                    onClick={() => triggerConfirm(
+                                        'Reset Configuration',
+                                        'Clear all settings and start over?',
+                                        () => {
+                                            setConfigState({ datasetId: '', viewName: '', name: '', description: '', image: '', configRules: [] });
+                                            addToast('Configuration Reset', 'info');
+                                        },
+                                        'danger',
+                                        'Reset'
+                                    )}
+                                    className="p-2 hover:bg-slate-100 text-slate-400 rounded-xl transition-all"
+                                    title="Reset Config"
+                                >
+                                    <RefreshCw size={14} />
+                                </button>
                             </div>
                         </div>
 
-                        {/* Unified Configuration Rules */}
-                        {configState.datasetId && (
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-indigo-600">
-                                        <Layers size={16} />
-                                        <span className="text-xs font-bold uppercase tracking-widest">2. 配置规则 (Configuration Rules)</span>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4">
+                            {/* Section 1: Data Source (Collapsible) */}
+                            <div className="group border border-slate-100 rounded-2xl overflow-hidden shadow-sm bg-white transition-all hover:border-indigo-200">
+                                <button
+                                    onClick={() => toggleSection('datasource')}
+                                    className="w-full flex items-center justify-between p-4 bg-slate-50/50 hover:bg-white transition-colors text-left"
+                                >
+                                    <div className="flex items-center gap-2.5 text-slate-700">
+                                        <div className={`p-1.5 rounded-lg ${expandedSections['datasource'] ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                            <Database size={14} />
+                                        </div>
+                                        <span className="text-[11px] font-bold uppercase tracking-widest">1. Data Source</span>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="relative group/preset">
-                                            <button className="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-indigo-600 transition-colors">
-                                                <Bookmark size={12} />
-                                                <span>Presets</span>
-                                            </button>
+                                    {expandedSections['datasource'] ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
+                                </button>
 
-                                            {/* Preset Menu */}
-                                            <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-2 opacity-0 invisible group-hover/preset:opacity-100 group-hover/preset:visible transition-all z-50">
-                                                <div className="text-[10px] uppercase font-bold text-gray-400 px-2 py-1 border-b border-gray-50 mb-1">Load Preset</div>
-                                                {savedRulePresets.length === 0 ? (
-                                                    <div className="text-[10px] text-gray-300 px-2 py-1 italic">No presets saved</div>
-                                                ) : (
-                                                    <div className="max-h-32 overflow-y-auto custom-scrollbar space-y-0.5">
-                                                        {savedRulePresets.map(preset => (
-                                                            <div key={preset.id} className="flex items-center justify-between group/item px-2 py-1.5 hover:bg-indigo-50 rounded cursor-pointer">
-                                                                <span
-                                                                    className="text-xs text-slate-600 font-medium truncate flex-1"
-                                                                    onClick={() => {
-                                                                        setConfigState(prev => ({ ...prev, configRules: [...prev.configRules, ...preset.rules] }));
-                                                                        addToast(`Loaded preset: ${preset.name}`, 'success');
-                                                                    }}
-                                                                >
-                                                                    {preset.name}
-                                                                </span>
+                                {expandedSections['datasource'] && (
+                                    <div className="p-4 pt-0 space-y-3 animate-in slide-in-from-top-2 duration-200">
+                                        <div className="grid grid-cols-1 gap-3">
+                                            {/* Select Table */}
+                                            <div className="relative group/select">
+                                                <div className="absolute left-3 top-2 text-[9px] font-black text-slate-400 uppercase tracking-tighter z-10">Database</div>
+                                                <select
+                                                    value={configState.datasetId}
+                                                    onChange={(e) => setConfigState({ ...configState, datasetId: e.target.value, viewNames: [] })}
+                                                    className="w-full bg-slate-50 hover:bg-slate-100 border-none rounded-xl px-3 pt-6 pb-2 text-sm font-bold text-slate-700 appearance-none cursor-pointer focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent hover:border-slate-200"
+                                                >
+                                                    <option value="">Choose Dataset...</option>
+                                                    {savedDatasets.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                                </select>
+                                                <ChevronDown size={14} className="absolute right-3 bottom-3 text-slate-400 pointer-events-none" />
+                                            </div>
+
+                                            {/* Select View (Multi-select UI) */}
+                                            <div className="space-y-2">
+                                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter px-1">Filter Presets (Multi-select)</div>
+                                                <div className="flex flex-wrap gap-1.5 min-h-[44px] p-2 bg-slate-50 rounded-xl border border-transparent hover:border-slate-200 transition-all">
+                                                    {!configState.datasetId ? (
+                                                        <span className="text-[10px] text-slate-300 italic p-1.5 w-full text-center">First select a database...</span>
+                                                    ) : availableViewsForDataset.length === 0 ? (
+                                                        <span className="text-[10px] text-slate-400 italic p-1.5 w-full text-center">No views for this dataset</span>
+                                                    ) : (
+                                                        availableViewsForDataset.map(v => {
+                                                            const isSelected = configState.viewNames.includes(v.name);
+                                                            return (
                                                                 <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id));
+                                                                    key={v.name}
+                                                                    onClick={() => {
+                                                                        const next = isSelected
+                                                                            ? configState.viewNames.filter(n => n !== v.name)
+                                                                            : [...configState.viewNames, v.name];
+                                                                        setConfigState({ ...configState, viewNames: next });
                                                                     }}
-                                                                    className="text-gray-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-opacity"
+                                                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border ${isSelected
+                                                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100'
+                                                                        : 'bg-white text-slate-500 border-slate-100 hover:border-indigo-200 hover:text-indigo-600'}`}
                                                                 >
-                                                                    <X size={10} />
+                                                                    {v.name}
                                                                 </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-
-                                                <div className="border-t border-gray-50 mt-1 pt-1">
-                                                    <button
-                                                        disabled={configState.configRules.length === 0}
-                                                        onClick={() => {
-                                                            const name = window.prompt("Enter name for this rule preset:");
-                                                            if (name) {
-                                                                setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name, rules: configState.configRules }]);
-                                                                addToast('Rule preset saved', 'success');
-                                                            }
-                                                        }}
-                                                        className="w-full text-left px-2 py-1.5 text-xs text-indigo-600 font-bold hover:bg-indigo-50 rounded flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    >
-                                                        <Plus size={10} /> Save Current Rules
-                                                    </button>
+                                                            );
+                                                        })
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                )}
+                            </div>
 
-                                {/* Existing Rules List */}
-                                {configState.configRules.length > 0 && (
-                                    <div className="space-y-2">
-                                        {configState.configRules.map((rule) => (
-                                            <div key={rule.id} className={`border rounded-xl p-3 relative group transition-all hover:border-indigo-200 ${rule.ruleType === 'mapping' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-indigo-50/50 border-indigo-100'}`}>
-                                                <button
-                                                    onClick={() => setConfigState({
-                                                        ...configState,
-                                                        configRules: configState.configRules.filter(r => r.id !== rule.id)
-                                                    })}
-                                                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shadow-sm hover:bg-red-600 z-10"
-                                                >×</button>
-
-                                                {rule.ruleType === 'mapping' ? (
-                                                    <div className="flex flex-col gap-2">
-                                                        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-                                                            <span className="bg-emerald-600 text-white px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Mapping</span>
-                                                            {rule.sourceRowId && (
-                                                                <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold border border-amber-200 flex items-center gap-1">
-                                                                    <BoxSelect size={10} /> Row
-                                                                </span>
-                                                            )}
-                                                            <span className="text-slate-400 font-medium">When:</span>
-                                                            <span className="bg-white border border-emerald-100 px-1.5 py-0.5 rounded text-emerald-700 font-bold">
-                                                                {rule.sourceField}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2 text-[10px] border-t border-emerald-100 pt-2 mt-1">
-                                                            <ArrowRight size={10} className="text-emerald-400" />
-                                                            <span className="text-slate-500 font-medium">Update</span>
-                                                            <b className="text-slate-700 font-black px-1.5 py-0.5 bg-white rounded border border-emerald-100 shadow-sm">{rule.targetField}</b>
-                                                            <span className="text-slate-300">with</span>
-                                                            <span className="text-emerald-600 font-bold">{rule.mappings?.length || 0} mappings</span>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex flex-col gap-2">
-                                                        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-                                                            <span className="bg-indigo-600 text-white px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Logic</span>
-                                                            <span className="text-slate-400 font-medium">When:</span>
-                                                            {rule.conditions?.map((c, i) => (
-                                                                <React.Fragment key={i}>
-                                                                    <span className="bg-white border border-indigo-100 px-1.5 py-0.5 rounded text-indigo-700 font-bold">
-                                                                        {c.fieldId} {c.operator} {c.value}
-                                                                    </span>
-                                                                    {i < (rule.conditions?.length || 0) - 1 && (
-                                                                        <span className="text-indigo-400 font-black px-1">{rule.logic}</span>
-                                                                    )}
-                                                                </React.Fragment>
-                                                            ))}
-                                                        </div>
-                                                        <div className="flex items-center gap-2 text-[10px] border-t border-indigo-100 pt-2 mt-1">
-                                                            <ArrowRight size={10} className="text-indigo-400" />
-                                                            <span className="text-slate-500 font-medium">Set</span>
-                                                            <b className="text-slate-700 font-black px-1.5 py-0.5 bg-white rounded border border-indigo-100 shadow-sm">{rule.targetField}</b>
-                                                            <span className="text-slate-300">=</span>
-                                                            <b className="text-indigo-600 font-black">{rule.expression || '-'}</b>
-                                                        </div>
-                                                    </div>
-                                                )}
+                            {/* Section 2: Rule Engine (Collapsible) */}
+                            {configState.datasetId && (
+                                <div className="group border border-slate-100 rounded-2xl overflow-hidden shadow-sm bg-white transition-all hover:border-indigo-200">
+                                    <button
+                                        onClick={() => toggleSection('rules')}
+                                        className="w-full flex items-center justify-between p-4 bg-slate-50/50 hover:bg-white transition-colors text-left"
+                                    >
+                                        <div className="flex items-center gap-2.5 text-slate-700">
+                                            <div className={`p-1.5 rounded-lg ${expandedSections['rules'] ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                                <Layers size={14} />
                                             </div>
-                                        ))}
+                                            <span className="text-[11px] font-bold uppercase tracking-widest">2. Rule Engine</span>
+                                        </div>
+                                        {expandedSections['rules'] ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
+                                    </button>
+
+                                    {expandedSections['rules'] && (
+                                        <div className="p-4 pt-0 space-y-5 animate-in slide-in-from-top-2 duration-200">
+                                            {/* Preset Library: Integrated and Visible */}
+                                            <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
+                                                <div className="flex items-center justify-between mb-3 px-1">
+                                                    <div className="flex items-center gap-1.5 text-slate-500">
+                                                        <Bookmark size={12} />
+                                                        <span className="text-[10px] font-black uppercase tracking-tighter text-slate-400">预设模板库 (Library)</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                                    {savedRulePresets.length === 0 ? (
+                                                        <div className="w-full py-4 text-center text-[10px] text-slate-400 italic bg-white/50 rounded-lg border border-dashed border-slate-200">
+                                                            No templates saved yet
+                                                        </div>
+                                                    ) : savedRulePresets.map(preset => (
+                                                        <div key={preset.id} className="group/pill flex items-center gap-1 bg-white border border-slate-100 px-2.5 py-1.5 rounded-xl shadow-sm hover:border-indigo-300 hover:bg-indigo-50/30 transition-all cursor-pointer">
+                                                            <span
+                                                                className="text-[11px] font-bold text-slate-600 hover:text-indigo-600"
+                                                                onClick={() => {
+                                                                    // Duplication check: filter out rules already in the stack
+                                                                    const currentRuleSignatures = new Set(configState.configRules.map(r => JSON.stringify({ ...r, id: undefined })));
+                                                                    const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
+
+                                                                    if (newRules.length === 0) {
+                                                                        addToast('此预设中的规则已存在于栈中', 'info');
+                                                                        return;
+                                                                    }
+
+                                                                    setConfigState(prev => ({
+                                                                        ...prev,
+                                                                        configRules: [...prev.configRules, ...newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }))]
+                                                                    }));
+                                                                    addToast(`Added ${newRules.length} rules from: ${preset.name}`, 'success');
+                                                                }}
+                                                            >
+                                                                {preset.name}
+                                                            </span>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    triggerConfirm(
+                                                                        'Delete Preset',
+                                                                        `Delete preset "${preset.name}"?`,
+                                                                        () => {
+                                                                            setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id));
+                                                                            addToast('Preset deleted', 'success');
+                                                                        },
+                                                                        'danger',
+                                                                        'Delete'
+                                                                    );
+                                                                }}
+                                                                className="opacity-0 group-hover/pill:opacity-100 hover:text-red-500 text-slate-300 transition-all"
+                                                            >
+                                                                <X size={10} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Existing Rules List */}
+                                            {configState.configRules.length > 0 && (
+                                                <div className="space-y-2 max-h-60 overflow-y-auto overflow-x-hidden px-0.5 custom-scrollbar-mini">
+                                                    <div className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-2 mb-2 px-1">
+                                                        <SlidersHorizontal size={10} />
+                                                        Active Rules Stack ({configState.configRules.length})
+                                                    </div>
+                                                    {configState.configRules.map((rule) => (
+                                                        <div key={rule.id} className={`group/rule border rounded-xl p-3 relative transition-all hover:scale-[1.01] hover:shadow-md ${rule.ruleType === 'mapping' ? 'bg-emerald-50/40 border-emerald-100 hover:border-emerald-300' : 'bg-indigo-50/40 border-indigo-100 hover:border-indigo-300'}`}>
+                                                            <button
+                                                                onClick={() => setConfigState({
+                                                                    ...configState,
+                                                                    configRules: configState.configRules.filter(r => r.id !== rule.id)
+                                                                })}
+                                                                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-slate-200 text-slate-400 rounded-full text-[10px] opacity-0 group-hover/rule:opacity-100 transition-opacity flex items-center justify-center shadow-lg hover:text-red-500 hover:border-red-100 z-10"
+                                                            ><X size={10} /></button>
+
+                                                            {rule.ruleType === 'mapping' ? (
+                                                                <div className="space-y-1.5">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="text-[9px] font-black bg-emerald-600 text-white px-1.5 py-0.5 rounded-md uppercase tracking-tighter">MAP</span>
+                                                                        <span className="text-[10px] font-bold text-slate-700 truncate max-w-[120px]">{rule.sourceField}</span>
+                                                                        <ArrowRight size={10} className="text-emerald-400" />
+                                                                        <span className="text-[10px] font-black text-emerald-700">{rule.targetField}</span>
+                                                                    </div>
+                                                                    <div className="text-[9px] text-slate-400 font-medium pl-1 flex items-center gap-2">
+                                                                        <span>{rule.mappings?.length || 0} mapping entries</span>
+                                                                        {rule.sourceRowId && <span className="bg-orange-100 text-orange-600 px-1 rounded uppercase tracking-tighter text-[8px]">Pinned Row</span>}
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="space-y-1.5">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.5 rounded-md uppercase tracking-tighter">CALC</span>
+                                                                        <span className="text-[10px] font-bold text-indigo-700">{rule.targetField}</span>
+                                                                        <span className="text-slate-300 font-black">=</span>
+                                                                        <span className="text-[10px] font-black text-slate-700 italic truncate max-w-[100px]">{rule.expression}</span>
+                                                                    </div>
+                                                                    <div className="text-[9px] text-slate-400 font-medium pl-1 italic">
+                                                                        Based on {rule.conditions?.length || 0} conditions ({rule.logic})
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Unified Rule Builder: Simplified Trigger */}
+                                            <div className="pt-2 border-t border-slate-50">
+                                                <UnifiedRuleBuilder
+                                                    schema={selectedDataset?.schema || []}
+                                                    records={selectedDataset?.records || []}
+                                                    onAdd={(rule) => {
+                                                        setConfigState({
+                                                            ...configState,
+                                                            configRules: [...configState.configRules, { ...rule, id: `rule_${Date.now()}` }]
+                                                        });
+                                                        addToast('Rule added to stack', 'success');
+                                                    }}
+                                                    onSaveAsPreset={(name, rules) => {
+                                                        const exists = savedRulePresets.some(p => p.name === name);
+                                                        if (exists) {
+                                                            addToast(`预设名称 "${name}" 已存在`, 'error');
+                                                            return;
+                                                        }
+                                                        setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name, rules }]);
+                                                        addToast(`预设 "${name}" 已保存到库`, 'success');
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Section 3: Identity (Collapsible) */}
+                            <div className="group border border-slate-100 rounded-2xl overflow-hidden shadow-sm bg-white transition-all hover:border-indigo-200">
+                                <button
+                                    onClick={() => toggleSection('identity')}
+                                    className="w-full flex items-center justify-between p-4 bg-slate-50/50 hover:bg-white transition-colors text-left"
+                                >
+                                    <div className="flex items-center gap-2.5 text-slate-700">
+                                        <div className={`p-1.5 rounded-lg ${expandedSections['identity'] ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                            <Box size={14} />
+                                        </div>
+                                        <span className="text-[11px] font-bold uppercase tracking-widest">3. Product Identity</span>
+                                    </div>
+                                    {expandedSections['identity'] ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
+                                </button>
+
+                                {expandedSections['identity'] && (
+                                    <div className="p-4 pt-0 space-y-3 animate-in slide-in-from-top-2 duration-200">
+                                        <div className="space-y-4">
+                                            <div className="relative group/field">
+                                                <div className="absolute left-3 top-2 text-[9px] font-black text-slate-400 uppercase tracking-tighter z-10">Product Name</div>
+                                                <input
+                                                    className="w-full bg-slate-50 border-none rounded-xl px-3 pt-6 pb-2 text-sm font-bold text-slate-700 placeholder-slate-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                                                    placeholder="Robot Arm X-1..."
+                                                    value={configState.name}
+                                                    onChange={e => setConfigState({ ...configState, name: e.target.value })}
+                                                />
+                                            </div>
+
+                                            <div className="relative group/field">
+                                                <div className="absolute left-3 top-2 text-[9px] font-black text-slate-400 uppercase tracking-tighter z-10">Brief Description</div>
+                                                <textarea
+                                                    className="w-full bg-slate-50 border-none rounded-xl px-3 pt-6 pb-2 text-sm font-medium text-slate-600 placeholder-slate-300 focus:ring-2 focus:ring-indigo-100 transition-all resize-none h-20"
+                                                    placeholder="Key specs or features..."
+                                                    value={configState.description}
+                                                    onChange={e => setConfigState({ ...configState, description: e.target.value })}
+                                                />
+                                            </div>
+
+                                            <div className="relative group/field">
+                                                <div className="absolute left-3 top-2 text-[9px] font-black text-slate-400 uppercase tracking-tighter z-10">Product Image</div>
+                                                <div className="w-full bg-slate-50 border-none rounded-xl px-3 pt-6 pb-3 min-h-[50px] flex items-center gap-3">
+                                                    {configState.image && (
+                                                        <div className="w-10 h-10 rounded-lg bg-white border border-slate-100 flex-shrink-0 overflow-hidden shadow-sm">
+                                                            <img src={configState.image} className="w-full h-full object-cover" alt="Preview" />
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-1 flex flex-col gap-1">
+                                                        <input
+                                                            value={configState.image}
+                                                            onChange={e => setConfigState({ ...configState, image: e.target.value })}
+                                                            placeholder="URL..."
+                                                            className="bg-transparent border-none text-[10px] font-mono text-slate-500 w-full outline-none p-0"
+                                                        />
+                                                        <label className="text-[9px] text-indigo-500 font-bold cursor-pointer hover:underline flex items-center gap-1">
+                                                            <Upload size={10} /> Upload Local
+                                                            <input
+                                                                type="file"
+                                                                className="hidden"
+                                                                accept="image/*"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0];
+                                                                    if (file) {
+                                                                        const reader = new FileReader();
+                                                                        reader.onloadend = () => {
+                                                                            setConfigState({ ...configState, image: reader.result as string });
+                                                                        };
+                                                                        reader.readAsDataURL(file);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
-
-                                {/* Unified Rule Builder */}
-                                <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-3 flex items-center gap-2">
-                                        <Plus size={12} />
-                                        添加新规则
-                                    </div>
-                                    <UnifiedRuleBuilder
-                                        schema={selectedDataset?.schema || []}
-                                        records={selectedDataset?.records || []}
-                                        onAdd={(rule) => {
-                                            setConfigState({
-                                                ...configState,
-                                                configRules: [...configState.configRules, { ...rule, id: `rule_${Date.now()}` }]
-                                            });
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="w-full h-px bg-slate-100 my-2"></div>
-
-                        {/* Step 4: Basic Info */}
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-2 text-indigo-600 mb-2">
-                                <Box size={16} />
-                                <span className="text-xs font-bold uppercase tracking-widest">3. Product Identity</span>
-                            </div>
-                            <div className="space-y-3">
-                                <input
-                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none"
-                                    placeholder="Product Name (e.g. Robot Arm V1)"
-                                    value={configState.name}
-                                    onChange={e => setConfigState({ ...configState, name: e.target.value })}
-                                />
-                                <input
-                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-medium text-slate-600 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none"
-                                    placeholder="Description / Specs..."
-                                    value={configState.description}
-                                    onChange={e => setConfigState({ ...configState, description: e.target.value })}
-                                />
-                                <input
-                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-xs font-mono text-slate-500 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none"
-                                    placeholder="Image URL (https://...)"
-                                    value={configState.image}
-                                    onChange={e => setConfigState({ ...configState, image: e.target.value })}
-                                />
                             </div>
                         </div>
 
-                        {/* Action Button */}
-                        <div className="pt-4">
-                            <button
-                                onClick={handleSaveProduct}
-                                className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-bold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 active:scale-95"
-                            >
-                                <Save size={18} />
-                                <span>Save to Product Library</span>
-                            </button>
+                        {/* Save Action Sticky Footer Area */}
+                        <div className="pt-4 border-t border-slate-100 flex-shrink-0 min-h-[100px] flex flex-col justify-center">
+                            {isConfigComplete ? (
+                                <div className="animate-in zoom-in-95 duration-300">
+                                    <button
+                                        onClick={handleSaveProduct}
+                                        className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-[0.2em] transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-3 active:scale-[0.98] group border-none"
+                                    >
+                                        <Save size={16} className="text-white/80 group-hover:scale-110 transition-transform" />
+                                        <span>Save into Library</span>
+                                    </button>
+                                    <p className="text-center text-[9px] text-slate-400 mt-3 font-medium flex items-center justify-center gap-1 uppercase tracking-widest opacity-60">
+                                        Ready to publish
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="p-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                                    <div className="flex items-start gap-3">
+                                        <div className="p-1.5 bg-slate-100 rounded-lg text-slate-400">
+                                            <Info size={14} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Pending Configuration</p>
+                                            <p className="text-[9px] text-slate-400 mt-0.5">Please complete: <span className="text-indigo-500 font-bold">{missingSteps.join(', ')}</span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -4558,8 +4766,10 @@ export const SuperTable: React.FC = () => {
                             )}
 
                             {configState.datasetId && (
-                                <span className={`text-xs font-bold px-3 py-1 rounded-full border ${configState.viewName ? 'text-indigo-600 bg-indigo-50 border-indigo-100' : 'text-slate-500 bg-slate-100 border-slate-200'}`}>
-                                    {configState.viewName ? `Active View: ${configState.viewName}` : 'Full Dataset (Raw)'}
+                                <span className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all ${configState.viewNames.length > 0 ? 'text-indigo-600 bg-indigo-50 border-indigo-100' : 'text-slate-500 bg-slate-100 border-slate-200'}`}>
+                                    {configState.viewNames.length > 0
+                                        ? `Active Filters: ${configState.viewNames.join(' + ')}`
+                                        : 'Full Dataset (Raw)'}
                                 </span>
                             )}
                         </div>
@@ -4568,7 +4778,7 @@ export const SuperTable: React.FC = () => {
                     <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative min-h-0">
                         {configState.datasetId ? (
                             <div className="absolute inset-0 overflow-auto custom-scrollbar">
-                                {renderBOMTable(configState.datasetId, configState.viewName, productConfigHiddenFields, configState.configRules)}
+                                {renderBOMTable(configState.datasetId, configState.viewNames, productConfigHiddenFields, configState.configRules)}
                             </div>
                         ) : (
                             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300">
@@ -6940,79 +7150,53 @@ export const SuperTable: React.FC = () => {
             {/* --- Save Form Modal --- */}
             {
                 saveFormOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
-                        <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-100">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100">
+                            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                                 <h3 className="font-bold text-gray-800">Save Form Template</h3>
+                                <button onClick={() => setSaveFormOpen(false)} className="p-1.5 hover:bg-gray-200 rounded-full text-gray-400 transition-colors"><X size={18} /></button>
                             </div>
                             <div className="p-6 space-y-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Form Name</label>
+                                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Template Name</label>
                                     <input
                                         autoFocus
-                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 transition-all"
+                                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
                                         placeholder="e.g., Q3 Survey"
                                         value={formName}
                                         onChange={e => setFormName(e.target.value)}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Description</label>
+                                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Description</label>
                                     <textarea
-                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 transition-all h-20 resize-none"
+                                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all h-24 resize-none font-medium"
                                         placeholder="Optional description..."
                                         value={formDesc}
                                         onChange={e => setFormDesc(e.target.value)}
                                     />
                                 </div>
                             </div>
-                            <div className="px-6 py-4 bg-gray-50 flex justify-end gap-2">
-                                <button onClick={() => setSaveFormOpen(false)} className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors">Cancel</button>
-                                <button onClick={handleSaveForm} className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors">Save Form</button>
+                            <div className="px-6 py-4 bg-gray-50/80 flex justify-end gap-3 border-t border-gray-100">
+                                <button onClick={() => setSaveFormOpen(false)} className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-xl transition-all">Cancel</button>
+                                <button onClick={handleSaveForm} className="px-6 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 transition-all transform active:scale-95">Save Template</button>
                             </div>
                         </div>
                     </div>
                 )
             }
 
-            {/* --- Generic Confirmation Modal --- */}
-            {
-                confirmDialog.isOpen && (
-                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
-                        <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-100">
-                                <h3 className={`font-bold ${confirmDialog.type === 'danger' ? 'text-red-600' : 'text-gray-800'}`}>{confirmDialog.title}</h3>
-                            </div>
-                            <div className="p-6 text-sm text-gray-600 leading-relaxed">
-                                {confirmDialog.message}
-                            </div>
-                            <div className="px-6 py-4 bg-gray-50 flex justify-end gap-2">
-                                <button
-                                    onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
-                                    className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        confirmDialog.onConfirm();
-                                        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-                                    }}
-                                    className={`px-4 py-2 text-xs font-bold text-white rounded-lg transition-colors ${confirmDialog.type === 'danger' ? 'bg-red-500 hover:bg-red-600' : 'bg-indigo-600 hover:bg-indigo-700'}`}
-                                >
-                                    {confirmDialog.confirmText}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
+            <ConfirmDialog
+                isOpen={confirmDialog.isOpen}
+                options={confirmDialog}
+                onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+            />
 
             {/* --- AI Import Progress Modal --- */}
             {
                 importProgress.isOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100">
                             <div className="p-6">
                                 {importProgress.error ? (
                                     // Error State
@@ -7097,8 +7281,8 @@ export const SuperTable: React.FC = () => {
             {/* --- AI Builder Modal --- */}
             {
                 aiBuilderModal.isOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100">
                             <div className="p-6">
                                 {/* Header */}
                                 <div className="flex items-center gap-3 mb-6">
@@ -7246,9 +7430,9 @@ export const SuperTable: React.FC = () => {
             {/* --- Save Dataset Modal --- */}
             {
                 saveDatasetOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
-                        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
-                            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100">
+                            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                                 <div>
                                     <h3 className="text-lg font-bold text-gray-800">保存数据选项</h3>
                                     <p className="text-xs text-gray-500 mt-1">选择如何保存当前数据</p>
@@ -7369,8 +7553,8 @@ export const SuperTable: React.FC = () => {
             {/* Rename Dataset Dialog */}
             {
                 renameDialog.isOpen && (
-                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200 border border-gray-100">
                             <div className="mb-4">
                                 <h3 className="text-lg font-bold text-gray-800">Rename {renameDialog.type === 'form' ? 'Template' : 'Dataset'}</h3>
                                 <p className="text-xs text-gray-500 mt-1">
@@ -7408,8 +7592,8 @@ export const SuperTable: React.FC = () => {
             }
             {
                 deleteGroupDialog.isOpen && (
-                    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-                        <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200 border border-gray-100">
                             <div className="mb-4">
                                 <h3 className="text-lg font-bold text-red-600 flex items-center gap-2">
                                     <Trash2 size={20} /> Delete Folder
