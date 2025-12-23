@@ -5020,11 +5020,11 @@ export const SuperTable: React.FC = () => {
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
                             {/* Left: Image */}
                             <div className="lg:col-span-5">
-                                <div className="aspect-square bg-slate-50 rounded-3xl overflow-hidden border border-slate-100 relative group shadow-sm">
+                                <div className="aspect-square rounded-3xl overflow-hidden relative group">
                                     {product.image ? (
                                         <img src={product.image} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt={product.name} />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-slate-200">
+                                        <div className="w-full h-full flex items-center justify-center text-slate-100 bg-slate-50/50">
                                             <Box size={80} className="" />
                                         </div>
                                     )}
@@ -5038,18 +5038,18 @@ export const SuperTable: React.FC = () => {
                                     {product.description || 'No description provided for this product configuration.'}
                                 </p>
 
-                                <div className="grid grid-cols-2 gap-4 mb-8 max-w-md">
-                                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                        <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Source Dataset</div>
-                                        <div className="font-bold text-slate-700 flex items-center gap-2">
-                                            <Database size={14} className="text-indigo-500" />
+                                <div className="grid grid-cols-2 gap-8 mb-10 max-w-lg">
+                                    <div>
+                                        <div className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-widest">Source Dataset</div>
+                                        <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                            <Database size={16} className="text-indigo-500" />
                                             {savedDatasets.find(d => d.id === product.datasetId)?.name || 'Unknown'}
                                         </div>
                                     </div>
-                                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                        <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Configuration View</div>
-                                        <div className="font-bold text-slate-700 flex items-center gap-2">
-                                            <Filter size={14} className="text-indigo-500" />
+                                    <div>
+                                        <div className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-widest">Configuration View</div>
+                                        <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                            <Filter size={16} className="text-indigo-500" />
                                             {product.viewNames?.join(', ') || 'Full Dataset'}
                                         </div>
                                     </div>
@@ -5057,12 +5057,11 @@ export const SuperTable: React.FC = () => {
 
                                 {/* Unified Configuration Rules Display */}
                                 {(product as any).configRules?.length > 0 && (
-                                    <div className="mb-8 max-w-lg bg-white border border-slate-200 rounded-2xl p-5 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] ring-1 ring-slate-100">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex items-center gap-2">
-                                                <Layers size={15} className="text-slate-400" />
-                                                <span className="text-sm font-bold text-slate-800">Configuration Rules</span>
-                                                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full ml-1">{(product as any).configRules.length}</span>
+                                    <div className="mb-12 max-w-lg pl-6 border-l-4 border-indigo-500/20 hover:border-indigo-500 transition-colors duration-500">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-sm font-bold text-slate-900">Configuration Rules</span>
+                                                <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">{(product as any).configRules.length}</span>
                                             </div>
                                         </div>
 
@@ -5192,32 +5191,31 @@ export const SuperTable: React.FC = () => {
                                     </div>
                                 )}
 
-                                <div className="p-1 bg-slate-50 rounded-[20px] max-w-lg shadow-inner">
-                                    <div className="bg-white rounded-2xl border border-slate-100 p-6 flex items-center gap-6 shadow-sm">
-                                        <div className="flex-1">
-                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Order Quantity</label>
-                                            <div className="flex items-center gap-4">
-                                                <button onClick={() => setOrderQuantity(Math.max(1, orderQuantity - 1))} className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition-colors"><Minus size={14} /></button>
-                                                <input
-                                                    type="number"
-                                                    value={orderQuantity}
-                                                    onChange={(e) => setOrderQuantity(parseInt(e.target.value) || 1)}
-                                                    className="w-16 text-center text-xl font-bold text-slate-800 outline-none border-none bg-transparent"
-                                                />
-                                                <button onClick={() => setOrderQuantity(orderQuantity + 1)} className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition-colors"><Plus size={14} /></button>
-                                            </div>
+                                <div className="flex items-center gap-6 max-w-lg">
+                                    <div className="flex items-center gap-4 bg-white rounded-xl shadow-sm border border-slate-200 p-1.5 pr-4">
+                                        <div className="flex items-center gap-1">
+                                            <button onClick={() => setOrderQuantity(Math.max(1, orderQuantity - 1))} className="w-9 h-9 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center transition-colors"><Minus size={16} /></button>
+                                            <input
+                                                type="number"
+                                                value={orderQuantity}
+                                                onChange={(e) => setOrderQuantity(parseInt(e.target.value) || 1)}
+                                                className="w-12 text-center text-lg font-bold text-slate-900 outline-none border-none bg-transparent"
+                                            />
+                                            <button onClick={() => setOrderQuantity(orderQuantity + 1)} className="w-9 h-9 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center transition-colors"><Plus size={16} /></button>
                                         </div>
-                                        <button
-                                            onClick={() => {
-                                                const order = { id: `ord_${Date.now()}`, productId: product.id, quantity: orderQuantity, timestamp: Date.now() };
-                                                setProductOrders([...productOrders, order]);
-                                                addToast('Order Placed Successfully', 'success');
-                                            }}
-                                            className="px-8 py-4 bg-slate-900 text-white rounded-xl font-bold shadow-xl hover:bg-indigo-600 transition-all active:scale-95 flex items-center gap-2"
-                                        >
-                                            <ShoppingCart size={18} /> Place Order
-                                        </button>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-l border-slate-100 pl-4">Quantity</span>
                                     </div>
+
+                                    <button
+                                        onClick={() => {
+                                            const order = { id: `ord_${Date.now()}`, productId: product.id, quantity: orderQuantity, timestamp: Date.now() };
+                                            setProductOrders([...productOrders, order]);
+                                            addToast('Order Placed Successfully', 'success');
+                                        }}
+                                        className="h-[52px] px-8 bg-slate-900 text-white rounded-xl font-bold hover:bg-indigo-600 transition-all active:scale-95 flex items-center gap-2 shadow-xl shadow-slate-200"
+                                    >
+                                        <ShoppingCart size={18} /> Place Order
+                                    </button>
                                 </div>
                             </div>
                         </div>
