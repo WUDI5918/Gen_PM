@@ -4603,29 +4603,54 @@ export const SuperTable: React.FC = () => {
                                                                 </div>
                                                             )}
 
+                                                            {/* Rule Header Info */}
+                                                            {(rule.title || rule.description) && (
+                                                                <div className="mb-2 pb-2 border-b border-slate-50">
+                                                                    {rule.title && <div className="text-[10px] font-bold text-slate-800">{rule.title}</div>}
+                                                                    {rule.description && <div className="text-[9px] text-slate-400 italic truncate">{rule.description}</div>}
+                                                                </div>
+                                                            )}
+
                                                             {rule.ruleType === 'mapping' ? (
-                                                                <div className="space-y-1.5">
-                                                                    <div className="flex items-center gap-1.5">
-                                                                        <span className="text-[9px] font-black bg-emerald-600 text-white px-1.5 py-0.5 rounded-md uppercase tracking-tighter">MAP</span>
-                                                                        <span className="text-[10px] font-bold text-slate-700 truncate max-w-[120px]">{rule.sourceField}</span>
-                                                                        <ArrowRight size={10} className="text-emerald-400" />
-                                                                        <span className="text-[10px] font-black text-emerald-700">{rule.targetField}</span>
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center flex-wrap gap-1.5 text-[10px] leading-relaxed">
+                                                                        <span className="bg-slate-100 text-slate-500 px-1 rounded font-bold uppercase text-[8px]">WHEN</span>
+                                                                        <span className="font-bold text-slate-800 bg-slate-50 px-1 rounded border border-slate-100">{rule.sourceField}</span>
+                                                                        <span className="text-slate-400">changes</span>
+                                                                        <ArrowRight size={10} className="text-slate-300" />
+                                                                        <span className="bg-slate-100 text-slate-500 px-1 rounded font-bold uppercase text-[8px]">UPDATE</span>
+                                                                        <span className="font-black text-emerald-700 bg-emerald-50 px-1 rounded border border-emerald-100">{rule.targetField}</span>
                                                                     </div>
-                                                                    <div className="text-[9px] text-slate-400 font-medium pl-1 flex items-center gap-2">
-                                                                        <span>{rule.mappings?.length || 0} mapping entries</span>
-                                                                        {rule.sourceRowId && <span className="bg-orange-100 text-orange-600 px-1 rounded uppercase tracking-tighter text-[8px]">Pinned Row</span>}
+
+                                                                    {/* Mapping Preview */}
+                                                                    <div className="bg-slate-50/50 rounded-md p-1.5 border border-slate-100/50 space-y-1">
+                                                                        {(rule.mappings || []).slice(0, 3).map((m: any, i: number) => (
+                                                                            <div key={i} className="flex items-center text-[9px] gap-2">
+                                                                                <span className="font-medium text-slate-600 min-w-[20px]">{m.sourceValue}</span>
+                                                                                <ArrowRight size={8} className="text-slate-300" />
+                                                                                <span className="font-bold text-slate-800">{m.targetValue}</span>
+                                                                            </div>
+                                                                        ))}
+                                                                        {(rule.mappings?.length || 0) > 3 && (
+                                                                            <div className="text-[8px] text-slate-400 pl-1">... +{(rule.mappings?.length || 0) - 3} more</div>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <div className="flex items-center gap-2">
+                                                                        {rule.sourceRowId && <span className="bg-orange-50 text-orange-600 border border-orange-100 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-tight flex items-center gap-1"><MousePointerClick size={8} /> Row Pinned</span>}
                                                                     </div>
                                                                 </div>
                                                             ) : (
-                                                                <div className="space-y-1.5">
-                                                                    <div className="flex items-center gap-1.5 tier">
-                                                                        <span className="text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.5 rounded-md uppercase tracking-tighter">CALC</span>
-                                                                        <span className="text-[10px] font-bold text-indigo-700">{rule.targetField}</span>
-                                                                        <span className="text-slate-300 font-black">=</span>
-                                                                        <span className="text-[10px] font-black text-slate-700 italic truncate max-w-[100px]">{rule.expression}</span>
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center flex-wrap gap-1.5 text-[10px]">
+                                                                        <span className="bg-slate-100 text-slate-500 px-1 rounded font-bold uppercase text-[8px]">IF</span>
+                                                                        <span className="text-slate-500 italic max-w-[150px] truncate">{rule.conditions?.map((c: any) => `${c.fieldId} ${c.operator} ${c.value}`).join(rule.logic === 'OR' ? ' || ' : ' && ')}</span>
+                                                                        <ArrowRight size={10} className="text-slate-300" />
+                                                                        <span className="bg-slate-100 text-slate-500 px-1 rounded font-bold uppercase text-[8px]">SET</span>
+                                                                        <span className="font-black text-indigo-700 bg-indigo-50 px-1 rounded border border-indigo-100">{rule.targetField}</span>
                                                                     </div>
-                                                                    <div className="text-[9px] text-slate-400 font-medium pl-1 italic">
-                                                                        Based on {rule.conditions?.length || 0} conditions ({rule.logic})
+                                                                    <div className="bg-slate-50/50 rounded p-1.5 border border-slate-100/50 text-[9px] font-mono text-slate-600 truncate">
+                                                                        = {rule.expression}
                                                                     </div>
                                                                 </div>
                                                             )}
