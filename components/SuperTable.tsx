@@ -5055,136 +5055,139 @@ export const SuperTable: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {product.configRules?.length > 0 && (
-                                    <div className="mb-8 max-w-lg">
-                                        <div className="flex items-center gap-2 text-indigo-600 mb-3">
-                                            <Layers size={14} />
-                                            <span className="text-xs font-bold uppercase tracking-widest text-indigo-900/40">Interactive Configurator</span>
-                                            <span className="text-[10px] bg-indigo-100/50 text-indigo-600 px-2 py-0.5 rounded-full font-black">{(product as any).configRules.length}</span>
+                                {/* Unified Configuration Rules Display */}
+                                {(product as any).configRules?.length > 0 && (
+                                    <div className="mb-8 max-w-lg bg-white border border-slate-200 rounded-2xl p-5 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] ring-1 ring-slate-100">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <Layers size={15} className="text-slate-400" />
+                                                <span className="text-sm font-bold text-slate-800">Configuration Rules</span>
+                                                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full ml-1">{(product as any).configRules.length}</span>
+                                            </div>
                                         </div>
 
-                                        <div className="bg-white border border-slate-200 rounded-[24px] overflow-hidden shadow-sm">
-                                            {/* Unified Tab Header */}
-                                            {(product as any).configRules.length > 1 && (
-                                                <div className="flex bg-slate-50/80 border-b border-slate-100 p-1.5 gap-1 overflow-x-auto no-scrollbar">
-                                                    {(product as any).configRules.map((r: any, idx: number) => {
-                                                        const tabLabel = r.title || r.description || `Rule ${idx + 1}`;
-                                                        const isActive = activeRuleTab === idx;
-                                                        return (
-                                                            <button
-                                                                key={idx}
-                                                                onClick={() => setActiveRuleTab(idx)}
-                                                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all duration-300 flex-1 min-w-[80px] ${isActive
-                                                                    ? 'bg-white text-indigo-600 shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-slate-100'
-                                                                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
-                                                                    }`}
-                                                            >
-                                                                {tabLabel.length > 15 ? tabLabel.substring(0, 15) + '...' : tabLabel}
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
-
-                                            {/* Rule Body */}
-                                            <div className="p-4">
-                                                {(product as any).configRules.map((rule: any, i: number) => {
-                                                    if ((product as any).configRules.length > 1 && activeRuleTab !== i) return null;
+                                        {/* Minimalist Integrated Tabs */}
+                                        {(product as any).configRules.length > 1 && (
+                                            <div className="flex items-center gap-6 border-b border-slate-100 mb-5 overflow-x-auto no-scrollbar">
+                                                {(product as any).configRules.map((r: any, idx: number) => {
+                                                    const tabLabel = r.title || r.description?.substring(0, 10) || `Rule ${idx + 1}`;
+                                                    const isActive = activeRuleTab === idx;
                                                     return (
-                                                        <div key={i} className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                                                            {rule.description && (
-                                                                <div className="mb-4 text-[11px] font-bold text-slate-400 flex items-start gap-2 bg-slate-50/50 p-2 rounded-xl border border-slate-100/50">
-                                                                    <div className="mt-0.5"><Info size={12} className="text-indigo-400" /></div>
-                                                                    <div className="italic tracking-tight leading-relaxed">{rule.description}</div>
-                                                                </div>
+                                                        <button
+                                                            key={idx}
+                                                            onClick={() => setActiveRuleTab(idx)}
+                                                            className={`pb-2.5 text-xs font-bold whitespace-nowrap transition-all relative px-1 ${isActive
+                                                                ? 'text-indigo-600'
+                                                                : 'text-slate-400 hover:text-slate-600'
+                                                                }`}
+                                                        >
+                                                            {tabLabel.length > 15 ? tabLabel.substring(0, 15) + '...' : tabLabel}
+                                                            {isActive && (
+                                                                <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />
                                                             )}
-                                                            <div className={`p-4 rounded-[20px] ${rule.ruleType === 'mapping' ? 'bg-emerald-50/30 border border-emerald-100/50' : 'bg-indigo-50/30 border border-indigo-100/50'}`}>
-                                                                {rule.ruleType === 'mapping' ? (
-                                                                    <div className="space-y-2">
-                                                                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                                                                            <span className="bg-emerald-500 text-white px-1.5 py-0.5 rounded text-[10px] font-bold uppercase transition-all">Cascading</span>
-                                                                            {rule.sourceRowId && (
-                                                                                <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200 flex items-center gap-1">
-                                                                                    <BoxSelect size={10} /> Specified Row
-                                                                                </span>
-                                                                            )}
-                                                                            <span className="text-slate-600 font-medium">When</span>
-                                                                            <b className="text-indigo-600 font-extrabold">{rule.sourceField}</b>
-                                                                            <span className="text-slate-400">changes</span>
-                                                                        </div>
-                                                                        <div className="pl-4 border-l-2 border-emerald-200 space-y-1">
-                                                                            <div className="text-[10px] text-slate-400 font-bold uppercase mb-1 flex items-center gap-1">
-                                                                                <ArrowRight size={10} /> Update {rule.targetField}
-                                                                            </div>
-                                                                            <div className="flex flex-wrap gap-1.5">
-                                                                                {rule.mappings?.map((m: any, idx: number) => {
-                                                                                    const ds = savedDatasets.find(d => d.id === product.datasetId);
-                                                                                    const referenceRowId = rule.sourceRowId || (ds?.records[0]?._id);
-                                                                                    const isSelected = referenceRowId && previewOverrides[referenceRowId]?.[rule.sourceField] === m.sourceValue;
-
-                                                                                    return (
-                                                                                        <button
-                                                                                            key={idx}
-                                                                                            onClick={() => {
-                                                                                                const rowId = rule.sourceRowId;
-                                                                                                if (!rowId) {
-                                                                                                    // Apply to ALL records if no specific row is target
-                                                                                                    const ds = savedDatasets.find(d => d.id === product.datasetId);
-                                                                                                    if (ds) {
-                                                                                                        const updates: any = {};
-                                                                                                        ds.records.forEach(dr => {
-                                                                                                            updates[dr._id] = { ...(previewOverrides[dr._id] || {}), [rule.sourceField]: m.sourceValue };
-                                                                                                        });
-                                                                                                        setPreviewOverrides(prev => ({ ...prev, ...updates }));
-                                                                                                    }
-                                                                                                } else {
-                                                                                                    setPreviewOverrides(prev => ({
-                                                                                                        ...prev,
-                                                                                                        [rowId]: { ...(prev[rowId] || {}), [rule.sourceField]: m.sourceValue }
-                                                                                                    }));
-                                                                                                }
-                                                                                            }}
-                                                                                            className={`flex items-center rounded-md px-2 py-1 text-[10px] shadow-sm transition-all border ${isSelected
-                                                                                                ? 'bg-emerald-600 text-white border-emerald-700 font-bold scale-105 ring-2 ring-emerald-200'
-                                                                                                : 'bg-white text-slate-600 border-emerald-100 hover:border-emerald-300 hover:bg-emerald-50'
-                                                                                                }`}
-                                                                                        >
-                                                                                            <span className={isSelected ? 'text-white' : 'font-bold text-emerald-700'}>{m.sourceValue}</span>
-                                                                                            <ArrowRight size={8} className={`mx-1 ${isSelected ? 'text-white opacity-60' : 'text-slate-300'}`} />
-                                                                                            <span className={isSelected ? 'text-white/90' : 'text-slate-600'}>{m.targetValue}</span>
-                                                                                        </button>
-                                                                                    );
-                                                                                })}
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="flex flex-col gap-1.5">
-                                                                        <div className="flex items-center gap-2 text-xs">
-                                                                            <span className="bg-indigo-500 text-white px-1.5 py-0.5 rounded text-[10px] font-bold uppercase transition-all">Logic</span>
-                                                                            <span className="text-slate-600 font-medium">If</span>
-                                                                            <div className="flex flex-wrap gap-1">
-                                                                                {rule.conditions?.map((c: any, ci: number) => (
-                                                                                    <span key={ci} className="bg-white border border-indigo-100 px-1.5 py-0.5 rounded text-indigo-700 font-bold">
-                                                                                        {c.fieldId} {c.operator} {c.value}
-                                                                                    </span>
-                                                                                ))}
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="flex items-center gap-2 text-xs pt-1.5 border-t border-indigo-50/50 mt-1">
-                                                                            <ArrowRight size={12} className="text-indigo-400" />
-                                                                            <span className="text-slate-500">Set</span>
-                                                                            <b className="text-slate-800">{rule.targetField}</b>
-                                                                            <span className="text-slate-400">=</span>
-                                                                            <span className="text-indigo-600 font-black">{rule.expression}</span>
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
+                                                        </button>
                                                     );
                                                 })}
                                             </div>
+                                        )}
+
+                                        {/* Clean Content Area */}
+                                        <div>
+                                            {(product as any).configRules.map((rule: any, i: number) => {
+                                                if ((product as any).configRules.length > 1 && activeRuleTab !== i) return null;
+                                                return (
+                                                    <div key={i} className="animate-in fade-in slide-in-from-bottom-1 duration-300">
+                                                        {rule.description && (
+                                                            <div className="mb-4 text-xs text-slate-500 italic flex items-start gap-2">
+                                                                <Info size={14} className="mt-0.5 text-slate-400 shrink-0" />
+                                                                <span>{rule.description}</span>
+                                                            </div>
+                                                        )}
+
+                                                        {rule.ruleType === 'mapping' ? (
+                                                            <div className="space-y-4">
+                                                                <div className="flex flex-wrap items-center gap-2 text-xs">
+                                                                    <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase">Mapping</span>
+                                                                    {rule.sourceRowId && (
+                                                                        <span className="bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-100 flex items-center gap-1">
+                                                                            Specified Row
+                                                                        </span>
+                                                                    )}
+                                                                    <span className="text-slate-400">When</span>
+                                                                    <b className="text-slate-800">{rule.sourceField}</b>
+                                                                    <span className="text-slate-400">changes</span>
+                                                                </div>
+
+                                                                <div className="pl-3 border-l-2 border-slate-100 space-y-2">
+                                                                    <div className="text-[10px] text-slate-400 font-bold uppercase mb-1 flex items-center gap-1">
+                                                                        <ArrowRight size={10} /> Update {rule.targetField}
+                                                                    </div>
+                                                                    <div className="flex flex-wrap gap-2">
+                                                                        {rule.mappings?.map((m: any, idx: number) => {
+                                                                            const ds = savedDatasets.find(d => d.id === product.datasetId);
+                                                                            const referenceRowId = rule.sourceRowId || (ds?.records[0]?._id);
+                                                                            const isSelected = referenceRowId && previewOverrides[referenceRowId]?.[rule.sourceField] === m.sourceValue;
+
+                                                                            return (
+                                                                                <button
+                                                                                    key={idx}
+                                                                                    onClick={() => {
+                                                                                        const rowId = rule.sourceRowId;
+                                                                                        if (!rowId) {
+                                                                                            // Apply to ALL records if no specific row is target
+                                                                                            const ds = savedDatasets.find(d => d.id === product.datasetId);
+                                                                                            if (ds) {
+                                                                                                const updates: any = {};
+                                                                                                ds.records.forEach(dr => {
+                                                                                                    updates[dr._id] = { ...(previewOverrides[dr._id] || {}), [rule.sourceField]: m.sourceValue };
+                                                                                                });
+                                                                                                setPreviewOverrides(prev => ({ ...prev, ...updates }));
+                                                                                            }
+                                                                                        } else {
+                                                                                            setPreviewOverrides(prev => ({
+                                                                                                ...prev,
+                                                                                                [rowId]: { ...(prev[rowId] || {}), [rule.sourceField]: m.sourceValue }
+                                                                                            }));
+                                                                                        }
+                                                                                    }}
+                                                                                    className={`flex items-center rounded-lg px-2.5 py-1.5 text-[11px] transition-all border ${isSelected
+                                                                                        ? 'bg-indigo-50 text-indigo-700 border-indigo-200 font-bold shadow-sm'
+                                                                                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                                                                        }`}
+                                                                                >
+                                                                                    <span className={isSelected ? 'text-indigo-700' : 'font-medium'}>{m.sourceValue}</span>
+                                                                                    <ArrowRight size={10} className={`mx-1.5 ${isSelected ? 'text-indigo-300' : 'text-slate-300'}`} />
+                                                                                    <span className={isSelected ? 'text-indigo-700' : 'text-slate-500'}>{m.targetValue}</span>
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex flex-col gap-3">
+                                                                <div className="flex items-center gap-2 text-xs">
+                                                                    <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase">Logic</span>
+                                                                    <span className="text-slate-400">If</span>
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                        {rule.conditions?.map((c: any, ci: number) => (
+                                                                            <span key={ci} className="bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 font-medium text-[11px]">
+                                                                                {c.fieldId} {c.operator} {c.value}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-xs pt-2 border-t border-slate-100 mt-1">
+                                                                    <span className="text-slate-400">Set</span>
+                                                                    <b className="text-slate-800">{rule.targetField}</b>
+                                                                    <span className="text-slate-400">=</span>
+                                                                    <span className="text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">{rule.expression}</span>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}
@@ -5235,7 +5238,7 @@ export const SuperTable: React.FC = () => {
                         </div>
                     </div>
                 </div>
-            </div >
+            </div>
         );
     };
 
