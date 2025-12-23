@@ -2328,7 +2328,7 @@ export const SuperTable: React.FC = () => {
     const [activeFormId, setActiveFormId] = useState<string | null>(() => loadFromStorage('erp_active_form_id', 'form_default'));
 
     // Rule Presets State
-    const [savedRulePresets, setSavedRulePresets] = useState<{ id: string, name: string, rules: any[] }[]>(() => loadFromStorage('erp_rule_presets', []));
+    const [savedRulePresets, setSavedRulePresets] = useState<{ id: string, name: string, rules: any[], datasetId?: string }[]>(() => loadFromStorage('erp_rule_presets', []));
 
     // Product Center State
     const [products, setProducts] = useState<{
@@ -2394,6 +2394,7 @@ export const SuperTable: React.FC = () => {
 
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
     const [activeRuleTab, setActiveRuleTab] = useState<number>(0);
+    const [editingRuleTab, setEditingRuleTab] = useState<{ index: number, value: string } | null>(null);
     const [orderQuantity, setOrderQuantity] = useState<number>(1);
 
     // Load saved key configurations when product is selected
@@ -4478,10 +4479,10 @@ export const SuperTable: React.FC = () => {
                                                         <Bot size={12} /> Logic Templates
                                                     </div>
                                                     <div className="flex flex-col gap-1.5">
-                                                        {savedRulePresets.filter(p => !p.rules[0] || p.rules[0].ruleType === 'logic').length === 0 && (
+                                                        {savedRulePresets.filter(p => p.datasetId === configState.datasetId && (!p.rules[0] || p.rules[0].ruleType === 'logic')).length === 0 && (
                                                             <div className="text-[10px] text-slate-300 italic pl-1">Empty</div>
                                                         )}
-                                                        {savedRulePresets.filter(p => !p.rules[0] || p.rules[0].ruleType === 'logic').map(preset => (
+                                                        {savedRulePresets.filter(p => p.datasetId === configState.datasetId && (!p.rules[0] || p.rules[0].ruleType === 'logic')).map(preset => (
                                                             <div key={preset.id} className="group/pill flex items-center justify-between bg-white border border-slate-200 pl-2 pr-1 py-1.5 rounded-lg hover:border-indigo-300 transition-all cursor-pointer shadow-sm hover:shadow-md">
                                                                 <span
                                                                     className="text-[10px] font-bold text-slate-600 truncate max-w-[100px]"
@@ -4515,10 +4516,10 @@ export const SuperTable: React.FC = () => {
                                                         <ArrowRight size={12} /> Map Templates
                                                     </div>
                                                     <div className="flex flex-col gap-1.5">
-                                                        {savedRulePresets.filter(p => p.rules[0]?.ruleType === 'mapping').length === 0 && (
+                                                        {savedRulePresets.filter(p => p.datasetId === configState.datasetId && p.rules[0]?.ruleType === 'mapping').length === 0 && (
                                                             <div className="text-[10px] text-slate-300 italic pl-1">Empty</div>
                                                         )}
-                                                        {savedRulePresets.filter(p => p.rules[0]?.ruleType === 'mapping').map(preset => (
+                                                        {savedRulePresets.filter(p => p.datasetId === configState.datasetId && p.rules[0]?.ruleType === 'mapping').map(preset => (
                                                             <div key={preset.id} className="group/pill flex items-center justify-between bg-white border border-slate-200 pl-2 pr-1 py-1.5 rounded-lg hover:border-emerald-300 transition-all cursor-pointer shadow-sm hover:shadow-md">
                                                                 <span
                                                                     className="text-[10px] font-bold text-slate-600 truncate max-w-[100px]"
@@ -4609,7 +4610,7 @@ export const SuperTable: React.FC = () => {
                                                                                         addToast('Name already exists', 'error');
                                                                                         return;
                                                                                     }
-                                                                                    setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name: newPresetName.trim(), rules: [rule] }]);
+                                                                                    setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name: newPresetName.trim(), rules: [rule], datasetId: configState.datasetId }]);
                                                                                     addToast('Rule saved as preset', 'success');
                                                                                     setSavingRuleId(null);
                                                                                 }
@@ -4700,7 +4701,7 @@ export const SuperTable: React.FC = () => {
                                                             addToast(`预设名称 "${name}" 已存在`, 'error');
                                                             return;
                                                         }
-                                                        setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name, rules }]);
+                                                        setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name, rules, datasetId: configState.datasetId }]);
                                                         addToast(`预设 "${name}" 已保存到库`, 'success');
                                                     }}
                                                 />
@@ -5118,10 +5119,47 @@ export const SuperTable: React.FC = () => {
                                                 {(product as any).configRules.map((r: any, idx: number) => {
                                                     const tabLabel = r.title || r.description?.substring(0, 10) || `Rule ${idx + 1}`;
                                                     const isActive = activeRuleTab === idx;
+                                                    const isEditing = editingRuleTab?.index === idx;
+
+                                                    if (isEditing) {
+                                                        return (
+                                                            <input
+                                                                key={idx}
+                                                                autoFocus
+                                                                value={editingRuleTab.value}
+                                                                onChange={(e) => setEditingRuleTab({ ...editingRuleTab, value: e.target.value })}
+                                                                onBlur={() => {
+                                                                    if (editingRuleTab.value.trim()) {
+                                                                        setProducts(prev => prev.map(p => {
+                                                                            if (p.id === product.id) {
+                                                                                const newRules = [...(p as any).configRules];
+                                                                                newRules[idx] = { ...newRules[idx], title: editingRuleTab.value.trim() };
+                                                                                return { ...p, configRules: newRules };
+                                                                            }
+                                                                            return p;
+                                                                        }));
+                                                                    }
+                                                                    setEditingRuleTab(null);
+                                                                }}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        e.preventDefault();
+                                                                        e.currentTarget.blur();
+                                                                    }
+                                                                }}
+                                                                className="w-24 px-1 py-0.5 mt-0.5 mb-2 text-xs font-bold text-slate-900 bg-white border border-indigo-200 rounded outline-none ring-1 ring-indigo-500/20"
+                                                            />
+                                                        );
+                                                    }
+
                                                     return (
                                                         <button
                                                             key={idx}
                                                             onClick={() => setActiveRuleTab(idx)}
+                                                            onDoubleClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEditingRuleTab({ index: idx, value: r.title || tabLabel });
+                                                            }}
                                                             className={`pb-2.5 text-xs font-bold whitespace-nowrap transition-all relative px-1 ${isActive
                                                                 ? 'text-indigo-600'
                                                                 : 'text-slate-400 hover:text-slate-600'
