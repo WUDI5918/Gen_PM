@@ -11,7 +11,7 @@ import {
     ToggleLeft, FileText, PenTool, Star, CreditCard, Clock, Link,
     ListOrdered, Folder, Sidebar, FormInput, BookOpen, Lightbulb, FunctionSquare, Calculator, Regex, Sparkles,
     ArrowDownUp, ArrowDownAZ, ArrowUpAZ, ArrowUp,
-    Package, Box, Settings, ChevronLeft, ShoppingCart
+    Package, Box, Settings, ChevronLeft, ShoppingCart, MousePointerClick, Tag
 } from 'lucide-react';
 import { read, utils } from 'xlsx';
 import { generateFormSchemaFromData, generateFormFromDescription, generateFormLogic } from '../services/geminiService';
@@ -1856,7 +1856,8 @@ const UnifiedRuleBuilder: React.FC<{
     records: any[];
     onAdd: (rule: any) => void;
     onSaveAsPreset: (name: string, rule: any) => void;
-}> = ({ schema, records, onAdd, onSaveAsPreset }) => {
+    onEnableRowPicker?: (callback: (id: string) => void) => void;
+}> = ({ schema, records, onAdd, onSaveAsPreset, onEnableRowPicker }) => {
     const [activeRuleType, setActiveRuleType] = useState<'logic' | 'mapping'>('logic');
 
     // Logic Rule State
@@ -1870,9 +1871,9 @@ const UnifiedRuleBuilder: React.FC<{
     const [mSourceRowId, setMSourceRowId] = useState(''); // New: Specify a row ID
     const [mTargetField, setMTargetField] = useState('');
     const [mMappings, setMMappings] = useState<{ sourceValue: string, targetValue: string }[]>([]);
+    const [ruleDescription, setRuleDescription] = useState('');
+    const [ruleTitle, setRuleTitle] = useState('');
 
-    const [isSavingTemplate, setIsSavingTemplate] = useState(false);
-    const [templateName, setTemplateName] = useState('');
 
     const getRecordLabel = (r: any) => {
         // Try to find a human-readable name, otherwise use ID
@@ -1919,7 +1920,9 @@ const UnifiedRuleBuilder: React.FC<{
                 logic: logicMode,
                 conditions,
                 targetField,
-                expression: targetValue
+                expression: targetValue,
+                description: ruleDescription,
+                title: ruleTitle
             }
             : {
                 id: `rule_${Date.now()}`,
@@ -1927,7 +1930,9 @@ const UnifiedRuleBuilder: React.FC<{
                 sourceField: mSourceField,
                 sourceRowId: mSourceRowId || undefined,
                 targetField: mTargetField,
-                mappings: mMappings
+                mappings: mMappings,
+                description: ruleDescription,
+                title: ruleTitle
             };
 
         onAdd(ruleData);
@@ -1941,32 +1946,10 @@ const UnifiedRuleBuilder: React.FC<{
             setMTargetField('');
             setMMappings([]);
         }
+        setRuleDescription('');
+        setRuleTitle('');
     };
 
-    const handleSaveAsTemplate = () => {
-        if (!templateName.trim()) return;
-        const ruleData = activeRuleType === 'logic'
-            ? {
-                id: `rule_${Date.now()}`,
-                ruleType: 'logic',
-                logic: logicMode,
-                conditions,
-                targetField,
-                expression: targetValue
-            }
-            : {
-                id: `rule_${Date.now()}`,
-                ruleType: 'mapping',
-                sourceField: mSourceField,
-                sourceRowId: mSourceRowId || undefined,
-                targetField: mTargetField,
-                mappings: mMappings
-            };
-
-        onSaveAsPreset(templateName.trim(), [ruleData]);
-        setTemplateName('');
-        setIsSavingTemplate(false);
-    };
 
     const isLogicValid = conditions.length > 0 && conditions.every(c => c.fieldId && c.operator) && targetField;
     const isMappingValid = mSourceField && mTargetField && mMappings.length > 0 && mMappings.every(m => m.sourceValue);
@@ -2082,8 +2065,17 @@ const UnifiedRuleBuilder: React.FC<{
                 <div className="animate-in fade-in slide-in-from-bottom-2">
                     <div className="space-y-4">
                         <div className="p-3 bg-amber-50/30 rounded-xl border border-amber-100/50 mb-2">
-                            <label className="text-[10px] font-bold text-amber-600 uppercase block mb-1.5 flex items-center gap-1">
-                                <BoxSelect size={12} /> 监听行范围 (Source Row Focus)
+                            <label className="text-[10px] font-bold text-amber-600 uppercase block mb-1.5 flex items-center justify-between">
+                                <span className="flex items-center gap-1"><BoxSelect size={12} /> 监听行范围 (Source Row Focus)</span>
+                                {onEnableRowPicker && (
+                                    <button
+                                        onClick={() => onEnableRowPicker((id) => setMSourceRowId(id))}
+                                        className="text-[9px] bg-amber-100 hover:bg-amber-200 text-amber-700 px-1.5 py-0.5 rounded-md transition-colors flex items-center gap-1"
+                                        title="Pick from table"
+                                    >
+                                        <MousePointerClick size={10} /> Pick Row
+                                    </button>
+                                )}
                             </label>
                             <select
                                 value={mSourceRowId}
@@ -2167,6 +2159,30 @@ const UnifiedRuleBuilder: React.FC<{
                             </button>
                         </div>
                     </div>
+
+                    <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5 flex items-center gap-1">
+                            <Info size={12} /> 规则说明 (Rule Description)
+                        </label>
+                        <textarea
+                            value={ruleDescription}
+                            onChange={(e) => setRuleDescription(e.target.value)}
+                            placeholder="输入此规则的作用说明，例如：根据产品型号自动匹配附件清单..."
+                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-[10px] outline-none focus:ring-1 focus:ring-indigo-300 min-h-[60px] resize-none"
+                        />
+                    </div>
+
+                    <div className="mt-2 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                        <label className="text-[10px] font-bold text-indigo-400 uppercase block mb-1.5 flex items-center gap-1">
+                            <Tag size={12} /> 标签标题 (Tab Title - Optional)
+                        </label>
+                        <input
+                            value={ruleTitle}
+                            onChange={(e) => setRuleTitle(e.target.value)}
+                            placeholder="默认使用说明文字..."
+                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none focus:ring-1 focus:ring-indigo-300"
+                        />
+                    </div>
                 </div>
             )}
 
@@ -2175,41 +2191,12 @@ const UnifiedRuleBuilder: React.FC<{
                     <button
                         onClick={handleAddRule}
                         disabled={activeRuleType === 'logic' ? !isLogicValid : !isMappingValid}
-                        className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95 disabled:opacity-30 disabled:grayscale ${activeRuleType === 'logic' ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100' : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100'}`}
+                        className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-30"
                     >
-                        <Plus size={14} />
+                        <Plus size={14} className="text-slate-400" />
                         <span>应用到当前规则栈</span>
                     </button>
-                    <button
-                        onClick={() => setIsSavingTemplate(!isSavingTemplate)}
-                        disabled={activeRuleType === 'logic' ? !isLogicValid : !isMappingValid}
-                        className="px-3 py-2.5 rounded-xl text-slate-400 bg-slate-50 hover:bg-slate-100 border border-slate-100 hover:text-indigo-600 transition-all disabled:opacity-30 disabled:grayscale"
-                        title="收藏为预设"
-                    >
-                        <Bookmark size={14} className={isSavingTemplate ? 'fill-indigo-600 text-indigo-600' : ''} />
-                    </button>
                 </div>
-
-                {isSavingTemplate && (
-                    <div className="flex gap-1.5 p-2 bg-indigo-50/50 rounded-xl border border-indigo-100 animate-in slide-in-from-top-1">
-                        <input
-                            autoFocus
-                            placeholder="预设名称..."
-                            value={templateName}
-                            onChange={e => setTemplateName(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleSaveAsTemplate()}
-                            className="flex-1 bg-white border-none rounded-lg px-2 text-[10px] font-bold text-slate-700 focus:ring-1 focus:ring-indigo-400 h-8"
-                        />
-                        <button
-                            onClick={handleSaveAsTemplate}
-                            disabled={!templateName.trim()}
-                            className="px-3 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase tracking-tight hover:bg-indigo-700 disabled:opacity-50"
-                        >
-                            存入库
-                        </button>
-                        <button onClick={() => setIsSavingTemplate(false)} className="p-1.5 hover:bg-white text-slate-400 rounded-lg"><X size={12} /></button>
-                    </div>
-                )}
             </div>
         </div>
     );
@@ -2295,6 +2282,9 @@ export const SuperTable: React.FC = () => {
     const [isDraggingColumnSelection, setIsDraggingColumnSelection] = useState(false);
     const [fillRange, setFillRange] = useState<{ startRowIndex: number; endRowIndex: number; minColIndex: number; maxColIndex: number } | null>(null);
     const [fillConfirmMenu, setFillConfirmMenu] = useState<{ x: number, y: number, recordsToUpdate: any[] } | null>(null);
+    const [activeRowPicker, setActiveRowPicker] = useState<((id: string) => void) | null>(null);
+    const [savingRuleId, setSavingRuleId] = useState<string | null>(null);
+    const [newPresetName, setNewPresetName] = useState('');
     const lastLogicRef = useRef('');
 
     // --- Real-time Logic Update ---
@@ -2361,6 +2351,7 @@ export const SuperTable: React.FC = () => {
             sourceField?: string;
             sourceRowId?: string;
             mappings?: { sourceValue: string, targetValue: string }[];
+            description?: string; // Added description field
         }[];
     }[]>(() => loadFromStorage('erp_products', []));
 
@@ -2377,6 +2368,7 @@ export const SuperTable: React.FC = () => {
         name: '',
         description: '',
         image: '',
+        imageFit: 'cover' as 'cover' | 'contain' | 'fill' | 'tile',
         // Configuration Rules: Group Logic focused
         configRules: [] as {
             id: string;
@@ -2388,6 +2380,8 @@ export const SuperTable: React.FC = () => {
             sourceField?: string;
             sourceRowId?: string;
             mappings?: { sourceValue: string, targetValue: string }[];
+            description?: string; // Added description field
+            title?: string; // Added title field
         }[]
     });
 
@@ -2399,11 +2393,13 @@ export const SuperTable: React.FC = () => {
     }, [previewOverrides]);
 
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+    const [activeRuleTab, setActiveRuleTab] = useState<number>(0);
     const [orderQuantity, setOrderQuantity] = useState<number>(1);
 
     // Load saved key configurations when product is selected
     useEffect(() => {
         if (selectedProductId) {
+            setActiveRuleTab(0);
             const product = products.find(p => p.id === selectedProductId);
             if (product && product.defaultOverrides) {
                 setPreviewOverrides(product.defaultOverrides);
@@ -4068,6 +4064,7 @@ export const SuperTable: React.FC = () => {
                 name: configState.name,
                 description: configState.description || '',
                 image: configState.image || '',
+                imageFit: configState.imageFit || 'cover',
                 datasetId: configState.datasetId,
                 viewNames: configState.viewNames,
                 configRules: configState.configRules || [],
@@ -4088,7 +4085,7 @@ export const SuperTable: React.FC = () => {
             // Clear state and navigate
             setTimeout(() => {
                 setProductSubTab('library');
-                setConfigState({ datasetId: '', viewNames: [], name: '', description: '', image: '', configRules: [] });
+                setConfigState({ datasetId: '', viewNames: [], name: '', description: '', image: '', imageFit: 'cover', configRules: [] });
             }, 100);
 
         } catch (e: any) {
@@ -4275,7 +4272,17 @@ export const SuperTable: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                         {filtered.map((r, i) => (
-                            <tr key={i} className="hover:bg-slate-50 transition-colors">
+                            <tr
+                                key={i}
+                                className={`transition-colors ${activeRowPicker ? 'cursor-crosshair hover:bg-indigo-50 border-2 border-transparent hover:border-indigo-500/50' : 'hover:bg-slate-50'}`}
+                                onClick={() => {
+                                    if (activeRowPicker) {
+                                        activeRowPicker(String(r._id));
+                                        setActiveRowPicker(null);
+                                        addToast('Row Selected', 'success');
+                                    }
+                                }}
+                            >
                                 {displayFields.map(f => {
                                     const status = getCellStatus(r, f.id);
                                     return (
@@ -4348,18 +4355,18 @@ export const SuperTable: React.FC = () => {
                         <div className="px-2 mb-2 flex-shrink-0">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <h3 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                                        <Sparkles className="text-indigo-500" size={20} />
+                                    <h3 className="text-xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+                                        <Sparkles className="text-indigo-600" size={20} />
                                         定义产品
                                     </h3>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 opacity-80">Product Configurator Studio</p>
+                                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-0.5 opacity-80">Product Configurator Studio</p>
                                 </div>
                                 <button
                                     onClick={() => triggerConfirm(
                                         'Reset Configuration',
                                         'Clear all settings and start over?',
                                         () => {
-                                            setConfigState({ datasetId: '', viewName: '', name: '', description: '', image: '', configRules: [] });
+                                            setConfigState({ datasetId: '', viewNames: [], name: '', description: '', image: '', imageFit: 'cover', configRules: [] });
                                             addToast('Configuration Reset', 'info');
                                         },
                                         'danger',
@@ -4381,10 +4388,10 @@ export const SuperTable: React.FC = () => {
                                     className="w-full flex items-center justify-between p-4 bg-slate-50/50 hover:bg-white transition-colors text-left"
                                 >
                                     <div className="flex items-center gap-2.5 text-slate-700">
-                                        <div className={`p-1.5 rounded-lg ${expandedSections['datasource'] ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                        <div className={`p-1.5 rounded-lg ${expandedSections['datasource'] ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
                                             <Database size={14} />
                                         </div>
-                                        <span className="text-[11px] font-bold uppercase tracking-widest">1. Data Source</span>
+                                        <span className="text-xs font-bold uppercase tracking-widest text-slate-600">1. Data Source</span>
                                     </div>
                                     {expandedSections['datasource'] ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
                                 </button>
@@ -4394,7 +4401,7 @@ export const SuperTable: React.FC = () => {
                                         <div className="grid grid-cols-1 gap-3">
                                             {/* Select Table */}
                                             <div className="relative group/select">
-                                                <div className="absolute left-3 top-2 text-[9px] font-black text-slate-400 uppercase tracking-tighter z-10">Database</div>
+                                                <div className="absolute left-3 top-2 text-[10px] font-black text-slate-500 uppercase tracking-tighter z-10">Database</div>
                                                 <select
                                                     value={configState.datasetId}
                                                     onChange={(e) => setConfigState({ ...configState, datasetId: e.target.value, viewNames: [] })}
@@ -4408,7 +4415,7 @@ export const SuperTable: React.FC = () => {
 
                                             {/* Select View (Multi-select UI) */}
                                             <div className="space-y-2">
-                                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter px-1">Filter Presets (Multi-select)</div>
+                                                <div className="text-[10px] font-black text-slate-500 uppercase tracking-tighter px-1">Filter Presets (Multi-select)</div>
                                                 <div className="flex flex-wrap gap-1.5 min-h-[44px] p-2 bg-slate-50 rounded-xl border border-transparent hover:border-slate-200 transition-all">
                                                     {!configState.datasetId ? (
                                                         <span className="text-[10px] text-slate-300 italic p-1.5 w-full text-center">First select a database...</span>
@@ -4426,9 +4433,9 @@ export const SuperTable: React.FC = () => {
                                                                             : [...configState.viewNames, v.name];
                                                                         setConfigState({ ...configState, viewNames: next });
                                                                     }}
-                                                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border ${isSelected
-                                                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100'
-                                                                        : 'bg-white text-slate-500 border-slate-100 hover:border-indigo-200 hover:text-indigo-600'}`}
+                                                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all border ${isSelected
+                                                                        ? 'bg-indigo-50 text-indigo-600 border-indigo-200 shadow-sm'
+                                                                        : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200 hover:text-slate-600'}`}
                                                                 >
                                                                     {v.name}
                                                                 </button>
@@ -4450,10 +4457,10 @@ export const SuperTable: React.FC = () => {
                                         className="w-full flex items-center justify-between p-4 bg-slate-50/50 hover:bg-white transition-colors text-left"
                                     >
                                         <div className="flex items-center gap-2.5 text-slate-700">
-                                            <div className={`p-1.5 rounded-lg ${expandedSections['rules'] ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                            <div className={`p-1.5 rounded-lg ${expandedSections['rules'] ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
                                                 <Layers size={14} />
                                             </div>
-                                            <span className="text-[11px] font-bold uppercase tracking-widest">2. Rule Engine</span>
+                                            <span className="text-xs font-bold uppercase tracking-widest text-slate-600">2. Rule Engine</span>
                                         </div>
                                         {expandedSections['rules'] ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
                                     </button>
@@ -4465,7 +4472,7 @@ export const SuperTable: React.FC = () => {
                                                 <div className="flex items-center justify-between mb-3 px-1">
                                                     <div className="flex items-center gap-1.5 text-slate-500">
                                                         <Bookmark size={12} />
-                                                        <span className="text-[10px] font-black uppercase tracking-tighter text-slate-400">预设模板库 (Library)</span>
+                                                        <span className="text-[10px] font-black uppercase tracking-tighter text-slate-500">预设模板库 (Library)</span>
                                                     </div>
                                                 </div>
 
@@ -4475,9 +4482,10 @@ export const SuperTable: React.FC = () => {
                                                             No templates saved yet
                                                         </div>
                                                     ) : savedRulePresets.map(preset => (
-                                                        <div key={preset.id} className="group/pill flex items-center gap-1 bg-white border border-slate-100 px-2.5 py-1.5 rounded-xl shadow-sm hover:border-indigo-300 hover:bg-indigo-50/30 transition-all cursor-pointer">
+                                                        <div key={preset.id} className="group/pill flex items-center gap-1.5 bg-slate-50 border border-transparent px-2.5 py-1 rounded-xl hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all cursor-pointer">
+                                                            <Bookmark size={10} className="text-slate-300 group-hover/pill:text-indigo-400" />
                                                             <span
-                                                                className="text-[11px] font-bold text-slate-600 hover:text-indigo-600"
+                                                                className="text-[10px] font-bold text-slate-500 group-hover/pill:text-slate-700"
                                                                 onClick={() => {
                                                                     // Duplication check: filter out rules already in the stack
                                                                     const currentRuleSignatures = new Set(configState.configRules.map(r => JSON.stringify({ ...r, id: undefined })));
@@ -4523,19 +4531,77 @@ export const SuperTable: React.FC = () => {
                                             {/* Existing Rules List */}
                                             {configState.configRules.length > 0 && (
                                                 <div className="space-y-2 max-h-60 overflow-y-auto overflow-x-hidden px-0.5 custom-scrollbar-mini">
-                                                    <div className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-2 mb-2 px-1">
+                                                    <div className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-2 mb-2 px-1">
                                                         <SlidersHorizontal size={10} />
                                                         Active Rules Stack ({configState.configRules.length})
                                                     </div>
                                                     {configState.configRules.map((rule) => (
-                                                        <div key={rule.id} className={`group/rule border rounded-xl p-3 relative transition-all hover:scale-[1.01] hover:shadow-md ${rule.ruleType === 'mapping' ? 'bg-emerald-50/40 border-emerald-100 hover:border-emerald-300' : 'bg-indigo-50/40 border-indigo-100 hover:border-indigo-300'}`}>
+                                                        <div key={rule.id} className="group/rule bg-white border border-slate-100 rounded-xl p-3 relative transition-all hover:border-indigo-200 hover:shadow-sm">
+                                                            <div className={`absolute left-0 top-3 bottom-3 w-1 rounded-r-full ${rule.ruleType === 'mapping' ? 'bg-emerald-400' : 'bg-indigo-400'}`}></div>
+
+                                                            {/* Delete Button */}
                                                             <button
                                                                 onClick={() => setConfigState({
                                                                     ...configState,
                                                                     configRules: configState.configRules.filter(r => r.id !== rule.id)
                                                                 })}
                                                                 className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-slate-200 text-slate-400 rounded-full text-[10px] opacity-0 group-hover/rule:opacity-100 transition-opacity flex items-center justify-center shadow-lg hover:text-red-500 hover:border-red-100 z-10"
+                                                                title="Remove Rule"
                                                             ><X size={10} /></button>
+
+                                                            {/* Save Preset Button */}
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSavingRuleId(rule.id);
+                                                                    setNewPresetName('');
+                                                                }}
+                                                                className={`absolute -top-1.5 right-5 w-5 h-5 bg-white border border-slate-200 text-slate-400 rounded-full opacity-0 group-hover/rule:opacity-100 transition-all flex items-center justify-center shadow-lg hover:text-indigo-500 hover:border-indigo-100 z-10 ${savingRuleId === rule.id ? 'hidden' : ''}`}
+                                                                title="Save as Preset"
+                                                            ><Bookmark size={10} /></button>
+
+
+                                                            {savingRuleId === rule.id && (
+                                                                <div className="mb-2 animate-in zoom-in-95 duration-200">
+                                                                    <div className="flex gap-1">
+                                                                        <input
+                                                                            autoFocus
+                                                                            value={newPresetName}
+                                                                            onChange={e => setNewPresetName(e.target.value)}
+                                                                            onKeyDown={e => {
+                                                                                if (e.key === 'Enter' && newPresetName.trim()) {
+                                                                                    const exists = savedRulePresets.some(p => p.name === newPresetName.trim());
+                                                                                    if (exists) {
+                                                                                        addToast('Name already exists', 'error');
+                                                                                        return;
+                                                                                    }
+                                                                                    setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name: newPresetName.trim(), rules: [rule] }]);
+                                                                                    addToast('Rule saved as preset', 'success');
+                                                                                    setSavingRuleId(null);
+                                                                                }
+                                                                            }}
+                                                                            placeholder="Preset Name..."
+                                                                            className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold outline-none ring-2 ring-indigo-500/20"
+                                                                        />
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                if (newPresetName.trim()) {
+                                                                                    const exists = savedRulePresets.some(p => p.name === newPresetName.trim());
+                                                                                    if (exists) {
+                                                                                        addToast('Name already exists', 'error');
+                                                                                        return;
+                                                                                    }
+                                                                                    setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name: newPresetName.trim(), rules: [rule] }]);
+                                                                                    addToast('Rule saved as preset', 'success');
+                                                                                    setSavingRuleId(null);
+                                                                                }
+                                                                            }}
+                                                                            className="px-2 py-1 bg-indigo-600 text-white rounded-lg text-[10px] font-bold hover:bg-indigo-700 disabled:opacity-50"
+                                                                            disabled={!newPresetName.trim()}
+                                                                        >Save</button>
+                                                                        <button onClick={() => setSavingRuleId(null)} className="px-1 text-slate-400 hover:text-slate-600"><X size={12} /></button>
+                                                                    </div>
+                                                                </div>
+                                                            )}
 
                                                             {rule.ruleType === 'mapping' ? (
                                                                 <div className="space-y-1.5">
@@ -4552,7 +4618,7 @@ export const SuperTable: React.FC = () => {
                                                                 </div>
                                                             ) : (
                                                                 <div className="space-y-1.5">
-                                                                    <div className="flex items-center gap-1.5">
+                                                                    <div className="flex items-center gap-1.5 tier">
                                                                         <span className="text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.5 rounded-md uppercase tracking-tighter">CALC</span>
                                                                         <span className="text-[10px] font-bold text-indigo-700">{rule.targetField}</span>
                                                                         <span className="text-slate-300 font-black">=</span>
@@ -4573,6 +4639,10 @@ export const SuperTable: React.FC = () => {
                                                 <UnifiedRuleBuilder
                                                     schema={selectedDataset?.schema || []}
                                                     records={selectedDataset?.records || []}
+                                                    onEnableRowPicker={(cb) => {
+                                                        setActiveRowPicker(() => cb);
+                                                        addToast('Please click a row in the Preview table', 'info');
+                                                    }}
                                                     onAdd={(rule) => {
                                                         setConfigState({
                                                             ...configState,
@@ -4603,10 +4673,10 @@ export const SuperTable: React.FC = () => {
                                     className="w-full flex items-center justify-between p-4 bg-slate-50/50 hover:bg-white transition-colors text-left"
                                 >
                                     <div className="flex items-center gap-2.5 text-slate-700">
-                                        <div className={`p-1.5 rounded-lg ${expandedSections['identity'] ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                        <div className={`p-1.5 rounded-lg ${expandedSections['identity'] ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
                                             <Box size={14} />
                                         </div>
-                                        <span className="text-[11px] font-bold uppercase tracking-widest">3. Product Identity</span>
+                                        <span className="text-xs font-bold uppercase tracking-widest text-slate-600">3. Product Identity</span>
                                     </div>
                                     {expandedSections['identity'] ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
                                 </button>
@@ -4615,42 +4685,76 @@ export const SuperTable: React.FC = () => {
                                     <div className="p-4 pt-0 space-y-3 animate-in slide-in-from-top-2 duration-200">
                                         <div className="space-y-4">
                                             <div className="relative group/field">
-                                                <div className="absolute left-3 top-2 text-[9px] font-black text-slate-400 uppercase tracking-tighter z-10">Product Name</div>
+                                                <div className="absolute left-3 top-2 text-[10px] font-black text-slate-500 uppercase tracking-tighter z-10">Product Name</div>
                                                 <input
-                                                    className="w-full bg-slate-50 border-none rounded-xl px-3 pt-6 pb-2 text-sm font-bold text-slate-700 placeholder-slate-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                                                    placeholder="Robot Arm X-1..."
+                                                    className="w-full bg-slate-50 border-none rounded-xl px-3 pt-6 pb-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-100 transition-all"
                                                     value={configState.name}
                                                     onChange={e => setConfigState({ ...configState, name: e.target.value })}
                                                 />
                                             </div>
 
                                             <div className="relative group/field">
-                                                <div className="absolute left-3 top-2 text-[9px] font-black text-slate-400 uppercase tracking-tighter z-10">Brief Description</div>
+                                                <div className="absolute left-3 top-2 text-[10px] font-black text-slate-500 uppercase tracking-tighter z-10">Brief Description</div>
                                                 <textarea
-                                                    className="w-full bg-slate-50 border-none rounded-xl px-3 pt-6 pb-2 text-sm font-medium text-slate-600 placeholder-slate-300 focus:ring-2 focus:ring-indigo-100 transition-all resize-none h-20"
-                                                    placeholder="Key specs or features..."
+                                                    className="w-full bg-slate-50 border-none rounded-xl px-3 pt-6 pb-2 text-sm font-medium text-slate-600 focus:ring-2 focus:ring-indigo-100 transition-all resize-none h-20"
                                                     value={configState.description}
                                                     onChange={e => setConfigState({ ...configState, description: e.target.value })}
                                                 />
                                             </div>
 
                                             <div className="relative group/field">
-                                                <div className="absolute left-3 top-2 text-[9px] font-black text-slate-400 uppercase tracking-tighter z-10">Product Image</div>
-                                                <div className="w-full bg-slate-50 border-none rounded-xl px-3 pt-6 pb-3 min-h-[50px] flex items-center gap-3">
+                                                <div className="absolute left-3 top-2 text-[10px] font-black text-slate-500 uppercase tracking-tighter z-10">Product Image</div>
+                                                <div className="w-full bg-slate-50 border-none rounded-xl px-3 pt-6 pb-3 space-y-3">
+                                                    {/* Image Preview */}
                                                     {configState.image && (
-                                                        <div className="w-10 h-10 rounded-lg bg-white border border-slate-100 flex-shrink-0 overflow-hidden shadow-sm">
-                                                            <img src={configState.image} className="w-full h-full object-cover" alt="Preview" />
+                                                        <div
+                                                            className="w-full h-32 rounded-lg bg-white border border-slate-100 overflow-hidden shadow-sm"
+                                                            style={{
+                                                                backgroundImage: `url(${configState.image})`,
+                                                                backgroundSize: configState.imageFit === 'tile' ? 'auto' :
+                                                                    configState.imageFit === 'fill' ? '100% 100%' : configState.imageFit,
+                                                                backgroundPosition: 'center',
+                                                                backgroundRepeat: configState.imageFit === 'tile' ? 'repeat' : 'no-repeat',
+                                                            }}
+                                                        />
+                                                    )}
+
+                                                    {/* Fit Mode Selector */}
+                                                    {configState.image && (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Fit:</span>
+                                                            <div className="flex gap-1">
+                                                                {[
+                                                                    { value: 'cover', label: '填充', icon: 'Fill' },
+                                                                    { value: 'contain', label: '合适', icon: 'Fit' },
+                                                                    { value: 'fill', label: '拉伸', icon: 'Stretch' },
+                                                                    { value: 'tile', label: '平铺', icon: 'Tile' },
+                                                                ].map(opt => (
+                                                                    <button
+                                                                        key={opt.value}
+                                                                        onClick={() => setConfigState({ ...configState, imageFit: opt.value as any })}
+                                                                        className={`px-2 py-1 rounded-md text-[9px] font-bold transition-all ${configState.imageFit === opt.value
+                                                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                                                            : 'bg-white text-slate-500 border border-slate-200 hover:border-indigo-200 hover:text-indigo-600'
+                                                                            }`}
+                                                                    >
+                                                                        {opt.label}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
                                                         </div>
                                                     )}
-                                                    <div className="flex-1 flex flex-col gap-1">
+
+                                                    {/* Upload Controls */}
+                                                    <div className="flex items-center gap-3">
                                                         <input
                                                             value={configState.image}
                                                             onChange={e => setConfigState({ ...configState, image: e.target.value })}
-                                                            placeholder="URL..."
-                                                            className="bg-transparent border-none text-[10px] font-mono text-slate-500 w-full outline-none p-0"
+                                                            placeholder="Image URL..."
+                                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-mono text-slate-500 outline-none focus:ring-1 focus:ring-indigo-200"
                                                         />
-                                                        <label className="text-[9px] text-indigo-500 font-bold cursor-pointer hover:underline flex items-center gap-1">
-                                                            <Upload size={10} /> Upload Local
+                                                        <label className="text-[9px] text-indigo-500 font-bold cursor-pointer hover:underline flex items-center gap-1 px-2 py-1.5 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors">
+                                                            <Upload size={10} /> Upload
                                                             <input
                                                                 type="file"
                                                                 className="hidden"
@@ -4851,19 +4955,18 @@ export const SuperTable: React.FC = () => {
                                     </div>
 
                                     {/* Content Area */}
-                                    <div className="p-5">
-                                        <div className="mb-3">
-                                            <h4 className="font-bold text-sm text-slate-800 truncate group-hover:text-indigo-600 transition-colors">{p.name}</h4>
-                                            <p className="text-[10px] text-slate-400 font-medium mt-1 truncate">{new Date(p.timestamp).toLocaleDateString()}</p>
+                                    <div className="p-4">
+                                        <h4 className="font-bold text-[13px] text-slate-800 truncate group-hover:text-indigo-600 transition-colors mb-1">{p.name}</h4>
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold uppercase tracking-tight">
+                                                <Layers size={10} />
+                                                <span>{p.configRules?.length || 0} Rules</span>
+                                            </div>
+                                            <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold uppercase tracking-tight">
+                                                <Filter size={10} />
+                                                <span>{p.viewNames?.length || 0} Views</span>
+                                            </div>
                                         </div>
-
-                                        <div className="flex items-center gap-2 mb-4">
-                                            <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-bold uppercase tracking-wider scale-90 origin-left border border-slate-200">
-                                                {p.viewName}
-                                            </span>
-                                        </div>
-
-                                        <p className="text-xs text-slate-400 line-clamp-2 h-8 leading-relaxed mb-0 font-medium">{p.description || 'No description'}</p>
                                     </div>
                                 </div>
                             ))}
@@ -4947,74 +5050,141 @@ export const SuperTable: React.FC = () => {
                                         <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Configuration View</div>
                                         <div className="font-bold text-slate-700 flex items-center gap-2">
                                             <Filter size={14} className="text-indigo-500" />
-                                            {product.viewName}
+                                            {product.viewNames?.join(', ') || 'Full Dataset'}
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Unified Configuration Rules Display */}
-                                {(product as any).configRules?.length > 0 && (
+                                {product.configRules?.length > 0 && (
                                     <div className="mb-8 max-w-lg">
                                         <div className="flex items-center gap-2 text-indigo-600 mb-3">
                                             <Layers size={14} />
-                                            <span className="text-xs font-bold uppercase tracking-widest">Configuration Rules</span>
-                                            <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">{(product as any).configRules.length}</span>
+                                            <span className="text-xs font-bold uppercase tracking-widest text-indigo-900/40">Interactive Configurator</span>
+                                            <span className="text-[10px] bg-indigo-100/50 text-indigo-600 px-2 py-0.5 rounded-full font-black">{(product as any).configRules.length}</span>
                                         </div>
-                                        <div className="space-y-2">
-                                            {(product as any).configRules.map((rule: any, i: number) => (
-                                                <div key={i} className={`border rounded-xl p-3 ${rule.ruleType === 'mapping' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-indigo-50/50 border-indigo-100'}`}>
-                                                    {rule.ruleType === 'mapping' ? (
-                                                        <div className="space-y-2">
-                                                            <div className="flex flex-wrap items-center gap-2 text-xs">
-                                                                <span className="bg-emerald-500 text-white px-1.5 py-0.5 rounded text-[10px] font-bold uppercase transition-all">Cascading</span>
-                                                                {rule.sourceRowId && (
-                                                                    <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200 flex items-center gap-1">
-                                                                        <BoxSelect size={10} /> Specified Row
-                                                                    </span>
-                                                                )}
-                                                                <span className="text-slate-600 font-medium">When</span>
-                                                                <b className="text-indigo-600 font-extrabold">{rule.sourceField}</b>
-                                                                <span className="text-slate-400">changes</span>
-                                                            </div>
-                                                            <div className="pl-4 border-l-2 border-emerald-200 space-y-1">
-                                                                <div className="text-[10px] text-slate-400 font-bold uppercase mb-1 flex items-center gap-1">
-                                                                    <ArrowRight size={10} /> Update {rule.targetField}
-                                                                </div>
-                                                                <div className="flex flex-wrap gap-1.5">
-                                                                    {rule.mappings?.map((m: any, idx: number) => (
-                                                                        <div key={idx} className="flex items-center bg-white border border-emerald-100 rounded-md px-2 py-0.5 text-[10px] shadow-sm">
-                                                                            <span className="font-bold text-emerald-700">{m.sourceValue}</span>
-                                                                            <ArrowRight size={8} className="mx-1 text-slate-300" />
-                                                                            <span className="text-slate-600">{m.targetValue}</span>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex flex-col gap-1.5">
-                                                            <div className="flex items-center gap-2 text-xs">
-                                                                <span className="bg-indigo-500 text-white px-1.5 py-0.5 rounded text-[10px] font-bold uppercase transition-all">Logic</span>
-                                                                <span className="text-slate-600 font-medium">If</span>
-                                                                <div className="flex flex-wrap gap-1">
-                                                                    {rule.conditions?.map((c: any, ci: number) => (
-                                                                        <span key={ci} className="bg-white border border-indigo-100 px-1.5 py-0.5 rounded text-indigo-700 font-bold">
-                                                                            {c.fieldId} {c.operator} {c.value}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex items-center gap-2 text-xs pt-1.5 border-t border-indigo-50/50 mt-1">
-                                                                <ArrowRight size={12} className="text-indigo-400" />
-                                                                <span className="text-slate-500">Set</span>
-                                                                <b className="text-slate-800">{rule.targetField}</b>
-                                                                <span className="text-slate-400">=</span>
-                                                                <span className="text-indigo-600 font-black">{rule.expression}</span>
-                                                            </div>
-                                                        </div>
-                                                    )}
+
+                                        <div className="bg-white border border-slate-200 rounded-[24px] overflow-hidden shadow-sm">
+                                            {/* Unified Tab Header */}
+                                            {(product as any).configRules.length > 1 && (
+                                                <div className="flex bg-slate-50/80 border-b border-slate-100 p-1.5 gap-1 overflow-x-auto no-scrollbar">
+                                                    {(product as any).configRules.map((r: any, idx: number) => {
+                                                        const tabLabel = r.title || r.description || `Rule ${idx + 1}`;
+                                                        const isActive = activeRuleTab === idx;
+                                                        return (
+                                                            <button
+                                                                key={idx}
+                                                                onClick={() => setActiveRuleTab(idx)}
+                                                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all duration-300 flex-1 min-w-[80px] ${isActive
+                                                                    ? 'bg-white text-indigo-600 shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-slate-100'
+                                                                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                                                                    }`}
+                                                            >
+                                                                {tabLabel.length > 15 ? tabLabel.substring(0, 15) + '...' : tabLabel}
+                                                            </button>
+                                                        );
+                                                    })}
                                                 </div>
-                                            ))}
+                                            )}
+
+                                            {/* Rule Body */}
+                                            <div className="p-4">
+                                                {(product as any).configRules.map((rule: any, i: number) => {
+                                                    if ((product as any).configRules.length > 1 && activeRuleTab !== i) return null;
+                                                    return (
+                                                        <div key={i} className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                                            {rule.description && (
+                                                                <div className="mb-4 text-[11px] font-bold text-slate-400 flex items-start gap-2 bg-slate-50/50 p-2 rounded-xl border border-slate-100/50">
+                                                                    <div className="mt-0.5"><Info size={12} className="text-indigo-400" /></div>
+                                                                    <div className="italic tracking-tight leading-relaxed">{rule.description}</div>
+                                                                </div>
+                                                            )}
+                                                            <div className={`p-4 rounded-[20px] ${rule.ruleType === 'mapping' ? 'bg-emerald-50/30 border border-emerald-100/50' : 'bg-indigo-50/30 border border-indigo-100/50'}`}>
+                                                                {rule.ruleType === 'mapping' ? (
+                                                                    <div className="space-y-2">
+                                                                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                                                                            <span className="bg-emerald-500 text-white px-1.5 py-0.5 rounded text-[10px] font-bold uppercase transition-all">Cascading</span>
+                                                                            {rule.sourceRowId && (
+                                                                                <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200 flex items-center gap-1">
+                                                                                    <BoxSelect size={10} /> Specified Row
+                                                                                </span>
+                                                                            )}
+                                                                            <span className="text-slate-600 font-medium">When</span>
+                                                                            <b className="text-indigo-600 font-extrabold">{rule.sourceField}</b>
+                                                                            <span className="text-slate-400">changes</span>
+                                                                        </div>
+                                                                        <div className="pl-4 border-l-2 border-emerald-200 space-y-1">
+                                                                            <div className="text-[10px] text-slate-400 font-bold uppercase mb-1 flex items-center gap-1">
+                                                                                <ArrowRight size={10} /> Update {rule.targetField}
+                                                                            </div>
+                                                                            <div className="flex flex-wrap gap-1.5">
+                                                                                {rule.mappings?.map((m: any, idx: number) => {
+                                                                                    const ds = savedDatasets.find(d => d.id === product.datasetId);
+                                                                                    const referenceRowId = rule.sourceRowId || (ds?.records[0]?._id);
+                                                                                    const isSelected = referenceRowId && previewOverrides[referenceRowId]?.[rule.sourceField] === m.sourceValue;
+
+                                                                                    return (
+                                                                                        <button
+                                                                                            key={idx}
+                                                                                            onClick={() => {
+                                                                                                const rowId = rule.sourceRowId;
+                                                                                                if (!rowId) {
+                                                                                                    // Apply to ALL records if no specific row is target
+                                                                                                    const ds = savedDatasets.find(d => d.id === product.datasetId);
+                                                                                                    if (ds) {
+                                                                                                        const updates: any = {};
+                                                                                                        ds.records.forEach(dr => {
+                                                                                                            updates[dr._id] = { ...(previewOverrides[dr._id] || {}), [rule.sourceField]: m.sourceValue };
+                                                                                                        });
+                                                                                                        setPreviewOverrides(prev => ({ ...prev, ...updates }));
+                                                                                                    }
+                                                                                                } else {
+                                                                                                    setPreviewOverrides(prev => ({
+                                                                                                        ...prev,
+                                                                                                        [rowId]: { ...(prev[rowId] || {}), [rule.sourceField]: m.sourceValue }
+                                                                                                    }));
+                                                                                                }
+                                                                                            }}
+                                                                                            className={`flex items-center rounded-md px-2 py-1 text-[10px] shadow-sm transition-all border ${isSelected
+                                                                                                ? 'bg-emerald-600 text-white border-emerald-700 font-bold scale-105 ring-2 ring-emerald-200'
+                                                                                                : 'bg-white text-slate-600 border-emerald-100 hover:border-emerald-300 hover:bg-emerald-50'
+                                                                                                }`}
+                                                                                        >
+                                                                                            <span className={isSelected ? 'text-white' : 'font-bold text-emerald-700'}>{m.sourceValue}</span>
+                                                                                            <ArrowRight size={8} className={`mx-1 ${isSelected ? 'text-white opacity-60' : 'text-slate-300'}`} />
+                                                                                            <span className={isSelected ? 'text-white/90' : 'text-slate-600'}>{m.targetValue}</span>
+                                                                                        </button>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex flex-col gap-1.5">
+                                                                        <div className="flex items-center gap-2 text-xs">
+                                                                            <span className="bg-indigo-500 text-white px-1.5 py-0.5 rounded text-[10px] font-bold uppercase transition-all">Logic</span>
+                                                                            <span className="text-slate-600 font-medium">If</span>
+                                                                            <div className="flex flex-wrap gap-1">
+                                                                                {rule.conditions?.map((c: any, ci: number) => (
+                                                                                    <span key={ci} className="bg-white border border-indigo-100 px-1.5 py-0.5 rounded text-indigo-700 font-bold">
+                                                                                        {c.fieldId} {c.operator} {c.value}
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-2 text-xs pt-1.5 border-t border-indigo-50/50 mt-1">
+                                                                            <ArrowRight size={12} className="text-indigo-400" />
+                                                                            <span className="text-slate-500">Set</span>
+                                                                            <b className="text-slate-800">{rule.targetField}</b>
+                                                                            <span className="text-slate-400">=</span>
+                                                                            <span className="text-indigo-600 font-black">{rule.expression}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -5059,13 +5229,13 @@ export const SuperTable: React.FC = () => {
                             </div>
                             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[300px]">
                                 <div className="overflow-x-auto">
-                                    {renderBOMTable(product.datasetId, product.viewName, [], (product as any).configRules || [])}
+                                    {renderBOMTable(product.datasetId, product.viewNames || [], [], (product as any).configRules || [])}
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            </div >
         );
     };
 
