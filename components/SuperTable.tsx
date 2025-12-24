@@ -4778,425 +4778,434 @@ export const SuperTable: React.FC = () => {
                             </div>
 
                             {/* Section 2: Rule Engine (Collapsible) */}
-                            {configState.datasetId && (
-                                <div className="border-b border-slate-100 last:border-0">
-                                    <button
-                                        onClick={() => toggleSection('rules')}
-                                        className="w-full flex items-center justify-between py-4 hover:opacity-70 transition-opacity text-left group"
-                                    >
-                                        <div className="flex items-center gap-2.5 text-slate-800">
-                                            <div className={`text-slate-400 group-hover:text-indigo-600 transition-colors`}>
-                                                <Layers size={16} />
-                                            </div>
-                                            <span className="text-sm font-bold tracking-tight">2. Rule Engine</span>
+                            <div className="border-b border-slate-100 last:border-0">
+                                <button
+                                    onClick={() => toggleSection('rules')}
+                                    className="w-full flex items-center justify-between py-4 hover:opacity-70 transition-opacity text-left group"
+                                >
+                                    <div className="flex items-center gap-2.5 text-slate-800">
+                                        <div className={`text-slate-400 group-hover:text-indigo-600 transition-colors`}>
+                                            <Layers size={16} />
                                         </div>
-                                        {expandedSections['rules'] ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
-                                    </button>
+                                        <span className="text-sm font-bold tracking-tight">2. Rule Engine</span>
+                                    </div>
+                                    {expandedSections['rules'] ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
+                                </button>
 
-                                    {expandedSections['rules'] && (
-                                        <div className="pb-6 pt-0 space-y-6 animate-in slide-in-from-top-2 duration-200">
-
-                                            {/* Templates Library Header (Collapsible) */}
-                                            <div onClick={() => toggleSection('templates')} className="flex items-center gap-2 cursor-pointer mb-3 select-none group/tmpl opacity-70 hover:opacity-100 transition-opacity">
-                                                <LayoutTemplate size={12} className="text-slate-400" />
-                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide">Rule Templates</span>
-                                                <span className="bg-slate-100 text-slate-400 text-[9px] px-1.5 rounded-full font-bold">{savedRulePresets.length}</span>
-                                                <div className="h-px bg-slate-100 flex-1 ml-2"></div>
-                                                <ChevronDown size={12} className={`text-slate-300 transition-transform duration-200 ${expandedSections['templates'] ? 'rotate-180' : ''}`} />
-                                            </div>
-
-                                            {expandedSections['templates'] && (
-                                                <div className="mb-6 animate-in slide-in-from-top-1 px-1">
-                                                    {builderActiveRuleType === 'logic' ? (
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            {savedRulePresets.filter(p => p.datasetId === configState.datasetId && (!p.rules[0] || p.rules[0].ruleType === 'logic')).length === 0 && (
-                                                                <div className="col-span-2 text-[10px] text-slate-300 italic text-center py-2">No logic templates found</div>
-                                                            )}
-                                                            {savedRulePresets.filter(p => p.datasetId === configState.datasetId && (!p.rules[0] || p.rules[0].ruleType === 'logic')).map(preset => (
-                                                                <div
-                                                                    key={preset.id}
-                                                                    className="group/pill flex items-center justify-between bg-slate-50 hover:bg-white border border-transparent hover:border-indigo-100 hover:shadow-sm pl-2 pr-1 py-1.5 rounded-lg transition-all cursor-pointer"
-                                                                    onClick={() => {
-                                                                        const currentRuleSignatures = new Set((configState.configRules || []).map(r => JSON.stringify({ ...r, id: undefined })));
-                                                                        const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
-                                                                        if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
-
-                                                                        const rulesWithIds = newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }));
-                                                                        setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...rulesWithIds] }));
-
-                                                                        // Auto-expand all added rules
-                                                                        setExpandedRules(prev => {
-                                                                            const next = { ...prev };
-                                                                            rulesWithIds.forEach(r => { next[r.id] = true; });
-                                                                            return next;
-                                                                        });
-
-                                                                        setPreviewOverrides({});
-                                                                        addToast(`Added ${preset.name}`, 'success');
-                                                                    }}
-                                                                >
-                                                                    <div className="flex items-center gap-2 overflow-hidden">
-                                                                        <Bot size={10} className="text-indigo-400 shrink-0 opacity-70" />
-                                                                        <span className="text-[10px] font-bold text-slate-600 truncate">{preset.name}</span>
-                                                                    </div>
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            triggerConfirm('Delete', `Delete "${preset.name}"?`, () => setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id)), 'danger', 'Confirm');
-                                                                        }}
-                                                                        className="text-slate-300 hover:text-red-400 opacity-0 group-hover/pill:opacity-100 p-0.5 transition-opacity"
-                                                                    >
-                                                                        <X size={10} />
-                                                                    </button>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    ) : (
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            {savedRulePresets.filter(p => p.datasetId === configState.datasetId && p.rules[0]?.ruleType === 'mapping').length === 0 && (
-                                                                <div className="col-span-2 text-[10px] text-slate-300 italic text-center py-2">No mapping templates found</div>
-                                                            )}
-                                                            {savedRulePresets.filter(p => p.datasetId === configState.datasetId && p.rules[0]?.ruleType === 'mapping').map(preset => (
-                                                                <div
-                                                                    key={preset.id}
-                                                                    className="group/pill flex items-center justify-between bg-slate-50 hover:bg-white border border-transparent hover:border-emerald-100 hover:shadow-sm pl-2 pr-1 py-1.5 rounded-lg transition-all cursor-pointer"
-                                                                    onClick={() => {
-                                                                        const currentRuleSignatures = new Set((configState.configRules || []).map(r => JSON.stringify({ ...r, id: undefined })));
-                                                                        const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
-                                                                        if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
-
-                                                                        const rulesWithIds = newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }));
-                                                                        setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...rulesWithIds] }));
-
-                                                                        // Auto-expand all added rules
-                                                                        setExpandedRules(prev => {
-                                                                            const next = { ...prev };
-                                                                            rulesWithIds.forEach(r => { next[r.id] = true; });
-                                                                            return next;
-                                                                        });
-
-                                                                        setPreviewOverrides({});
-                                                                        addToast(`Added ${preset.name}`, 'success');
-                                                                    }}
-                                                                >
-                                                                    <div className="flex items-center gap-2 overflow-hidden">
-                                                                        <ArrowRight size={10} className="text-emerald-500 shrink-0 opacity-70" />
-                                                                        <span className="text-[10px] font-bold text-slate-600 truncate">{preset.name}</span>
-                                                                    </div>
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            triggerConfirm('Delete', `Delete "${preset.name}"?`, () => setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id)), 'danger', 'Confirm');
-                                                                        }}
-                                                                        className="text-slate-300 hover:text-red-400 opacity-0 group-hover/pill:opacity-100 p-0.5 transition-opacity"
-                                                                    >
-                                                                        <X size={10} />
-                                                                    </button>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    )}
+                                {expandedSections['rules'] && (
+                                    <div className="pb-6 pt-0 animate-in slide-in-from-top-2 duration-200">
+                                        {!configState.datasetId ? (
+                                            <div className="p-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200 m-1">
+                                                <div className="p-2 w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center mx-auto mb-2 text-slate-400">
+                                                    <Database size={14} />
                                                 </div>
-                                            )}
+                                                <p className="text-[10px] text-slate-400 font-medium">Please select a data source first</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-6">
 
-                                            {(configState.configRules || []).length > 0 && (
-                                                <div className="space-y-1.5 px-0.5">
-                                                    <div className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-2 mb-2 px-1">
-                                                        <SlidersHorizontal size={10} />
-                                                        Active Rules Stack ({(configState.configRules || []).length})
+                                                {/* Templates Library Header (Collapsible) */}
+                                                <div onClick={() => toggleSection('templates')} className="flex items-center gap-2 cursor-pointer mb-3 select-none group/tmpl opacity-70 hover:opacity-100 transition-opacity">
+                                                    <LayoutTemplate size={12} className="text-slate-400" />
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide">Rule Templates</span>
+                                                    <span className="bg-slate-100 text-slate-400 text-[9px] px-1.5 rounded-full font-bold">{savedRulePresets.length}</span>
+                                                    <div className="h-px bg-slate-100 flex-1 ml-2"></div>
+                                                    <ChevronDown size={12} className={`text-slate-300 transition-transform duration-200 ${expandedSections['templates'] ? 'rotate-180' : ''}`} />
+                                                </div>
+
+                                                {expandedSections['templates'] && (
+                                                    <div className="mb-6 animate-in slide-in-from-top-1 px-1">
+                                                        {builderActiveRuleType === 'logic' ? (
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                {savedRulePresets.filter(p => p.datasetId === configState.datasetId && (!p.rules[0] || p.rules[0].ruleType === 'logic')).length === 0 && (
+                                                                    <div className="col-span-2 text-[10px] text-slate-300 italic text-center py-2">No logic templates found</div>
+                                                                )}
+                                                                {savedRulePresets.filter(p => p.datasetId === configState.datasetId && (!p.rules[0] || p.rules[0].ruleType === 'logic')).map(preset => (
+                                                                    <div
+                                                                        key={preset.id}
+                                                                        className="group/pill flex items-center justify-between bg-slate-50 hover:bg-white border border-transparent hover:border-indigo-100 hover:shadow-sm pl-2 pr-1 py-1.5 rounded-lg transition-all cursor-pointer"
+                                                                        onClick={() => {
+                                                                            const currentRuleSignatures = new Set((configState.configRules || []).map(r => JSON.stringify({ ...r, id: undefined })));
+                                                                            const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
+                                                                            if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
+
+                                                                            const rulesWithIds = newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }));
+                                                                            setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...rulesWithIds] }));
+
+                                                                            // Auto-expand all added rules
+                                                                            setExpandedRules(prev => {
+                                                                                const next = { ...prev };
+                                                                                rulesWithIds.forEach(r => { next[r.id] = true; });
+                                                                                return next;
+                                                                            });
+
+                                                                            setPreviewOverrides({});
+                                                                            addToast(`Added ${preset.name}`, 'success');
+                                                                        }}
+                                                                    >
+                                                                        <div className="flex items-center gap-2 overflow-hidden">
+                                                                            <Bot size={10} className="text-indigo-400 shrink-0 opacity-70" />
+                                                                            <span className="text-[10px] font-bold text-slate-600 truncate">{preset.name}</span>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                triggerConfirm('Delete', `Delete "${preset.name}"?`, () => setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id)), 'danger', 'Confirm');
+                                                                            }}
+                                                                            className="text-slate-300 hover:text-red-400 opacity-0 group-hover/pill:opacity-100 p-0.5 transition-opacity"
+                                                                        >
+                                                                            <X size={10} />
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                {savedRulePresets.filter(p => p.datasetId === configState.datasetId && p.rules[0]?.ruleType === 'mapping').length === 0 && (
+                                                                    <div className="col-span-2 text-[10px] text-slate-300 italic text-center py-2">No mapping templates found</div>
+                                                                )}
+                                                                {savedRulePresets.filter(p => p.datasetId === configState.datasetId && p.rules[0]?.ruleType === 'mapping').map(preset => (
+                                                                    <div
+                                                                        key={preset.id}
+                                                                        className="group/pill flex items-center justify-between bg-slate-50 hover:bg-white border border-transparent hover:border-emerald-100 hover:shadow-sm pl-2 pr-1 py-1.5 rounded-lg transition-all cursor-pointer"
+                                                                        onClick={() => {
+                                                                            const currentRuleSignatures = new Set((configState.configRules || []).map(r => JSON.stringify({ ...r, id: undefined })));
+                                                                            const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
+                                                                            if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
+
+                                                                            const rulesWithIds = newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }));
+                                                                            setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...rulesWithIds] }));
+
+                                                                            // Auto-expand all added rules
+                                                                            setExpandedRules(prev => {
+                                                                                const next = { ...prev };
+                                                                                rulesWithIds.forEach(r => { next[r.id] = true; });
+                                                                                return next;
+                                                                            });
+
+                                                                            setPreviewOverrides({});
+                                                                            addToast(`Added ${preset.name}`, 'success');
+                                                                        }}
+                                                                    >
+                                                                        <div className="flex items-center gap-2 overflow-hidden">
+                                                                            <ArrowRight size={10} className="text-emerald-500 shrink-0 opacity-70" />
+                                                                            <span className="text-[10px] font-bold text-slate-600 truncate">{preset.name}</span>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                triggerConfirm('Delete', `Delete "${preset.name}"?`, () => setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id)), 'danger', 'Confirm');
+                                                                            }}
+                                                                            className="text-slate-300 hover:text-red-400 opacity-0 group-hover/pill:opacity-100 p-0.5 transition-opacity"
+                                                                        >
+                                                                            <X size={10} />
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    {(configState.configRules || []).map((rule) => {
-                                                        const isExpanded = !!expandedRules[rule.id];
-                                                        const isLogic = rule.ruleType !== 'mapping';
+                                                )}
 
-                                                        return (
-                                                            <div
-                                                                key={rule.id}
-                                                                className={`group/rule bg-white border rounded-xl overflow-hidden transition-all duration-200 ${isExpanded
-                                                                    ? 'border-indigo-200 shadow-sm ring-1 ring-indigo-50'
-                                                                    : 'border-slate-100 hover:border-indigo-200'
-                                                                    } ${editingRuleId === rule.id ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`}
-                                                            >
-                                                                {/* Collapsed Header - Always Visible */}
+                                                {(configState.configRules || []).length > 0 && (
+                                                    <div className="space-y-1.5 px-0.5">
+                                                        <div className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-2 mb-2 px-1">
+                                                            <SlidersHorizontal size={10} />
+                                                            Active Rules Stack ({(configState.configRules || []).length})
+                                                        </div>
+                                                        {(configState.configRules || []).map((rule) => {
+                                                            const isExpanded = !!expandedRules[rule.id];
+                                                            const isLogic = rule.ruleType !== 'mapping';
+
+                                                            return (
                                                                 <div
-                                                                    className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-50 transition-colors select-none ${isExpanded ? 'bg-slate-50/80 border-b border-indigo-50' : ''}`}
-                                                                    onClick={() => toggleRuleExpanded(rule.id)}
+                                                                    key={rule.id}
+                                                                    className={`group/rule bg-white border rounded-xl overflow-hidden transition-all duration-200 ${isExpanded
+                                                                        ? 'border-indigo-200 shadow-sm ring-1 ring-indigo-50'
+                                                                        : 'border-slate-100 hover:border-indigo-200'
+                                                                        } ${editingRuleId === rule.id ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`}
                                                                 >
-                                                                    {/* Expand Icon */}
-                                                                    <div className="text-slate-400 shrink-0">
-                                                                        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                                                    </div>
-
-                                                                    {/* Type Indicator Bar */}
-                                                                    <div className={`w-1 h-3 rounded-full shrink-0 ${!isLogic ? 'bg-emerald-400' : 'bg-indigo-400'}`} />
-
-                                                                    {/* Rule Name / Summary */}
-                                                                    <div className="flex-1 min-w-0">
-                                                                        {(rule.title) ? (
-                                                                            <div className="text-[11px] font-bold text-slate-700 truncate">{rule.title}</div>
-                                                                        ) : (
-                                                                            /* Auto-Generated Summary Title */
-                                                                            <div className="text-[11px] font-medium text-slate-600 truncate flex items-center gap-1.5">
-                                                                                {!isLogic ? (
-                                                                                    <>
-                                                                                        <span>{rule.sourceField || 'Source'}</span>
-                                                                                        <ArrowRight size={10} className="text-slate-300" />
-                                                                                        <span>{rule.targetField || 'Target'}</span>
-                                                                                    </>
-                                                                                ) : (
-                                                                                    <>
-                                                                                        <span className="text-slate-400 italic text-[10px] pr-1">IF...</span>
-                                                                                        <span className="font-bold text-indigo-600">SET {rule.targetField}</span>
-                                                                                    </>
-                                                                                )}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-
-                                                                    {/* Quick Actions (Edit/Delete) - Prevent Event Propagation */}
-                                                                    <div className={`flex items-center gap-1 ${isExpanded ? 'opacity-100' : 'opacity-0 group-hover/rule:opacity-100'} transition-opacity`}>
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation(); // Prevent collapse
-                                                                                setEditingRuleId(rule.id);
-                                                                                setExpandedRules(prev => ({ ...prev, [rule.id]: true })); // Ensure expanded
-                                                                            }}
-                                                                            className="p-1 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded transition-all"
-                                                                            title="Edit Rule"
-                                                                        >
-                                                                            <Edit3 size={12} />
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation(); // Prevent collapse
-                                                                                setConfigState({
-                                                                                    ...configState,
-                                                                                    configRules: (configState.configRules || []).filter(r => r.id !== rule.id)
-                                                                                });
-                                                                                setPreviewOverrides({});
-                                                                            }}
-                                                                            className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
-                                                                            title="Delete Rule"
-                                                                        >
-                                                                            <X size={12} />
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Expanded Details Body */}
-                                                                {isExpanded && (
-                                                                    <div className="p-3 bg-white animate-in slide-in-from-top-1 fade-in duration-200">
-
-                                                                        {/* Description */}
-                                                                        {rule.description && (
-                                                                            <div className="mb-3 text-[10px] text-slate-500 italic bg-amber-50 px-2 py-1.5 rounded border border-amber-100 flex items-start gap-1">
-                                                                                <Info size={12} className="mt-0.5 text-amber-400 shrink-0" />
-                                                                                {rule.description}
-                                                                            </div>
-                                                                        )}
-
-                                                                        {/* Rule Logic Visualization */}
-                                                                        {!isLogic ? ( // Mapping
-                                                                            <div className="space-y-3">
-                                                                                <div className="flex items-center flex-wrap gap-1.5 text-[10px] leading-relaxed select-none">
-                                                                                    <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">WHEN</span>
-                                                                                    <span className="font-bold text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">{rule.sourceField}</span>
-                                                                                    <span className="text-slate-400">changes</span>
-                                                                                    <ArrowRight size={10} className="text-slate-300" />
-                                                                                    <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">UPDATE</span>
-                                                                                    <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">{rule.targetField}</span>
-                                                                                </div>
-
-                                                                                {/* Mapping Table Preview */}
-                                                                                {/* Mapping Table Preview */}
-                                                                                {(rule.cascadeGroups && rule.cascadeGroups.length > 0) ? (
-                                                                                    <div className="space-y-2">
-                                                                                        {rule.cascadeGroups.map((group: any, gIdx: number) => (
-                                                                                            <div key={gIdx} className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
-                                                                                                <div className="px-3 py-1.5 bg-slate-100/50 border-b border-slate-200 flex items-center gap-2">
-                                                                                                    <span className="bg-indigo-50 text-indigo-600 px-1.5 rounded text-[9px] font-bold">#{gIdx + 1}</span>
-                                                                                                    <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500 uppercase">
-                                                                                                        <span className="text-slate-700">{group.sourceField}</span>
-                                                                                                        <ArrowRight size={10} className="text-slate-300" />
-                                                                                                        <span className="text-emerald-700">{group.targetField}</span>
-                                                                                                    </div>
-                                                                                                    {group.sourceRowId && (
-                                                                                                        <span className="ml-auto text-[8px] bg-amber-50 text-amber-600 px-1 py-0.5 rounded border border-amber-100 flex items-center gap-1">
-                                                                                                            <MousePointerClick size={8} /> Pinned
-                                                                                                        </span>
-                                                                                                    )}
-                                                                                                </div>
-                                                                                                <div className="divide-y divide-slate-100">
-                                                                                                    {(group.mappings || []).length > 0 ? (
-                                                                                                        (group.mappings || []).slice(0, 5).map((m: any, i: number) => (
-                                                                                                            <div key={i} className="grid grid-cols-[1fr,auto,1fr] gap-2 px-3 py-1.5 items-center text-[10px]">
-                                                                                                                <div className="font-medium text-slate-600 truncate" title={m.sourceValue}>{m.sourceValue}</div>
-                                                                                                                <ArrowRight size={10} className="text-slate-300" />
-                                                                                                                <div className="font-bold text-emerald-700 truncate" title={m.targetValue}>{m.targetValue}</div>
-                                                                                                            </div>
-                                                                                                        ))
-                                                                                                    ) : (
-                                                                                                        <div className="p-2 text-center text-[10px] text-slate-400 italic">No mappings defined</div>
-                                                                                                    )}
-                                                                                                </div>
-                                                                                                {(group.mappings?.length || 0) > 5 && (
-                                                                                                    <div className="px-3 py-1.5 text-[9px] text-slate-400 bg-slate-50/50 border-t border-slate-100 text-center italic">
-                                                                                                        + {(group.mappings?.length || 0) - 5} more...
-                                                                                                    </div>
-                                                                                                )}
-                                                                                            </div>
-                                                                                        ))}
-                                                                                    </div>
-                                                                                ) : (
-                                                                                    <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
-                                                                                        <div className="grid grid-cols-[1fr,auto,1fr] gap-2 px-3 py-1.5 bg-slate-100/50 border-b border-slate-200 text-[9px] font-bold text-slate-500 uppercase">
-                                                                                            <div>Value</div>
-                                                                                            <div></div>
-                                                                                            <div>Result</div>
-                                                                                        </div>
-                                                                                        <div className="divide-y divide-slate-100">
-                                                                                            {(rule.mappings || []).length > 0 ? (
-                                                                                                (rule.mappings || []).slice(0, 5).map((m: any, i: number) => (
-                                                                                                    <div key={i} className="grid grid-cols-[1fr,auto,1fr] gap-2 px-3 py-1.5 items-center text-[10px]">
-                                                                                                        <div className="font-medium text-slate-600 truncate" title={m.sourceValue}>{m.sourceValue}</div>
-                                                                                                        <ArrowRight size={10} className="text-slate-300" />
-                                                                                                        <div className="font-bold text-emerald-700 truncate" title={m.targetValue}>{m.targetValue}</div>
-                                                                                                    </div>
-                                                                                                ))
-                                                                                            ) : (
-                                                                                                <div className="p-3 text-center text-[10px] text-slate-400 italic">No mappings defined</div>
-                                                                                            )}
-                                                                                        </div>
-                                                                                        {(rule.mappings?.length || 0) > 5 && (
-                                                                                            <div className="px-3 py-1.5 text-[9px] text-slate-400 bg-slate-50/50 border-t border-slate-100 italic">
-                                                                                                + {(rule.mappings?.length || 0) - 5} more mappings...
-                                                                                            </div>
-                                                                                        )}
-                                                                                    </div>
-                                                                                )}
-
-                                                                                {rule.sourceRowId && (
-                                                                                    <div className="flex justify-end">
-                                                                                        <span className="bg-orange-50 text-orange-600 border border-orange-100 px-2 py-1 rounded-md text-[9px] font-bold uppercase flex items-center gap-1.5">
-                                                                                            <MousePointerClick size={10} /> Row #{rule.sourceRowId} Pinned
-                                                                                        </span>
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                        ) : ( // Logic
-                                                                            <div className="space-y-3">
-                                                                                <div className="flex items-center flex-wrap gap-1.5 text-[10px]">
-                                                                                    <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">IF</span>
-                                                                                    <div className="text-slate-600 font-mono text-[10px] bg-amber-50 px-2 py-1 rounded border border-amber-100">
-                                                                                        {rule.conditions?.map((c: any) => `${c.fieldId} ${c.operator} ${c.value}`).join(rule.logic === 'OR' ? ' || ' : ' && ')}
-                                                                                    </div>
-                                                                                    <ArrowRight size={10} className="text-slate-300" />
-                                                                                    <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">SET</span>
-                                                                                    <div className="font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">{rule.targetField}</div>
-                                                                                </div>
-
-                                                                                <div className="bg-slate-900 text-slate-50 font-mono text-[10px] p-2.5 rounded-lg border border-slate-800 shadow-inner">
-                                                                                    <div className="opacity-50 text-[8px] mb-1">EXPRESSION:</div>
-                                                                                    = {rule.expression}
-                                                                                </div>
-                                                                            </div>
-                                                                        )}
-
-                                                                        {/* Bottom Toolbar for Expanded Item */}
-                                                                        <div className="mt-3 pt-2 border-t border-slate-50 flex justify-end gap-2">
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    setSavingRuleId(rule.id);
-                                                                                    setNewPresetName(rule.title || '');
-                                                                                }}
-                                                                                className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-bold text-indigo-500 hover:bg-indigo-50 transition-colors"
-                                                                            >
-                                                                                <Bookmark size={10} /> Save as Template
-                                                                            </button>
+                                                                    {/* Collapsed Header - Always Visible */}
+                                                                    <div
+                                                                        className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-50 transition-colors select-none ${isExpanded ? 'bg-slate-50/80 border-b border-indigo-50' : ''}`}
+                                                                        onClick={() => toggleRuleExpanded(rule.id)}
+                                                                    >
+                                                                        {/* Expand Icon */}
+                                                                        <div className="text-slate-400 shrink-0">
+                                                                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                                                         </div>
 
-                                                                        {/* Inline Preset Save Form (Reusing existing logic logic if needed, but for now just the button triggering the state is fine. The global preset dialog might be better, but I'll replicate the inline one if it was inline before. 
+                                                                        {/* Type Indicator Bar */}
+                                                                        <div className={`w-1 h-3 rounded-full shrink-0 ${!isLogic ? 'bg-emerald-400' : 'bg-indigo-400'}`} />
+
+                                                                        {/* Rule Name / Summary */}
+                                                                        <div className="flex-1 min-w-0">
+                                                                            {(rule.title) ? (
+                                                                                <div className="text-[11px] font-bold text-slate-700 truncate">{rule.title}</div>
+                                                                            ) : (
+                                                                                /* Auto-Generated Summary Title */
+                                                                                <div className="text-[11px] font-medium text-slate-600 truncate flex items-center gap-1.5">
+                                                                                    {!isLogic ? (
+                                                                                        <>
+                                                                                            <span>{rule.sourceField || 'Source'}</span>
+                                                                                            <ArrowRight size={10} className="text-slate-300" />
+                                                                                            <span>{rule.targetField || 'Target'}</span>
+                                                                                        </>
+                                                                                    ) : (
+                                                                                        <>
+                                                                                            <span className="text-slate-400 italic text-[10px] pr-1">IF...</span>
+                                                                                            <span className="font-bold text-indigo-600">SET {rule.targetField}</span>
+                                                                                        </>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {/* Quick Actions (Edit/Delete) - Prevent Event Propagation */}
+                                                                        <div className={`flex items-center gap-1 ${isExpanded ? 'opacity-100' : 'opacity-0 group-hover/rule:opacity-100'} transition-opacity`}>
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation(); // Prevent collapse
+                                                                                    setEditingRuleId(rule.id);
+                                                                                    setExpandedRules(prev => ({ ...prev, [rule.id]: true })); // Ensure expanded
+                                                                                }}
+                                                                                className="p-1 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded transition-all"
+                                                                                title="Edit Rule"
+                                                                            >
+                                                                                <Edit3 size={12} />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation(); // Prevent collapse
+                                                                                    setConfigState({
+                                                                                        ...configState,
+                                                                                        configRules: (configState.configRules || []).filter(r => r.id !== rule.id)
+                                                                                    });
+                                                                                    setPreviewOverrides({});
+                                                                                }}
+                                                                                className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
+                                                                                title="Delete Rule"
+                                                                            >
+                                                                                <X size={12} />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Expanded Details Body */}
+                                                                    {isExpanded && (
+                                                                        <div className="p-3 bg-white animate-in slide-in-from-top-1 fade-in duration-200">
+
+                                                                            {/* Description */}
+                                                                            {rule.description && (
+                                                                                <div className="mb-3 text-[10px] text-slate-500 italic bg-amber-50 px-2 py-1.5 rounded border border-amber-100 flex items-start gap-1">
+                                                                                    <Info size={12} className="mt-0.5 text-amber-400 shrink-0" />
+                                                                                    {rule.description}
+                                                                                </div>
+                                                                            )}
+
+                                                                            {/* Rule Logic Visualization */}
+                                                                            {!isLogic ? ( // Mapping
+                                                                                <div className="space-y-3">
+                                                                                    <div className="flex items-center flex-wrap gap-1.5 text-[10px] leading-relaxed select-none">
+                                                                                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">WHEN</span>
+                                                                                        <span className="font-bold text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">{rule.sourceField}</span>
+                                                                                        <span className="text-slate-400">changes</span>
+                                                                                        <ArrowRight size={10} className="text-slate-300" />
+                                                                                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">UPDATE</span>
+                                                                                        <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">{rule.targetField}</span>
+                                                                                    </div>
+
+                                                                                    {/* Mapping Table Preview */}
+                                                                                    {/* Mapping Table Preview */}
+                                                                                    {(rule.cascadeGroups && rule.cascadeGroups.length > 0) ? (
+                                                                                        <div className="space-y-2">
+                                                                                            {rule.cascadeGroups.map((group: any, gIdx: number) => (
+                                                                                                <div key={gIdx} className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
+                                                                                                    <div className="px-3 py-1.5 bg-slate-100/50 border-b border-slate-200 flex items-center gap-2">
+                                                                                                        <span className="bg-indigo-50 text-indigo-600 px-1.5 rounded text-[9px] font-bold">#{gIdx + 1}</span>
+                                                                                                        <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500 uppercase">
+                                                                                                            <span className="text-slate-700">{group.sourceField}</span>
+                                                                                                            <ArrowRight size={10} className="text-slate-300" />
+                                                                                                            <span className="text-emerald-700">{group.targetField}</span>
+                                                                                                        </div>
+                                                                                                        {group.sourceRowId && (
+                                                                                                            <span className="ml-auto text-[8px] bg-amber-50 text-amber-600 px-1 py-0.5 rounded border border-amber-100 flex items-center gap-1">
+                                                                                                                <MousePointerClick size={8} /> Pinned
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                    <div className="divide-y divide-slate-100">
+                                                                                                        {(group.mappings || []).length > 0 ? (
+                                                                                                            (group.mappings || []).slice(0, 5).map((m: any, i: number) => (
+                                                                                                                <div key={i} className="grid grid-cols-[1fr,auto,1fr] gap-2 px-3 py-1.5 items-center text-[10px]">
+                                                                                                                    <div className="font-medium text-slate-600 truncate" title={m.sourceValue}>{m.sourceValue}</div>
+                                                                                                                    <ArrowRight size={10} className="text-slate-300" />
+                                                                                                                    <div className="font-bold text-emerald-700 truncate" title={m.targetValue}>{m.targetValue}</div>
+                                                                                                                </div>
+                                                                                                            ))
+                                                                                                        ) : (
+                                                                                                            <div className="p-2 text-center text-[10px] text-slate-400 italic">No mappings defined</div>
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                    {(group.mappings?.length || 0) > 5 && (
+                                                                                                        <div className="px-3 py-1.5 text-[9px] text-slate-400 bg-slate-50/50 border-t border-slate-100 text-center italic">
+                                                                                                            + {(group.mappings?.length || 0) - 5} more...
+                                                                                                        </div>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                            ))}
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
+                                                                                            <div className="grid grid-cols-[1fr,auto,1fr] gap-2 px-3 py-1.5 bg-slate-100/50 border-b border-slate-200 text-[9px] font-bold text-slate-500 uppercase">
+                                                                                                <div>Value</div>
+                                                                                                <div></div>
+                                                                                                <div>Result</div>
+                                                                                            </div>
+                                                                                            <div className="divide-y divide-slate-100">
+                                                                                                {(rule.mappings || []).length > 0 ? (
+                                                                                                    (rule.mappings || []).slice(0, 5).map((m: any, i: number) => (
+                                                                                                        <div key={i} className="grid grid-cols-[1fr,auto,1fr] gap-2 px-3 py-1.5 items-center text-[10px]">
+                                                                                                            <div className="font-medium text-slate-600 truncate" title={m.sourceValue}>{m.sourceValue}</div>
+                                                                                                            <ArrowRight size={10} className="text-slate-300" />
+                                                                                                            <div className="font-bold text-emerald-700 truncate" title={m.targetValue}>{m.targetValue}</div>
+                                                                                                        </div>
+                                                                                                    ))
+                                                                                                ) : (
+                                                                                                    <div className="p-3 text-center text-[10px] text-slate-400 italic">No mappings defined</div>
+                                                                                                )}
+                                                                                            </div>
+                                                                                            {(rule.mappings?.length || 0) > 5 && (
+                                                                                                <div className="px-3 py-1.5 text-[9px] text-slate-400 bg-slate-50/50 border-t border-slate-100 italic">
+                                                                                                    + {(rule.mappings?.length || 0) - 5} more mappings...
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    {rule.sourceRowId && (
+                                                                                        <div className="flex justify-end">
+                                                                                            <span className="bg-orange-50 text-orange-600 border border-orange-100 px-2 py-1 rounded-md text-[9px] font-bold uppercase flex items-center gap-1.5">
+                                                                                                <MousePointerClick size={10} /> Row #{rule.sourceRowId} Pinned
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            ) : ( // Logic
+                                                                                <div className="space-y-3">
+                                                                                    <div className="flex items-center flex-wrap gap-1.5 text-[10px]">
+                                                                                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">IF</span>
+                                                                                        <div className="text-slate-600 font-mono text-[10px] bg-amber-50 px-2 py-1 rounded border border-amber-100">
+                                                                                            {rule.conditions?.map((c: any) => `${c.fieldId} ${c.operator} ${c.value}`).join(rule.logic === 'OR' ? ' || ' : ' && ')}
+                                                                                        </div>
+                                                                                        <ArrowRight size={10} className="text-slate-300" />
+                                                                                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">SET</span>
+                                                                                        <div className="font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">{rule.targetField}</div>
+                                                                                    </div>
+
+                                                                                    <div className="bg-slate-900 text-slate-50 font-mono text-[10px] p-2.5 rounded-lg border border-slate-800 shadow-inner">
+                                                                                        <div className="opacity-50 text-[8px] mb-1">EXPRESSION:</div>
+                                                                                        = {rule.expression}
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+
+                                                                            {/* Bottom Toolbar for Expanded Item */}
+                                                                            <div className="mt-3 pt-2 border-t border-slate-50 flex justify-end gap-2">
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        setSavingRuleId(rule.id);
+                                                                                        setNewPresetName(rule.title || '');
+                                                                                    }}
+                                                                                    className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-bold text-indigo-500 hover:bg-indigo-50 transition-colors"
+                                                                                >
+                                                                                    <Bookmark size={10} /> Save as Template
+                                                                                </button>
+                                                                            </div>
+
+                                                                            {/* Inline Preset Save Form (Reusing existing logic logic if needed, but for now just the button triggering the state is fine. The global preset dialog might be better, but I'll replicate the inline one if it was inline before. 
                                                                            Wait, existing logic (Line 4919) had inline form. 
                                                                            I should include the inline form here if savingRuleId matches.
                                                                         */}
-                                                                        {savingRuleId === rule.id && (
-                                                                            <div className="mt-2 text-[10px] animate-in zoom-in-95">
-                                                                                <div className="flex gap-1">
-                                                                                    <input
-                                                                                        autoFocus
-                                                                                        value={newPresetName}
-                                                                                        onChange={e => setNewPresetName(e.target.value)}
-                                                                                        placeholder="Template Name..."
-                                                                                        className="flex-1 border border-indigo-200 rounded px-2 py-1 outline-none ring-2 ring-indigo-100"
-                                                                                    />
-                                                                                    <button
-                                                                                        onClick={() => {
-                                                                                            if (!newPresetName.trim()) return;
-                                                                                            setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name: newPresetName.trim(), rules: [rule], datasetId: configState.datasetId }]);
-                                                                                            addToast('Saved as Preset', 'success');
-                                                                                            setSavingRuleId(null);
-                                                                                        }}
-                                                                                        className="bg-indigo-600 text-white px-2 py-1 rounded font-bold hover:bg-indigo-700"
-                                                                                    >Save</button>
-                                                                                    <button onClick={() => setSavingRuleId(null)} className="px-2 text-slate-400 hover:text-slate-600">Cancel</button>
+                                                                            {savingRuleId === rule.id && (
+                                                                                <div className="mt-2 text-[10px] animate-in zoom-in-95">
+                                                                                    <div className="flex gap-1">
+                                                                                        <input
+                                                                                            autoFocus
+                                                                                            value={newPresetName}
+                                                                                            onChange={e => setNewPresetName(e.target.value)}
+                                                                                            placeholder="Template Name..."
+                                                                                            className="flex-1 border border-indigo-200 rounded px-2 py-1 outline-none ring-2 ring-indigo-100"
+                                                                                        />
+                                                                                        <button
+                                                                                            onClick={() => {
+                                                                                                if (!newPresetName.trim()) return;
+                                                                                                setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name: newPresetName.trim(), rules: [rule], datasetId: configState.datasetId }]);
+                                                                                                addToast('Saved as Preset', 'success');
+                                                                                                setSavingRuleId(null);
+                                                                                            }}
+                                                                                            className="bg-indigo-600 text-white px-2 py-1 rounded font-bold hover:bg-indigo-700"
+                                                                                        >Save</button>
+                                                                                        <button onClick={() => setSavingRuleId(null)} className="px-2 text-slate-400 hover:text-slate-600">Cancel</button>
+                                                                                    </div>
                                                                                 </div>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
 
-                                            {/* Unified Rule Builder: Simplified Trigger */}
-                                            <div className="pt-2 border-t border-slate-50">
-                                                <UnifiedRuleBuilder
-                                                    schema={selectedDataset?.schema || []}
-                                                    records={selectedDataset?.records || []}
-                                                    editingRule={configState.configRules?.find(r => r.id === editingRuleId)}
-                                                    onUpdate={(updatedRule: any) => {
-                                                        setConfigState({
-                                                            ...configState,
-                                                            configRules: (configState.configRules || []).map(r => r.id === updatedRule.id ? updatedRule : r)
-                                                        });
-                                                        setEditingRuleId(null);
-                                                        setPreviewOverrides({});
-                                                        addToast('Rule updated successfully', 'success');
-                                                    }}
-                                                    onEnableRowPicker={(cb) => {
-                                                        setActiveRowPicker(() => cb);
-                                                        addToast('Please click a row in the Preview table', 'info');
-                                                    }}
-                                                    onAdd={(rule) => {
-                                                        const newId = `rule_${Date.now()}_${Math.random()}`;
-                                                        setConfigState({
-                                                            ...configState,
-                                                            configRules: [...(configState.configRules || []), { ...rule, id: newId }]
-                                                        });
-                                                        setExpandedRules(prev => ({ ...prev, [newId]: true }));
-                                                        setPreviewOverrides({});
-                                                        addToast('Rule added to stack', 'success');
-                                                    }}
-                                                    onSaveAsPreset={(name, rules) => {
-                                                        const exists = savedRulePresets.some(p => p.name === name);
-                                                        if (exists) {
-                                                            addToast(`预设名称 "${name}" 已存在`, 'error');
-                                                            return;
-                                                        }
-                                                        setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name, rules, datasetId: configState.datasetId }]);
-                                                        addToast(`预设 "${name}" 已保存到库`, 'success');
-                                                    }}
-                                                    activeRuleType={builderActiveRuleType}
-                                                    onRuleTypeChange={setBuilderActiveRuleType}
-                                                />
+                                                {/* Unified Rule Builder: Simplified Trigger */}
+                                                <div className="pt-2 border-t border-slate-50">
+                                                    <UnifiedRuleBuilder
+                                                        schema={selectedDataset?.schema || []}
+                                                        records={selectedDataset?.records || []}
+                                                        editingRule={configState.configRules?.find(r => r.id === editingRuleId)}
+                                                        onUpdate={(updatedRule: any) => {
+                                                            setConfigState({
+                                                                ...configState,
+                                                                configRules: (configState.configRules || []).map(r => r.id === updatedRule.id ? updatedRule : r)
+                                                            });
+                                                            setEditingRuleId(null);
+                                                            setPreviewOverrides({});
+                                                            addToast('Rule updated successfully', 'success');
+                                                        }}
+                                                        onEnableRowPicker={(cb) => {
+                                                            setActiveRowPicker(() => cb);
+                                                            addToast('Please click a row in the Preview table', 'info');
+                                                        }}
+                                                        onAdd={(rule) => {
+                                                            const newId = `rule_${Date.now()}_${Math.random()}`;
+                                                            setConfigState({
+                                                                ...configState,
+                                                                configRules: [...(configState.configRules || []), { ...rule, id: newId }]
+                                                            });
+                                                            setExpandedRules(prev => ({ ...prev, [newId]: true }));
+                                                            setPreviewOverrides({});
+                                                            addToast('Rule added to stack', 'success');
+                                                        }}
+                                                        onSaveAsPreset={(name, rules) => {
+                                                            const exists = savedRulePresets.some(p => p.name === name);
+                                                            if (exists) {
+                                                                addToast(`预设名称 "${name}" 已存在`, 'error');
+                                                                return;
+                                                            }
+                                                            setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name, rules, datasetId: configState.datasetId }]);
+                                                            addToast(`预设 "${name}" 已保存到库`, 'success');
+                                                        }}
+                                                        activeRuleType={builderActiveRuleType}
+                                                        onRuleTypeChange={setBuilderActiveRuleType}
+                                                    />
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                                        )}
+                                    </div>
+                                )}
+                            </div>
 
                             {/* Section 3: Identity (Collapsible) */}
                             <div className="border-b border-slate-100 last:border-0">
