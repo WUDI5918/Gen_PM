@@ -1859,8 +1859,16 @@ const UnifiedRuleBuilder: React.FC<{
     editingRule?: any;
     onSaveAsPreset: (name: string, rule: any) => void;
     onEnableRowPicker?: (callback: (id: string) => void) => void;
-}> = ({ schema, records, onAdd, onUpdate, editingRule, onSaveAsPreset, onEnableRowPicker }) => {
-    const [activeRuleType, setActiveRuleType] = useState<'logic' | 'mapping'>('logic');
+    activeRuleType?: 'logic' | 'mapping';
+    onRuleTypeChange?: (type: 'logic' | 'mapping') => void;
+}> = ({ schema, records, onAdd, onUpdate, editingRule, onSaveAsPreset, onEnableRowPicker, activeRuleType: controlledActiveRuleType, onRuleTypeChange }) => {
+    const [internalActiveRuleType, setInternalActiveRuleType] = useState<'logic' | 'mapping'>('mapping');
+    const activeRuleType = controlledActiveRuleType !== undefined ? controlledActiveRuleType : internalActiveRuleType;
+
+    const setActiveRuleType = (type: 'logic' | 'mapping') => {
+        setInternalActiveRuleType(type);
+        if (onRuleTypeChange) onRuleTypeChange(type);
+    };
 
     // Logic Rule State
     const [conditions, setConditions] = useState<{ fieldId: string, operator: string, value: string }[]>([]);
@@ -2222,91 +2230,115 @@ const UnifiedRuleBuilder: React.FC<{
 
                             <div className="space-y-3">
                                 {mCascadeGroups.map((group, gIdx) => (
-                                    <div key={gIdx} className="p-3 bg-gradient-to-br from-indigo-50/50 to-slate-50 rounded-xl border border-indigo-100">
-                                        {/* Header with Row Picker on Right */}
-                                        <div className="flex items-center gap-2 mb-2">
-                                            {/* Group Title - Left */}
-                                            <span className="text-[10px] font-bold text-indigo-600">级联组 #{gIdx + 1}</span>
+                                    <div key={gIdx} className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm relative group/cascade hover:border-indigo-300 hover:shadow-md transition-all">
+                                        {/* Header Row: Title & Row Picker (Left), Delete (Right) */}
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-[10px] font-black text-slate-500 uppercase">级联组 #{gIdx + 1}</span>
 
-                                            <div className="flex-1" />
+                                                {/* Compact Row Picker */}
+                                                <div className="flex items-center gap-1 bg-slate-50 rounded-lg border border-slate-200 p-0.5 hover:border-indigo-200 transition-colors">
+                                                    <select
+                                                        value={group.sourceRowId || ''}
+                                                        onChange={(e) => handleUpdateCascadeGroup(gIdx, { sourceRowId: e.target.value })}
+                                                        className={`bg-transparent text-[9px] font-bold outline-none border-none py-0.5 px-1 max-w-[100px] truncate ${group.sourceRowId ? 'text-amber-600' : 'text-slate-400'}`}
+                                                    >
+                                                        <option value="">(当前行)</option>
+                                                        {records.map(r => (
+                                                            <option key={r._id} value={String(r._id)}>📍 {getRecordLabel(r)}</option>
+                                                        ))}
+                                                    </select>
+                                                    {onEnableRowPicker && (
+                                                        <button
+                                                            onClick={() => onEnableRowPicker((id) => handleUpdateCascadeGroup(gIdx, { sourceRowId: id }))}
+                                                            className="text-slate-400 hover:text-amber-500 hover:bg-white rounded p-0.5 transition-all"
+                                                            title="Pick from Preview"
+                                                        >
+                                                            <MousePointerClick size={10} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
 
-                                            {/* Row Picker - Right Side */}
-                                            <select
-                                                value={group.sourceRowId || ''}
-                                                onChange={(e) => handleUpdateCascadeGroup(gIdx, { sourceRowId: e.target.value })}
-                                                className={`min-w-0 max-w-[120px] bg-white rounded px-1.5 py-0.5 text-[8px] outline-none truncate ${group.sourceRowId ? 'border border-amber-200 text-amber-700 font-bold' : 'border-0 text-slate-400'}`}
-                                            >
-                                                <option value="">当前行</option>
-                                                {records.map(r => (
-                                                    <option key={r._id} value={String(r._id)}>📍 {getRecordLabel(r)}</option>
-                                                ))}
-                                            </select>
-                                            {onEnableRowPicker && (
-                                                <button
-                                                    onClick={() => onEnableRowPicker((id) => handleUpdateCascadeGroup(gIdx, { sourceRowId: id }))}
-                                                    className="text-[8px] bg-amber-50 hover:bg-amber-100 text-amber-600 p-1 rounded transition-colors"
-                                                    title="Pick from table"
-                                                >
-                                                    <MousePointerClick size={10} />
-                                                </button>
-                                            )}
-
-                                            {/* Delete Button - Far Right */}
                                             <button
                                                 onClick={() => handleRemoveCascadeGroup(gIdx)}
-                                                className="p-1 text-slate-300 hover:text-red-500 transition-colors"
+                                                className="text-slate-300 hover:text-red-500 p-1 opacity-0 group-hover/cascade:opacity-100 transition-opacity"
                                             >
                                                 <X size={12} />
                                             </button>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-2 mb-2">
-                                            <select
-                                                value={group.sourceField}
-                                                onChange={(e) => handleUpdateCascadeGroup(gIdx, { sourceField: e.target.value })}
-                                                className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none focus:ring-1 focus:ring-indigo-300"
-                                            >
-                                                <option value="">监听字段...</option>
-                                                {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
-                                            </select>
-                                            <select
-                                                value={group.targetField}
-                                                onChange={(e) => handleUpdateCascadeGroup(gIdx, { targetField: e.target.value })}
-                                                className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none focus:ring-1 focus:ring-indigo-300"
-                                            >
-                                                <option value="">目标字段...</option>
-                                                {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
-                                            </select>
+                                        {/* Columns Grid Layout */}
+                                        <div className="grid grid-cols-[1fr,16px,1fr,16px] gap-x-2 gap-y-1.5 items-center">
+
+                                            {/* Column Headers / Selectors */}
+                                            <div className="col-span-1">
+                                                <select
+                                                    value={group.sourceField}
+                                                    onChange={(e) => handleUpdateCascadeGroup(gIdx, { sourceField: e.target.value })}
+                                                    className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-slate-600 outline-none focus:border-indigo-400 focus:bg-white transition-all"
+                                                >
+                                                    <option value="">监听字段 (Source)...</option>
+                                                    {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="col-span-1 flex justify-center">
+                                                <ArrowRight size={10} className="text-slate-300" />
+                                            </div>
+                                            <div className="col-span-1">
+                                                <select
+                                                    value={group.targetField}
+                                                    onChange={(e) => handleUpdateCascadeGroup(gIdx, { targetField: e.target.value })}
+                                                    className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-slate-600 outline-none focus:border-indigo-400 focus:bg-white transition-all"
+                                                >
+                                                    <option value="">目标字段 (Target)...</option>
+                                                    {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="col-span-1"></div>
+
+                                            {/* Mapping Rows */}
+                                            {group.mappings.map((m, mIdx) => (
+                                                <React.Fragment key={mIdx}>
+                                                    <div className="col-span-1">
+                                                        <input
+                                                            value={m.sourceValue}
+                                                            onChange={(e) => handleUpdateCascadeMapping(gIdx, mIdx, { sourceValue: e.target.value })}
+                                                            placeholder="当值为..."
+                                                            className={`w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all ${mSyncMode ? 'focus:border-green-400 focus:ring-green-50' : ''}`}
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-1 flex justify-center text-slate-300">
+                                                        <ArrowRight size={10} />
+                                                    </div>
+                                                    <div className="col-span-1">
+                                                        <input
+                                                            value={m.targetValue}
+                                                            onChange={(e) => handleUpdateCascadeMapping(gIdx, mIdx, { targetValue: e.target.value })}
+                                                            placeholder="设为..."
+                                                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-1 flex justify-center">
+                                                        <button
+                                                            onClick={() => handleRemoveCascadeMapping(gIdx, mIdx)}
+                                                            className="text-slate-300 hover:text-red-500 transition-colors"
+                                                            tabIndex={-1}
+                                                        >
+                                                            <X size={10} />
+                                                        </button>
+                                                    </div>
+                                                </React.Fragment>
+                                            ))}
                                         </div>
 
-                                        <div className="space-y-1">
-                                            {group.mappings.map((m, mIdx) => (
-                                                <div key={mIdx} className="flex items-center gap-1">
-                                                    <input
-                                                        value={m.sourceValue}
-                                                        onChange={(e) => handleUpdateCascadeMapping(gIdx, mIdx, { sourceValue: e.target.value })}
-                                                        placeholder="选项值"
-                                                        className={`flex-1 bg-white border rounded px-2 py-1 text-[10px] font-bold outline-none ${mSyncMode ? 'border-green-200 focus:border-green-400' : 'border-slate-200 focus:border-indigo-500'}`}
-                                                    />
-                                                    <ArrowRight size={10} className="text-slate-300" />
-                                                    <input
-                                                        value={m.targetValue}
-                                                        onChange={(e) => handleUpdateCascadeMapping(gIdx, mIdx, { targetValue: e.target.value })}
-                                                        placeholder="结果值"
-                                                        className="flex-1 bg-white border border-slate-200 rounded px-2 py-1 text-[10px] outline-none focus:border-indigo-500"
-                                                    />
-                                                    <button onClick={() => handleRemoveCascadeMapping(gIdx, mIdx)} className="p-0.5 text-slate-300 hover:text-red-500">
-                                                        <X size={12} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                            <button
-                                                onClick={() => handleAddCascadeMapping(gIdx)}
-                                                className="w-full py-1 text-[9px] text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-all"
-                                            >
-                                                + 添加映射
-                                            </button>
-                                        </div>
+                                        {/* Footer Add Button */}
+                                        <button
+                                            onClick={() => handleAddCascadeMapping(gIdx)}
+                                            className="mt-2 w-full py-1 text-[9px] font-bold text-indigo-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition-all flex items-center justify-center gap-1 opacity-60 hover:opacity-100"
+                                        >
+                                            <Plus size={10} /> 添加映射值
+                                        </button>
                                     </div>
                                 ))}
                             </div>
@@ -2380,6 +2412,16 @@ export const SuperTable: React.FC = () => {
     // State
     const [sidebarWidth, setSidebarWidth] = useState(() => loadFromStorage('erp_sidebar_width', 400));
     const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+    const [builderActiveRuleType, setBuilderActiveRuleType] = useState<'logic' | 'mapping'>('mapping');
+    const [expandedRuleIds, setExpandedRuleIds] = useState<Set<string>>(new Set());
+    const toggleRuleExpanded = (id: string) => {
+        setExpandedRuleIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
     const isResizingSidebarRef = useRef(false);
 
     const handleSidebarResizeStart = useCallback((e: React.MouseEvent) => {
@@ -4209,7 +4251,8 @@ export const SuperTable: React.FC = () => {
     const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
         'datasource': true,
         'rules': true,
-        'identity': true
+        'identity': true,
+        'templates': true
     });
     const toggleSection = (id: string) => setExpandedSections(prev => ({ ...prev, [id]: !prev[id] }));
     const [isSavingPreset, setIsSavingPreset] = useState(false);
@@ -4760,220 +4803,293 @@ export const SuperTable: React.FC = () => {
                                     {expandedSections['rules'] && (
                                         <div className="pb-6 pt-0 space-y-6 animate-in slide-in-from-top-2 duration-200">
 
-                                            {/* Presets Split by Type */}
-                                            <div className="grid grid-cols-2 gap-4">
-                                                {/* Logic Presets */}
-                                                <div className="space-y-2">
-                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                                                        <Bot size={12} /> Logic Templates
-                                                    </div>
-                                                    <div className="flex flex-col gap-1.5">
-                                                        {savedRulePresets.filter(p => p.datasetId === configState.datasetId && (!p.rules[0] || p.rules[0].ruleType === 'logic')).length === 0 && (
-                                                            <div className="text-[10px] text-slate-300 italic pl-1">Empty</div>
-                                                        )}
-                                                        {savedRulePresets.filter(p => p.datasetId === configState.datasetId && (!p.rules[0] || p.rules[0].ruleType === 'logic')).map(preset => (
-                                                            <div
-                                                                key={preset.id}
-                                                                className="group/pill flex items-center justify-between bg-white border border-slate-200 pl-2 pr-1 py-1.5 rounded-lg hover:border-indigo-300 transition-all cursor-pointer shadow-sm hover:shadow-md"
-                                                                onClick={() => {
-                                                                    const currentRuleSignatures = new Set((configState.configRules || []).map(r => JSON.stringify({ ...r, id: undefined })));
-                                                                    const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
-                                                                    if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
-                                                                    setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }))] }));
-                                                                    addToast(`Added ${preset.name}`, 'success');
-                                                                }}
-                                                            >
-                                                                <span className="text-[10px] font-bold text-slate-600 truncate max-w-[100px]">
-                                                                    {preset.name}
-                                                                </span>
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        triggerConfirm('Delete', `Delete "${preset.name}"?`, () => setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id)), 'danger', 'Confirm');
-                                                                    }}
-                                                                    className="text-slate-300 hover:text-red-500 opacity-0 group-hover/pill:opacity-100 p-0.5"
-                                                                >
-                                                                    <X size={10} />
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-
-                                                {/* Mapping Presets */}
-                                                <div className="space-y-2">
-                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                                                        <ArrowRight size={12} /> Map Templates
-                                                    </div>
-                                                    <div className="flex flex-col gap-1.5">
-                                                        {savedRulePresets.filter(p => p.datasetId === configState.datasetId && p.rules[0]?.ruleType === 'mapping').length === 0 && (
-                                                            <div className="text-[10px] text-slate-300 italic pl-1">Empty</div>
-                                                        )}
-                                                        {savedRulePresets.filter(p => p.datasetId === configState.datasetId && p.rules[0]?.ruleType === 'mapping').map(preset => (
-                                                            <div
-                                                                key={preset.id}
-                                                                className="group/pill flex items-center justify-between bg-white border border-slate-200 pl-2 pr-1 py-1.5 rounded-lg hover:border-emerald-300 transition-all cursor-pointer shadow-sm hover:shadow-md"
-                                                                onClick={() => {
-                                                                    const currentRuleSignatures = new Set((configState.configRules || []).map(r => JSON.stringify({ ...r, id: undefined })));
-                                                                    const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
-                                                                    if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
-                                                                    setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }))] }));
-                                                                    addToast(`Added ${preset.name}`, 'success');
-                                                                }}
-                                                            >
-                                                                <span className="text-[10px] font-bold text-slate-600 truncate max-w-[100px]">
-                                                                    {preset.name}
-                                                                </span>
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        triggerConfirm('Delete', `Delete "${preset.name}"?`, () => setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id)), 'danger', 'Confirm');
-                                                                    }}
-                                                                    className="text-slate-300 hover:text-red-500 opacity-0 group-hover/pill:opacity-100 p-0.5"
-                                                                >
-                                                                    <X size={10} />
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
+                                            {/* Templates Library Header (Collapsible) */}
+                                            <div onClick={() => toggleSection('templates')} className="flex items-center gap-2 cursor-pointer mb-3 select-none group/tmpl opacity-70 hover:opacity-100 transition-opacity">
+                                                <LayoutTemplate size={12} className="text-slate-400" />
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide">Rule Templates</span>
+                                                <span className="bg-slate-100 text-slate-400 text-[9px] px-1.5 rounded-full font-bold">{savedRulePresets.length}</span>
+                                                <div className="h-px bg-slate-100 flex-1 ml-2"></div>
+                                                <ChevronDown size={12} className={`text-slate-300 transition-transform duration-200 ${expandedSections['templates'] ? 'rotate-180' : ''}`} />
                                             </div>
 
-                                            {/* Existing Rules List */}
+                                            {expandedSections['templates'] && (
+                                                <div className="mb-6 animate-in slide-in-from-top-1 px-1">
+                                                    {builderActiveRuleType === 'logic' ? (
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            {savedRulePresets.filter(p => p.datasetId === configState.datasetId && (!p.rules[0] || p.rules[0].ruleType === 'logic')).length === 0 && (
+                                                                <div className="col-span-2 text-[10px] text-slate-300 italic text-center py-2">No logic templates found</div>
+                                                            )}
+                                                            {savedRulePresets.filter(p => p.datasetId === configState.datasetId && (!p.rules[0] || p.rules[0].ruleType === 'logic')).map(preset => (
+                                                                <div
+                                                                    key={preset.id}
+                                                                    className="group/pill flex items-center justify-between bg-slate-50 hover:bg-white border border-transparent hover:border-indigo-100 hover:shadow-sm pl-2 pr-1 py-1.5 rounded-lg transition-all cursor-pointer"
+                                                                    onClick={() => {
+                                                                        const currentRuleSignatures = new Set((configState.configRules || []).map(r => JSON.stringify({ ...r, id: undefined })));
+                                                                        const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
+                                                                        if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
+                                                                        setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }))] }));
+                                                                        setPreviewOverrides({});
+                                                                        addToast(`Added ${preset.name}`, 'success');
+                                                                    }}
+                                                                >
+                                                                    <div className="flex items-center gap-2 overflow-hidden">
+                                                                        <Bot size={10} className="text-indigo-400 shrink-0 opacity-70" />
+                                                                        <span className="text-[10px] font-bold text-slate-600 truncate">{preset.name}</span>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            triggerConfirm('Delete', `Delete "${preset.name}"?`, () => setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id)), 'danger', 'Confirm');
+                                                                        }}
+                                                                        className="text-slate-300 hover:text-red-400 opacity-0 group-hover/pill:opacity-100 p-0.5 transition-opacity"
+                                                                    >
+                                                                        <X size={10} />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            {savedRulePresets.filter(p => p.datasetId === configState.datasetId && p.rules[0]?.ruleType === 'mapping').length === 0 && (
+                                                                <div className="col-span-2 text-[10px] text-slate-300 italic text-center py-2">No mapping templates found</div>
+                                                            )}
+                                                            {savedRulePresets.filter(p => p.datasetId === configState.datasetId && p.rules[0]?.ruleType === 'mapping').map(preset => (
+                                                                <div
+                                                                    key={preset.id}
+                                                                    className="group/pill flex items-center justify-between bg-slate-50 hover:bg-white border border-transparent hover:border-emerald-100 hover:shadow-sm pl-2 pr-1 py-1.5 rounded-lg transition-all cursor-pointer"
+                                                                    onClick={() => {
+                                                                        const currentRuleSignatures = new Set((configState.configRules || []).map(r => JSON.stringify({ ...r, id: undefined })));
+                                                                        const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
+                                                                        if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
+                                                                        setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }))] }));
+                                                                        setPreviewOverrides({});
+                                                                        addToast(`Added ${preset.name}`, 'success');
+                                                                    }}
+                                                                >
+                                                                    <div className="flex items-center gap-2 overflow-hidden">
+                                                                        <ArrowRight size={10} className="text-emerald-500 shrink-0 opacity-70" />
+                                                                        <span className="text-[10px] font-bold text-slate-600 truncate">{preset.name}</span>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            triggerConfirm('Delete', `Delete "${preset.name}"?`, () => setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id)), 'danger', 'Confirm');
+                                                                        }}
+                                                                        className="text-slate-300 hover:text-red-400 opacity-0 group-hover/pill:opacity-100 p-0.5 transition-opacity"
+                                                                    >
+                                                                        <X size={10} />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
                                             {(configState.configRules || []).length > 0 && (
-                                                <div className="space-y-2 max-h-60 overflow-y-auto overflow-x-hidden px-0.5 custom-scrollbar-mini">
+                                                <div className="space-y-1.5 px-0.5">
                                                     <div className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-2 mb-2 px-1">
                                                         <SlidersHorizontal size={10} />
                                                         Active Rules Stack ({(configState.configRules || []).length})
                                                     </div>
-                                                    {(configState.configRules || []).map((rule) => (
-                                                        <div
-                                                            key={rule.id}
-                                                            onDoubleClick={() => setEditingRuleId(rule.id)}
-                                                            className={`group/rule bg-white border border-slate-100 rounded-xl p-3 relative transition-all hover:border-indigo-200 hover:shadow-sm cursor-pointer ${editingRuleId === rule.id ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`}
-                                                        >
-                                                            <div className={`absolute left-0 top-3 bottom-3 w-1 rounded-r-full ${rule.ruleType === 'mapping' ? 'bg-emerald-400' : 'bg-indigo-400'}`}></div>
+                                                    {(configState.configRules || []).map((rule) => {
+                                                        const isExpanded = expandedRuleIds.has(rule.id);
+                                                        const isLogic = rule.ruleType !== 'mapping';
 
-                                                            {/* Delete Button */}
-                                                            <button
-                                                                onClick={() => {
-                                                                    setConfigState({
-                                                                        ...configState,
-                                                                        configRules: (configState.configRules || []).filter(r => r.id !== rule.id)
-                                                                    });
-                                                                    setPreviewOverrides({});
-                                                                }}
-                                                                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-slate-200 text-slate-400 rounded-full text-[10px] opacity-0 group-hover/rule:opacity-100 transition-opacity flex items-center justify-center shadow-lg hover:text-red-500 hover:border-red-100 z-10"
-                                                                title="Remove Rule"
-                                                            ><X size={10} /></button>
-
-                                                            {/* Save Preset Button */}
-                                                            <button
-                                                                onClick={() => {
-                                                                    setSavingRuleId(rule.id);
-                                                                    setNewPresetName('');
-                                                                }}
-                                                                className={`absolute -top-1.5 right-5 w-5 h-5 bg-white border border-slate-200 text-slate-400 rounded-full opacity-0 group-hover/rule:opacity-100 transition-all flex items-center justify-center shadow-lg hover:text-indigo-500 hover:border-indigo-100 z-10 ${savingRuleId === rule.id ? 'hidden' : ''}`}
-                                                                title="Save as Preset"
-                                                            ><Bookmark size={10} /></button>
-
-
-                                                            {savingRuleId === rule.id && (
-                                                                <div className="mb-2 animate-in zoom-in-95 duration-200">
-                                                                    <div className="flex gap-1">
-                                                                        <input
-                                                                            autoFocus
-                                                                            value={newPresetName}
-                                                                            onChange={e => setNewPresetName(e.target.value)}
-                                                                            onKeyDown={e => {
-                                                                                if (e.key === 'Enter' && newPresetName.trim()) {
-                                                                                    const exists = savedRulePresets.some(p => p.name === newPresetName.trim());
-                                                                                    if (exists) {
-                                                                                        addToast('Name already exists', 'error');
-                                                                                        return;
-                                                                                    }
-                                                                                    setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name: newPresetName.trim(), rules: [rule] }]);
-                                                                                    addToast('Rule saved as preset', 'success');
-                                                                                    setSavingRuleId(null);
-                                                                                }
-                                                                            }}
-                                                                            placeholder="Preset Name..."
-                                                                            className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold outline-none ring-2 ring-indigo-500/20"
-                                                                        />
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                if (newPresetName.trim()) {
-                                                                                    const exists = savedRulePresets.some(p => p.name === newPresetName.trim());
-                                                                                    if (exists) {
-                                                                                        addToast('Name already exists', 'error');
-                                                                                        return;
-                                                                                    }
-                                                                                    setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name: newPresetName.trim(), rules: [rule], datasetId: configState.datasetId }]);
-                                                                                    addToast('Rule saved as preset', 'success');
-                                                                                    setSavingRuleId(null);
-                                                                                }
-                                                                            }}
-                                                                            className="px-2 py-1 bg-indigo-600 text-white rounded-lg text-[10px] font-bold hover:bg-indigo-700 disabled:opacity-50"
-                                                                            disabled={!newPresetName.trim()}
-                                                                        >Save</button>
-                                                                        <button onClick={() => setSavingRuleId(null)} className="px-1 text-slate-400 hover:text-slate-600"><X size={12} /></button>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-
-                                                            {/* Rule Header Info */}
-                                                            {(rule.title || rule.description) && (
-                                                                <div className="mb-2 pb-2 border-b border-slate-50">
-                                                                    {rule.title && <div className="text-[10px] font-bold text-slate-800">{rule.title}</div>}
-                                                                    {rule.description && <div className="text-[9px] text-slate-400 italic truncate">{rule.description}</div>}
-                                                                </div>
-                                                            )}
-
-                                                            {rule.ruleType === 'mapping' ? (
-                                                                <div className="space-y-2">
-                                                                    <div className="flex items-center flex-wrap gap-1.5 text-[10px] leading-relaxed">
-                                                                        <span className="bg-slate-100 text-slate-500 px-1 rounded font-bold uppercase text-[8px]">WHEN</span>
-                                                                        <span className="font-bold text-slate-800 bg-slate-50 px-1 rounded border border-slate-100">{rule.sourceField}</span>
-                                                                        <span className="text-slate-400">changes</span>
-                                                                        <ArrowRight size={10} className="text-slate-300" />
-                                                                        <span className="bg-slate-100 text-slate-500 px-1 rounded font-bold uppercase text-[8px]">UPDATE</span>
-                                                                        <span className="font-black text-emerald-700 bg-emerald-50 px-1 rounded border border-emerald-100">{rule.targetField}</span>
+                                                        return (
+                                                            <div
+                                                                key={rule.id}
+                                                                className={`group/rule bg-white border rounded-xl overflow-hidden transition-all duration-200 ${isExpanded
+                                                                    ? 'border-indigo-200 shadow-sm ring-1 ring-indigo-50'
+                                                                    : 'border-slate-100 hover:border-indigo-200'
+                                                                    } ${editingRuleId === rule.id ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`}
+                                                            >
+                                                                {/* Collapsed Header - Always Visible */}
+                                                                <div
+                                                                    className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-50 transition-colors select-none ${isExpanded ? 'bg-slate-50/80 border-b border-indigo-50' : ''}`}
+                                                                    onClick={() => toggleRuleExpanded(rule.id)}
+                                                                >
+                                                                    {/* Expand Icon */}
+                                                                    <div className="text-slate-400 shrink-0">
+                                                                        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                                                     </div>
 
-                                                                    {/* Mapping Preview */}
-                                                                    <div className="bg-slate-50/50 rounded-md p-1.5 border border-slate-100/50 space-y-1">
-                                                                        {(rule.mappings || []).slice(0, 3).map((m: any, i: number) => (
-                                                                            <div key={i} className="flex items-center text-[9px] gap-2">
-                                                                                <span className="font-medium text-slate-600 min-w-[20px]">{m.sourceValue}</span>
-                                                                                <ArrowRight size={8} className="text-slate-300" />
-                                                                                <span className="font-bold text-slate-800">{m.targetValue}</span>
+                                                                    {/* Type Indicator Bar */}
+                                                                    <div className={`w-1 h-3 rounded-full shrink-0 ${!isLogic ? 'bg-emerald-400' : 'bg-indigo-400'}`} />
+
+                                                                    {/* Rule Name / Summary */}
+                                                                    <div className="flex-1 min-w-0">
+                                                                        {(rule.title) ? (
+                                                                            <div className="text-[11px] font-bold text-slate-700 truncate">{rule.title}</div>
+                                                                        ) : (
+                                                                            /* Auto-Generated Summary Title */
+                                                                            <div className="text-[11px] font-medium text-slate-600 truncate flex items-center gap-1.5">
+                                                                                {!isLogic ? (
+                                                                                    <>
+                                                                                        <span>{rule.sourceField || 'Source'}</span>
+                                                                                        <ArrowRight size={10} className="text-slate-300" />
+                                                                                        <span>{rule.targetField || 'Target'}</span>
+                                                                                    </>
+                                                                                ) : (
+                                                                                    <>
+                                                                                        <span className="text-slate-400 italic text-[10px] pr-1">IF...</span>
+                                                                                        <span className="font-bold text-indigo-600">SET {rule.targetField}</span>
+                                                                                    </>
+                                                                                )}
                                                                             </div>
-                                                                        ))}
-                                                                        {(rule.mappings?.length || 0) > 3 && (
-                                                                            <div className="text-[8px] text-slate-400 pl-1">... +{(rule.mappings?.length || 0) - 3} more</div>
                                                                         )}
                                                                     </div>
 
-                                                                    <div className="flex items-center gap-2">
-                                                                        {rule.sourceRowId && <span className="bg-orange-50 text-orange-600 border border-orange-100 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-tight flex items-center gap-1"><MousePointerClick size={8} /> Row Pinned</span>}
+                                                                    {/* Quick Actions (Edit/Delete) - Prevent Event Propagation */}
+                                                                    <div className={`flex items-center gap-1 ${isExpanded ? 'opacity-100' : 'opacity-0 group-hover/rule:opacity-100'} transition-opacity`}>
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation(); // Prevent collapse
+                                                                                setEditingRuleId(rule.id);
+                                                                                setExpandedRuleIds(prev => new Set(prev).add(rule.id)); // Ensure expanded
+                                                                            }}
+                                                                            className="p-1 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded transition-all"
+                                                                            title="Edit Rule"
+                                                                        >
+                                                                            <Edit3 size={12} />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation(); // Prevent collapse
+                                                                                setConfigState({
+                                                                                    ...configState,
+                                                                                    configRules: (configState.configRules || []).filter(r => r.id !== rule.id)
+                                                                                });
+                                                                                setPreviewOverrides({});
+                                                                            }}
+                                                                            className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
+                                                                            title="Delete Rule"
+                                                                        >
+                                                                            <X size={12} />
+                                                                        </button>
                                                                     </div>
                                                                 </div>
-                                                            ) : (
-                                                                <div className="space-y-2">
-                                                                    <div className="flex items-center flex-wrap gap-1.5 text-[10px]">
-                                                                        <span className="bg-slate-100 text-slate-500 px-1 rounded font-bold uppercase text-[8px]">IF</span>
-                                                                        <span className="text-slate-500 italic max-w-[150px] truncate">{rule.conditions?.map((c: any) => `${c.fieldId} ${c.operator} ${c.value}`).join(rule.logic === 'OR' ? ' || ' : ' && ')}</span>
-                                                                        <ArrowRight size={10} className="text-slate-300" />
-                                                                        <span className="bg-slate-100 text-slate-500 px-1 rounded font-bold uppercase text-[8px]">SET</span>
-                                                                        <span className="font-black text-indigo-700 bg-indigo-50 px-1 rounded border border-indigo-100">{rule.targetField}</span>
+
+                                                                {/* Expanded Details Body */}
+                                                                {isExpanded && (
+                                                                    <div className="p-3 bg-white animate-in slide-in-from-top-1 fade-in duration-200">
+
+                                                                        {/* Description */}
+                                                                        {rule.description && (
+                                                                            <div className="mb-3 text-[10px] text-slate-500 italic bg-amber-50 px-2 py-1.5 rounded border border-amber-100 flex items-start gap-1">
+                                                                                <Info size={12} className="mt-0.5 text-amber-400 shrink-0" />
+                                                                                {rule.description}
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Rule Logic Visualization */}
+                                                                        {!isLogic ? ( // Mapping
+                                                                            <div className="space-y-3">
+                                                                                <div className="flex items-center flex-wrap gap-1.5 text-[10px] leading-relaxed select-none">
+                                                                                    <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">WHEN</span>
+                                                                                    <span className="font-bold text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">{rule.sourceField}</span>
+                                                                                    <span className="text-slate-400">changes</span>
+                                                                                    <ArrowRight size={10} className="text-slate-300" />
+                                                                                    <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">UPDATE</span>
+                                                                                    <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">{rule.targetField}</span>
+                                                                                </div>
+
+                                                                                {/* Mapping Table Preview */}
+                                                                                <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
+                                                                                    <div className="grid grid-cols-[1fr,auto,1fr] gap-2 px-3 py-1.5 bg-slate-100/50 border-b border-slate-200 text-[9px] font-bold text-slate-500 uppercase">
+                                                                                        <div>Value</div>
+                                                                                        <div></div>
+                                                                                        <div>Result</div>
+                                                                                    </div>
+                                                                                    <div className="divide-y divide-slate-100">
+                                                                                        {(rule.mappings || []).slice(0, 5).map((m: any, i: number) => (
+                                                                                            <div key={i} className="grid grid-cols-[1fr,auto,1fr] gap-2 px-3 py-1.5 items-center text-[10px]">
+                                                                                                <div className="font-medium text-slate-600 truncate" title={m.sourceValue}>{m.sourceValue}</div>
+                                                                                                <ArrowRight size={10} className="text-slate-300" />
+                                                                                                <div className="font-bold text-emerald-700 truncate" title={m.targetValue}>{m.targetValue}</div>
+                                                                                            </div>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                    {(rule.mappings?.length || 0) > 5 && (
+                                                                                        <div className="px-3 py-1.5 text-[9px] text-slate-400 bg-slate-50/50 border-t border-slate-100 italic">
+                                                                                            + {(rule.mappings?.length || 0) - 5} more mappings...
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+
+                                                                                {rule.sourceRowId && (
+                                                                                    <div className="flex justify-end">
+                                                                                        <span className="bg-orange-50 text-orange-600 border border-orange-100 px-2 py-1 rounded-md text-[9px] font-bold uppercase flex items-center gap-1.5">
+                                                                                            <MousePointerClick size={10} /> Row #{rule.sourceRowId} Pinned
+                                                                                        </span>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        ) : ( // Logic
+                                                                            <div className="space-y-3">
+                                                                                <div className="flex items-center flex-wrap gap-1.5 text-[10px]">
+                                                                                    <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">IF</span>
+                                                                                    <div className="text-slate-600 font-mono text-[10px] bg-amber-50 px-2 py-1 rounded border border-amber-100">
+                                                                                        {rule.conditions?.map((c: any) => `${c.fieldId} ${c.operator} ${c.value}`).join(rule.logic === 'OR' ? ' || ' : ' && ')}
+                                                                                    </div>
+                                                                                    <ArrowRight size={10} className="text-slate-300" />
+                                                                                    <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">SET</span>
+                                                                                    <div className="font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">{rule.targetField}</div>
+                                                                                </div>
+
+                                                                                <div className="bg-slate-900 text-slate-50 font-mono text-[10px] p-2.5 rounded-lg border border-slate-800 shadow-inner">
+                                                                                    <div className="opacity-50 text-[8px] mb-1">EXPRESSION:</div>
+                                                                                    = {rule.expression}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Bottom Toolbar for Expanded Item */}
+                                                                        <div className="mt-3 pt-2 border-t border-slate-50 flex justify-end gap-2">
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setSavingRuleId(rule.id);
+                                                                                    setNewPresetName(rule.title || '');
+                                                                                }}
+                                                                                className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-bold text-indigo-500 hover:bg-indigo-50 transition-colors"
+                                                                            >
+                                                                                <Bookmark size={10} /> Save as Template
+                                                                            </button>
+                                                                        </div>
+
+                                                                        {/* Inline Preset Save Form (Reusing existing logic logic if needed, but for now just the button triggering the state is fine. The global preset dialog might be better, but I'll replicate the inline one if it was inline before. 
+                                                                           Wait, existing logic (Line 4919) had inline form. 
+                                                                           I should include the inline form here if savingRuleId matches.
+                                                                        */}
+                                                                        {savingRuleId === rule.id && (
+                                                                            <div className="mt-2 text-[10px] animate-in zoom-in-95">
+                                                                                <div className="flex gap-1">
+                                                                                    <input
+                                                                                        autoFocus
+                                                                                        value={newPresetName}
+                                                                                        onChange={e => setNewPresetName(e.target.value)}
+                                                                                        placeholder="Template Name..."
+                                                                                        className="flex-1 border border-indigo-200 rounded px-2 py-1 outline-none ring-2 ring-indigo-100"
+                                                                                    />
+                                                                                    <button
+                                                                                        onClick={() => {
+                                                                                            if (!newPresetName.trim()) return;
+                                                                                            setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name: newPresetName.trim(), rules: [rule], datasetId: configState.datasetId }]);
+                                                                                            addToast('Saved as Preset', 'success');
+                                                                                            setSavingRuleId(null);
+                                                                                        }}
+                                                                                        className="bg-indigo-600 text-white px-2 py-1 rounded font-bold hover:bg-indigo-700"
+                                                                                    >Save</button>
+                                                                                    <button onClick={() => setSavingRuleId(null)} className="px-2 text-slate-400 hover:text-slate-600">Cancel</button>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
-                                                                    <div className="bg-slate-50/50 rounded p-1.5 border border-slate-100/50 text-[9px] font-mono text-slate-600 truncate">
-                                                                        = {rule.expression}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ))}
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
 
@@ -5013,6 +5129,8 @@ export const SuperTable: React.FC = () => {
                                                         setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name, rules, datasetId: configState.datasetId }]);
                                                         addToast(`预设 "${name}" 已保存到库`, 'success');
                                                     }}
+                                                    activeRuleType={builderActiveRuleType}
+                                                    onRuleTypeChange={setBuilderActiveRuleType}
                                                 />
                                             </div>
                                         </div>
