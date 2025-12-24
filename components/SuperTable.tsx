@@ -4856,10 +4856,13 @@ export const SuperTable: React.FC = () => {
 
                                                             {/* Delete Button */}
                                                             <button
-                                                                onClick={() => setConfigState({
-                                                                    ...configState,
-                                                                    configRules: (configState.configRules || []).filter(r => r.id !== rule.id)
-                                                                })}
+                                                                onClick={() => {
+                                                                    setConfigState({
+                                                                        ...configState,
+                                                                        configRules: (configState.configRules || []).filter(r => r.id !== rule.id)
+                                                                    });
+                                                                    setPreviewOverrides({});
+                                                                }}
                                                                 className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-slate-200 text-slate-400 rounded-full text-[10px] opacity-0 group-hover/rule:opacity-100 transition-opacity flex items-center justify-center shadow-lg hover:text-red-500 hover:border-red-100 z-10"
                                                                 title="Remove Rule"
                                                             ><X size={10} /></button>
@@ -4986,6 +4989,7 @@ export const SuperTable: React.FC = () => {
                                                             configRules: (configState.configRules || []).map(r => r.id === updatedRule.id ? updatedRule : r)
                                                         });
                                                         setEditingRuleId(null);
+                                                        setPreviewOverrides({});
                                                         addToast('Rule updated successfully', 'success');
                                                     }}
                                                     onEnableRowPicker={(cb) => {
@@ -4995,8 +4999,9 @@ export const SuperTable: React.FC = () => {
                                                     onAdd={(rule) => {
                                                         setConfigState({
                                                             ...configState,
-                                                            configRules: [...configState.configRules, { ...rule, id: `rule_${Date.now()}` }]
+                                                            configRules: [...(configState.configRules || []), { ...rule, id: `rule_${Date.now()}` }]
                                                         });
+                                                        setPreviewOverrides({});
                                                         addToast('Rule added to stack', 'success');
                                                     }}
                                                     onSaveAsPreset={(name, rules) => {
