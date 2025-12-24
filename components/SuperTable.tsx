@@ -1871,8 +1871,12 @@ const UnifiedRuleBuilder: React.FC<{
     const [mSourceRowId, setMSourceRowId] = useState(''); // New: Specify a row ID
     const [mTargetField, setMTargetField] = useState('');
     const [mMappings, setMMappings] = useState<{ sourceValue: string, targetValue: string }[]>([]);
+    // NEW: Multiple cascade groups support (each group can have its own sourceRowId)
+    const [mCascadeGroups, setMCascadeGroups] = useState<{ sourceField: string, targetField: string, sourceRowId?: string, mappings: { sourceValue: string, targetValue: string }[] }[]>([]);
+    const [mSyncMode, setMSyncMode] = useState(true); // true = 同步模式, false = 独立模式
     const [ruleDescription, setRuleDescription] = useState('');
     const [ruleTitle, setRuleTitle] = useState('');
+
 
 
     const getRecordLabel = (r: any) => {
@@ -1912,6 +1916,47 @@ const UnifiedRuleBuilder: React.FC<{
         setMMappings(mMappings.map((m, i) => i === idx ? { ...m, ...updates } : m));
     };
 
+    // NEW: Cascade Groups Handlers
+    const handleAddCascadeGroup = () => {
+        setMCascadeGroups([...mCascadeGroups, { sourceField: '', targetField: '', sourceRowId: '', mappings: [] }]);
+    };
+
+    const handleRemoveCascadeGroup = (groupIdx: number) => {
+        setMCascadeGroups(mCascadeGroups.filter((_, i) => i !== groupIdx));
+    };
+
+    const handleUpdateCascadeGroup = (groupIdx: number, updates: Partial<{ sourceField: string, targetField: string, sourceRowId: string }>) => {
+        setMCascadeGroups(mCascadeGroups.map((g, i) => i === groupIdx ? { ...g, ...updates } : g));
+    };
+
+    const handleAddCascadeMapping = (groupIdx: number) => {
+        setMCascadeGroups(mCascadeGroups.map((g, i) =>
+            i === groupIdx ? { ...g, mappings: [...g.mappings, { sourceValue: '', targetValue: '' }] } : g
+        ));
+    };
+
+    const handleRemoveCascadeMapping = (groupIdx: number, mappingIdx: number) => {
+        setMCascadeGroups(mCascadeGroups.map((g, i) =>
+            i === groupIdx ? { ...g, mappings: g.mappings.filter((_, mi) => mi !== mappingIdx) } : g
+        ));
+    };
+
+    const handleUpdateCascadeMapping = (groupIdx: number, mappingIdx: number, updates: Partial<{ sourceValue: string, targetValue: string }>) => {
+        // In sync mode, if sourceValue changes, sync across all groups at the same mapping index
+        if (mSyncMode && updates.sourceValue !== undefined) {
+            setMCascadeGroups(mCascadeGroups.map((g, gi) => ({
+                ...g,
+                mappings: g.mappings.map((m, mi) =>
+                    mi === mappingIdx ? { ...m, sourceValue: updates.sourceValue! } : m
+                )
+            })));
+        } else {
+            setMCascadeGroups(mCascadeGroups.map((g, i) =>
+                i === groupIdx ? { ...g, mappings: g.mappings.map((m, mi) => mi === mappingIdx ? { ...m, ...updates } : m) } : g
+            ));
+        }
+    };
+
     const handleAddRule = () => {
         const ruleData = activeRuleType === 'logic'
             ? {
@@ -1931,6 +1976,9 @@ const UnifiedRuleBuilder: React.FC<{
                 sourceRowId: mSourceRowId || undefined,
                 targetField: mTargetField,
                 mappings: mMappings,
+                // NEW: Include cascade groups
+                cascadeGroups: mCascadeGroups.length > 0 ? mCascadeGroups : undefined,
+                syncMode: mSyncMode,
                 description: ruleDescription,
                 title: ruleTitle
             };
@@ -1945,6 +1993,8 @@ const UnifiedRuleBuilder: React.FC<{
             setMSourceRowId('');
             setMTargetField('');
             setMMappings([]);
+            setMCascadeGroups([]);
+            setMSyncMode(true);
         }
         setRuleDescription('');
         setRuleTitle('');
@@ -1952,7 +2002,12 @@ const UnifiedRuleBuilder: React.FC<{
 
 
     const isLogicValid = conditions.length > 0 && conditions.every(c => c.fieldId && c.operator) && targetField;
-    const isMappingValid = mSourceField && mTargetField && mMappings.length > 0 && mMappings.every(m => m.sourceValue);
+    // Support both legacy single mapping and new cascade groups
+    const hasValidLegacyMapping = mSourceField && mTargetField && mMappings.length > 0 && mMappings.every(m => m.sourceValue);
+    const hasValidCascadeGroups = mCascadeGroups.length > 0 && mCascadeGroups.every(g =>
+        g.sourceField && g.targetField && g.mappings.length > 0 && g.mappings.every(m => m.sourceValue)
+    );
+    const isMappingValid = hasValidLegacyMapping || hasValidCascadeGroups;
 
     return (
         <div className="space-y-4">
@@ -2156,6 +2211,125 @@ const UnifiedRuleBuilder: React.FC<{
                                 className="w-full py-2 border border-dashed border-slate-200 rounded-lg text-[9px] font-bold text-slate-500 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
                             >
                                 <Plus size={12} /> 增加映射行 (Add Row)
+                            </button>
+                        </div>
+
+                        {/* NEW: Multiple Cascade Groups Section */}
+                        <div className="mt-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest flex items-center gap-1.5">
+                                    <Layers size={12} /> 多级联映射 (Multi-Cascade)
+                                </span>
+                                <button
+                                    onClick={() => setMSyncMode(!mSyncMode)}
+                                    className={`px-2 py-1 rounded-md text-[9px] font-bold transition-all flex items-center gap-1 ${mSyncMode
+                                        ? 'bg-green-100 text-green-700 border border-green-200'
+                                        : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                        }`}
+                                    title={mSyncMode ? '同步模式: 所有组共享相同的选项值' : '独立模式: 每组的选项值独立设置'}
+                                >
+                                    {mSyncMode ? '🔗 同步模式' : '🔓 独立模式'}
+                                </button>
+                            </div>
+
+                            {mSyncMode && mCascadeGroups.length > 0 && (
+                                <div className="text-[9px] text-green-600 bg-green-50 px-2 py-1.5 rounded-md border border-green-100">
+                                    💡 同步模式已启用: 修改任意组的"选项值"将自动同步到其他对应行
+                                </div>
+                            )}
+
+                            <div className="space-y-3">
+                                {mCascadeGroups.map((group, gIdx) => (
+                                    <div key={gIdx} className="p-3 bg-gradient-to-br from-indigo-50/50 to-slate-50 rounded-xl border border-indigo-100">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-[10px] font-bold text-indigo-600">级联组 #{gIdx + 1}</span>
+                                            <button
+                                                onClick={() => handleRemoveCascadeGroup(gIdx)}
+                                                className="p-1 text-slate-300 hover:text-red-500 transition-colors"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2 mb-2">
+                                            <select
+                                                value={group.sourceField}
+                                                onChange={(e) => handleUpdateCascadeGroup(gIdx, { sourceField: e.target.value })}
+                                                className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none focus:ring-1 focus:ring-indigo-300"
+                                            >
+                                                <option value="">监听字段...</option>
+                                                {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                                            </select>
+                                            <select
+                                                value={group.targetField}
+                                                onChange={(e) => handleUpdateCascadeGroup(gIdx, { targetField: e.target.value })}
+                                                className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none focus:ring-1 focus:ring-indigo-300"
+                                            >
+                                                <option value="">目标字段...</option>
+                                                {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                                            </select>
+                                        </div>
+
+                                        {/* Row Picker for this cascade group */}
+                                        <div className="mb-2 flex items-center gap-2">
+                                            <select
+                                                value={group.sourceRowId || ''}
+                                                onChange={(e) => handleUpdateCascadeGroup(gIdx, { sourceRowId: e.target.value })}
+                                                className={`flex-1 bg-white border rounded px-2 py-1 text-[9px] outline-none ${group.sourceRowId ? 'border-amber-200 text-amber-700 font-bold' : 'border-slate-200 text-slate-500'}`}
+                                            >
+                                                <option value="">当前行 (Current Row)</option>
+                                                {records.map(r => (
+                                                    <option key={r._id} value={String(r._id)}>指定: {getRecordLabel(r)}</option>
+                                                ))}
+                                            </select>
+                                            {onEnableRowPicker && (
+                                                <button
+                                                    onClick={() => onEnableRowPicker((id) => handleUpdateCascadeGroup(gIdx, { sourceRowId: id }))}
+                                                    className="text-[8px] bg-amber-50 hover:bg-amber-100 text-amber-600 px-1.5 py-1 rounded transition-colors flex items-center gap-0.5"
+                                                    title="Pick from table"
+                                                >
+                                                    <MousePointerClick size={10} /> Pick
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            {group.mappings.map((m, mIdx) => (
+                                                <div key={mIdx} className="flex items-center gap-1">
+                                                    <input
+                                                        value={m.sourceValue}
+                                                        onChange={(e) => handleUpdateCascadeMapping(gIdx, mIdx, { sourceValue: e.target.value })}
+                                                        placeholder="选项值"
+                                                        className={`flex-1 bg-white border rounded px-2 py-1 text-[10px] font-bold outline-none ${mSyncMode ? 'border-green-200 focus:border-green-400' : 'border-slate-200 focus:border-indigo-500'}`}
+                                                    />
+                                                    <ArrowRight size={10} className="text-slate-300" />
+                                                    <input
+                                                        value={m.targetValue}
+                                                        onChange={(e) => handleUpdateCascadeMapping(gIdx, mIdx, { targetValue: e.target.value })}
+                                                        placeholder="结果值"
+                                                        className="flex-1 bg-white border border-slate-200 rounded px-2 py-1 text-[10px] outline-none focus:border-indigo-500"
+                                                    />
+                                                    <button onClick={() => handleRemoveCascadeMapping(gIdx, mIdx)} className="p-0.5 text-slate-300 hover:text-red-500">
+                                                        <X size={12} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            <button
+                                                onClick={() => handleAddCascadeMapping(gIdx)}
+                                                className="w-full py-1 text-[9px] text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-all"
+                                            >
+                                                + 添加映射
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button
+                                onClick={handleAddCascadeGroup}
+                                className="w-full py-2.5 border-2 border-dashed border-indigo-200 rounded-xl text-[10px] font-bold text-indigo-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50/50 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Plus size={14} /> 添加级联组 (Add Cascade Group)
                             </button>
                         </div>
                     </div>
@@ -5247,6 +5421,89 @@ export const SuperTable: React.FC = () => {
                                                                         })}
                                                                     </div>
                                                                 </div>
+
+                                                                {/* NEW: Cascade Groups Display */}
+                                                                {rule.cascadeGroups && rule.cascadeGroups.length > 0 && (
+                                                                    <div className="mt-4 space-y-3">
+                                                                        <div className="text-[10px] text-indigo-500 font-bold uppercase flex items-center gap-1.5">
+                                                                            <Layers size={10} /> 多级联映射
+                                                                            {rule.syncMode && (
+                                                                                <span className="text-[8px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full">🔗 同步</span>
+                                                                            )}
+                                                                        </div>
+                                                                        {rule.cascadeGroups.map((cg: any, cgIdx: number) => {
+                                                                            const ds = savedDatasets.find(d => d.id === product.datasetId);
+                                                                            // Use cascade group's own sourceRowId, fallback to first record
+                                                                            const groupRowId = cg.sourceRowId || (ds?.records[0]?._id);
+
+                                                                            return (
+                                                                                <div key={cgIdx} className="pl-3 border-l-2 border-indigo-100 space-y-1.5">
+                                                                                    <div className="text-[10px] text-indigo-400 font-bold flex items-center gap-2">
+                                                                                        <span className="bg-indigo-50 px-1.5 py-0.5 rounded">#{cgIdx + 1}</span>
+                                                                                        <span>{cg.sourceField}</span>
+                                                                                        <ArrowRight size={10} />
+                                                                                        <span>{cg.targetField}</span>
+                                                                                        {cg.sourceRowId && (
+                                                                                            <span className="text-[8px] bg-amber-50 text-amber-600 px-1 py-0.5 rounded border border-amber-100">📍 指定行</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div className="flex flex-wrap gap-1.5">
+                                                                                        {cg.mappings?.map((cm: any, cmIdx: number) => {
+                                                                                            const isSelected = groupRowId && previewOverrides[groupRowId]?.[cg.sourceField] === cm.sourceValue;
+
+                                                                                            return (
+                                                                                                <button
+                                                                                                    key={cmIdx}
+                                                                                                    onClick={() => {
+                                                                                                        // Use this cascade group's own sourceRowId
+                                                                                                        const rowId = cg.sourceRowId;
+                                                                                                        // Build updates for this cascade group
+                                                                                                        const groupUpdate = { [cg.sourceField]: cm.sourceValue, [cg.targetField]: cm.targetValue };
+
+                                                                                                        // If sync mode, also update other cascade groups at the same mapping index
+                                                                                                        let fullUpdate = { ...groupUpdate };
+                                                                                                        if (rule.syncMode) {
+                                                                                                            rule.cascadeGroups.forEach((otherCg: any) => {
+                                                                                                                if (otherCg.mappings[cmIdx]) {
+                                                                                                                    fullUpdate[otherCg.sourceField] = otherCg.mappings[cmIdx].sourceValue;
+                                                                                                                    fullUpdate[otherCg.targetField] = otherCg.mappings[cmIdx].targetValue;
+                                                                                                                }
+                                                                                                            });
+                                                                                                        }
+
+                                                                                                        if (!rowId) {
+                                                                                                            const ds = savedDatasets.find(d => d.id === product.datasetId);
+                                                                                                            if (ds) {
+                                                                                                                const updates: any = {};
+                                                                                                                ds.records.forEach(dr => {
+                                                                                                                    updates[dr._id] = { ...(previewOverrides[dr._id] || {}), ...fullUpdate };
+                                                                                                                });
+                                                                                                                setPreviewOverrides(prev => ({ ...prev, ...updates }));
+                                                                                                            }
+                                                                                                        } else {
+                                                                                                            setPreviewOverrides(prev => ({
+                                                                                                                ...prev,
+                                                                                                                [rowId]: { ...(prev[rowId] || {}), ...fullUpdate }
+                                                                                                            }));
+                                                                                                        }
+                                                                                                    }}
+                                                                                                    className={`flex items-center rounded px-2 py-1 text-[10px] transition-all border ${isSelected
+                                                                                                        ? 'bg-indigo-50 text-indigo-700 border-indigo-200 font-bold'
+                                                                                                        : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-200'
+                                                                                                        }`}
+                                                                                                >
+                                                                                                    <span>{cm.sourceValue}</span>
+                                                                                                    <ArrowRight size={8} className="mx-1 text-slate-300" />
+                                                                                                    <span className="text-slate-500">{cm.targetValue}</span>
+                                                                                                </button>
+                                                                                            );
+                                                                                        })}
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         ) : (
                                                             <div className="flex flex-col gap-3">
