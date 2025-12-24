@@ -1855,9 +1855,11 @@ const UnifiedRuleBuilder: React.FC<{
     schema: any[];
     records: any[];
     onAdd: (rule: any) => void;
+    onUpdate?: (rule: any) => void;
+    editingRule?: any;
     onSaveAsPreset: (name: string, rule: any) => void;
     onEnableRowPicker?: (callback: (id: string) => void) => void;
-}> = ({ schema, records, onAdd, onSaveAsPreset, onEnableRowPicker }) => {
+}> = ({ schema, records, onAdd, onUpdate, editingRule, onSaveAsPreset, onEnableRowPicker }) => {
     const [activeRuleType, setActiveRuleType] = useState<'logic' | 'mapping'>('logic');
 
     // Logic Rule State
@@ -1878,6 +1880,25 @@ const UnifiedRuleBuilder: React.FC<{
     const [ruleTitle, setRuleTitle] = useState('');
 
 
+
+    useEffect(() => {
+        if (editingRule) {
+            setActiveRuleType(editingRule.ruleType);
+            if (editingRule.ruleType === 'logic') {
+                setConditions(editingRule.conditions || []);
+                setLogicMode(editingRule.logic || 'AND');
+                setTargetField(editingRule.targetField || '');
+                setTargetValue(editingRule.expression || '');
+                setRuleTitle(editingRule.title || '');
+                setRuleDescription(editingRule.description || '');
+            } else {
+                setMCascadeGroups(editingRule.cascadeGroups || []);
+                setMSyncMode(editingRule.syncMode !== false);
+                setRuleTitle(editingRule.title || '');
+                setRuleDescription(editingRule.description || '');
+            }
+        }
+    }, [editingRule]);
 
     const getRecordLabel = (r: any) => {
         // Try to find a human-readable name, otherwise use ID
@@ -2022,7 +2043,11 @@ const UnifiedRuleBuilder: React.FC<{
                 title: ruleTitle
             };
 
-        onAdd(ruleData);
+        if (editingRule && onUpdate) {
+            onUpdate({ ...ruleData, id: editingRule.id });
+        } else {
+            onAdd(ruleData);
+        }
         if (activeRuleType === 'logic') {
             setConditions([]);
             setTargetField('');
@@ -2051,18 +2076,18 @@ const UnifiedRuleBuilder: React.FC<{
             {/* Rule Type Tabs */}
             <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
                 <button
-                    onClick={() => setActiveRuleType('logic')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 text-[10px] font-bold rounded-lg transition-all ${activeRuleType === 'logic' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                    <Layers size={14} />
-                    <span>逻辑规则 (Logic)</span>
-                </button>
-                <button
                     onClick={() => setActiveRuleType('mapping')}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 text-[10px] font-bold rounded-lg transition-all ${activeRuleType === 'mapping' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                     <ArrowRight size={14} />
                     <span>级联映射 (Mapping)</span>
+                </button>
+                <button
+                    onClick={() => setActiveRuleType('logic')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 text-[10px] font-bold rounded-lg transition-all ${activeRuleType === 'logic' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    <Layers size={14} />
+                    <span>逻辑规则 (Logic)</span>
                 </button>
             </div>
 
@@ -2070,9 +2095,24 @@ const UnifiedRuleBuilder: React.FC<{
                 <div className="animate-in fade-in slide-in-from-top-2">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                            逻辑条件组 (Conditions Group)
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                逻辑条件组 (Conditions Group)
+                            </span>
+                            <div className="flex items-center gap-1 bg-white rounded border border-slate-200 px-1 py-0.5 shadow-sm">
+                                <Database size={10} className="text-slate-400" />
+                                <select
+                                    value={mSourceRowId}
+                                    onChange={(e) => setMSourceRowId(e.target.value)}
+                                    className="text-[10px] font-bold text-slate-600 outline-none bg-transparent border-none p-0 w-[80px] cursor-pointer"
+                                >
+                                    <option value="">当前行 (Current)</option>
+                                    {(records || []).slice(0, 10).map((r: any, i: number) => (
+                                        <option key={r._id} value={r._id}>Row #{i + 1}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
                         <div className="flex gap-1 bg-slate-100 p-0.5 rounded-md">
                             <button
                                 onClick={() => setLogicMode('AND')}
@@ -2314,7 +2354,7 @@ const UnifiedRuleBuilder: React.FC<{
                         className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-30"
                     >
                         <Plus size={14} className="text-slate-400" />
-                        <span>应用到当前规则栈</span>
+                        <span>{editingRule ? '保存规则修改' : '应用到当前规则栈'}</span>
                     </button>
                 </div>
             </div>
@@ -2339,6 +2379,7 @@ export const SuperTable: React.FC = () => {
 
     // State
     const [sidebarWidth, setSidebarWidth] = useState(() => loadFromStorage('erp_sidebar_width', 400));
+    const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
     const isResizingSidebarRef = useRef(false);
 
     const handleSidebarResizeStart = useCallback((e: React.MouseEvent) => {
@@ -4226,10 +4267,35 @@ export const SuperTable: React.FC = () => {
 
         // --- Apply Cascading Logic to Records ---
         const rawRecords = [...dataset.records];
-        const processedRecords = rawRecords.map(r => ({
-            ...r,
-            ...(previewOverrides[r._id] || {})
-        }));
+
+        // Filter overrides: only apply if the field is an active 'sourceField' in current rules
+        const activeSourceFields = new Set<string>();
+        if (configRules) {
+            configRules.forEach(rule => {
+                if (rule.ruleType === 'mapping') {
+                    if (rule.cascadeGroups) {
+                        rule.cascadeGroups.forEach((cg: any) => activeSourceFields.add(cg.sourceField));
+                    }
+                    if (rule.sourceField) activeSourceFields.add(rule.sourceField);
+                }
+            });
+        }
+
+        const processedRecords = rawRecords.map(r => {
+            const overrides = previewOverrides[r._id] || {};
+            const cleanOverrides: any = {};
+
+            Object.keys(overrides).forEach(fieldId => {
+                if (activeSourceFields.has(fieldId)) {
+                    cleanOverrides[fieldId] = overrides[fieldId];
+                }
+            });
+
+            return {
+                ...r,
+                ...cleanOverrides
+            };
+        });
 
         // Iterative application to handle cascading (up to 4 passes for cross-row dependencies)
         for (let i = 0; i < 4; i++) {
@@ -4284,6 +4350,24 @@ export const SuperTable: React.FC = () => {
                                 }
                             });
                         }
+                    }
+                } else if (rule.ruleType === 'logic') {
+                    // Logic Rule Execution
+                    const applyLogic = (record: any) => {
+                        const conditionResults = (rule.conditions || []).map((c: any) => evaluateFilter(record, c));
+                        const match = rule.logic === 'AND' ? conditionResults.every((r: any) => r) : conditionResults.some((r: any) => r);
+                        if (match) {
+                            if (String(record[rule.targetField]) !== String(rule.expression)) {
+                                record[rule.targetField] = rule.expression;
+                            }
+                        }
+                    };
+
+                    if (rule.sourceRowId) {
+                        const sourceRecord = processedRecords.find(r => String(r._id) === String(rule.sourceRowId));
+                        if (sourceRecord) applyLogic(sourceRecord);
+                    } else {
+                        processedRecords.forEach(r => applyLogic(r));
                     }
                 }
             });
@@ -4763,7 +4847,11 @@ export const SuperTable: React.FC = () => {
                                                         Active Rules Stack ({(configState.configRules || []).length})
                                                     </div>
                                                     {(configState.configRules || []).map((rule) => (
-                                                        <div key={rule.id} className="group/rule bg-white border border-slate-100 rounded-xl p-3 relative transition-all hover:border-indigo-200 hover:shadow-sm">
+                                                        <div
+                                                            key={rule.id}
+                                                            onDoubleClick={() => setEditingRuleId(rule.id)}
+                                                            className={`group/rule bg-white border border-slate-100 rounded-xl p-3 relative transition-all hover:border-indigo-200 hover:shadow-sm cursor-pointer ${editingRuleId === rule.id ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`}
+                                                        >
                                                             <div className={`absolute left-0 top-3 bottom-3 w-1 rounded-r-full ${rule.ruleType === 'mapping' ? 'bg-emerald-400' : 'bg-indigo-400'}`}></div>
 
                                                             {/* Delete Button */}
@@ -4891,6 +4979,15 @@ export const SuperTable: React.FC = () => {
                                                 <UnifiedRuleBuilder
                                                     schema={selectedDataset?.schema || []}
                                                     records={selectedDataset?.records || []}
+                                                    editingRule={configState.configRules?.find(r => r.id === editingRuleId)}
+                                                    onUpdate={(updatedRule: any) => {
+                                                        setConfigState({
+                                                            ...configState,
+                                                            configRules: (configState.configRules || []).map(r => r.id === updatedRule.id ? updatedRule : r)
+                                                        });
+                                                        setEditingRuleId(null);
+                                                        addToast('Rule updated successfully', 'success');
+                                                    }}
                                                     onEnableRowPicker={(cb) => {
                                                         setActiveRowPicker(() => cb);
                                                         addToast('Please click a row in the Preview table', 'info');
@@ -5453,37 +5550,44 @@ export const SuperTable: React.FC = () => {
                                                                                                 <button
                                                                                                     key={cmIdx}
                                                                                                     onClick={() => {
-                                                                                                        // Use this cascade group's own sourceRowId
-                                                                                                        const rowId = cg.sourceRowId;
-                                                                                                        // Build updates for this cascade group
-                                                                                                        const groupUpdate = { [cg.sourceField]: cm.sourceValue, [cg.targetField]: cm.targetValue };
+                                                                                                        const ds = savedDatasets.find(d => d.id === product.datasetId);
+                                                                                                        const defaultRowId = ds?.records[0]?._id;
 
-                                                                                                        // If sync mode, also update other cascade groups at the same mapping index
-                                                                                                        let fullUpdate = { ...groupUpdate };
+                                                                                                        // Collect updates per row to handle multi-row sync correctly
+                                                                                                        const updatesByRow: Record<string, any> = {};
+                                                                                                        const mergeUpdate = (rId: string | undefined, update: any) => {
+                                                                                                            const target = rId || defaultRowId;
+                                                                                                            if (target) {
+                                                                                                                updatesByRow[target] = { ...(updatesByRow[target] || {}), ...update };
+                                                                                                            }
+                                                                                                        };
+
+                                                                                                        // 1. Update current group
+                                                                                                        mergeUpdate(cg.sourceRowId, {
+                                                                                                            [cg.sourceField]: cm.sourceValue,
+                                                                                                            [cg.targetField]: cm.targetValue
+                                                                                                        });
+
+                                                                                                        // 2. Sync Mode: Update other groups
                                                                                                         if (rule.syncMode) {
                                                                                                             rule.cascadeGroups.forEach((otherCg: any) => {
                                                                                                                 if (otherCg.mappings[cmIdx]) {
-                                                                                                                    fullUpdate[otherCg.sourceField] = otherCg.mappings[cmIdx].sourceValue;
-                                                                                                                    fullUpdate[otherCg.targetField] = otherCg.mappings[cmIdx].targetValue;
+                                                                                                                    mergeUpdate(otherCg.sourceRowId, {
+                                                                                                                        [otherCg.sourceField]: otherCg.mappings[cmIdx].sourceValue,
+                                                                                                                        [otherCg.targetField]: otherCg.mappings[cmIdx].targetValue
+                                                                                                                    });
                                                                                                                 }
                                                                                                             });
                                                                                                         }
 
-                                                                                                        if (!rowId) {
-                                                                                                            const ds = savedDatasets.find(d => d.id === product.datasetId);
-                                                                                                            if (ds) {
-                                                                                                                const updates: any = {};
-                                                                                                                ds.records.forEach(dr => {
-                                                                                                                    updates[dr._id] = { ...(previewOverrides[dr._id] || {}), ...fullUpdate };
-                                                                                                                });
-                                                                                                                setPreviewOverrides(prev => ({ ...prev, ...updates }));
-                                                                                                            }
-                                                                                                        } else {
-                                                                                                            setPreviewOverrides(prev => ({
-                                                                                                                ...prev,
-                                                                                                                [rowId]: { ...(prev[rowId] || {}), ...fullUpdate }
-                                                                                                            }));
-                                                                                                        }
+                                                                                                        // 3. Apply to overrides
+                                                                                                        setPreviewOverrides(prev => {
+                                                                                                            const next = { ...prev };
+                                                                                                            Object.entries(updatesByRow).forEach(([rId, up]) => {
+                                                                                                                next[rId] = { ...(next[rId] || {}), ...up };
+                                                                                                            });
+                                                                                                            return next;
+                                                                                                        });
                                                                                                     }}
                                                                                                     className={`flex items-center rounded px-2 py-1 text-[10px] transition-all border ${isSelected
                                                                                                         ? 'bg-indigo-50 text-indigo-700 border-indigo-200 font-bold'
