@@ -2384,7 +2384,15 @@ const UnifiedRuleBuilder: React.FC<{
     );
 };
 // --- Main App Component ---
-export const SuperTable: React.FC = () => {
+// --- Main App Component ---
+interface SuperTableProps {
+    activeProjects?: { id: string, info: { name: string } }[];
+    activeTeamMembers?: { id: string, name: string }[];
+    onAddProject?: (name: string) => void;
+    onAddTeamMember?: (name: string) => void;
+}
+
+export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], activeTeamMembers = [], onAddProject, onAddTeamMember }) => {
     const { addToast } = useToast();
 
     // Helper to load from localStorage
@@ -2589,6 +2597,13 @@ export const SuperTable: React.FC = () => {
     const [activeRuleTab, setActiveRuleTab] = useState<number>(0);
     const [editingRuleTab, setEditingRuleTab] = useState<{ index: number, value: string } | null>(null);
     const [orderQuantity, setOrderQuantity] = useState<number>(1);
+
+    // Settings State for Data & Naming
+    // Local naming rules persistence
+    const [namingRules, setNamingRules] = useState<{ id: string, type: 'project' | 'personnel' | 'custom' | 'date', value: string, label?: string }[]>(() => loadFromStorage('erp_naming_rules', []));
+
+    // Persist new settings (only naming rules needs local persistence as projects/team are from props)
+    useEffect(() => { window.localStorage.setItem('erp_naming_rules', JSON.stringify(namingRules)); }, [namingRules]);
 
     // Load saved key configurations when product is selected
     useEffect(() => {
@@ -5940,72 +5955,324 @@ export const SuperTable: React.FC = () => {
         );
     };
 
+    const handleExportSystemData = () => {
+        const payload = {
+            version: '1.0',
+            timestamp: Date.now(),
+            data: {
+                products,
+                savedDatasets,
+                savedViews,
+                savedRulePresets,
+                activeProjects,
+                activeTeamMembers,
+                namingRules
+            }
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `GenPM_Config_Export_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        addToast('System Data Exported Successfully', 'success');
+    };
+
+    const handleImportSystemData = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const payload = JSON.parse(event.target?.result as string);
+                if (payload.data) {
+                    if (payload.data.products) setProducts(payload.data.products);
+                    if (payload.data.savedDatasets) setSavedDatasets(payload.data.savedDatasets);
+                    if (payload.data.savedViews) setSavedViews(payload.data.savedViews);
+                    if (payload.data.savedRulePresets) setSavedRulePresets(payload.data.savedRulePresets);
+                    // Projects and Teams are managed globally, skipping import to avoid conflict
+                    if (payload.data.namingRules) setNamingRules(payload.data.namingRules);
+
+                    addToast('System Data Imported Successfully', 'success');
+                } else {
+                    addToast('Invalid File Format', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                addToast('Failed to parse import file', 'error');
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    };
+
     const renderProductSettings = () => (
         <div className="p-12 max-w-5xl mx-auto animate-in fade-in duration-500 pb-32">
             <div className="mb-12">
-                <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">系统参数 (Advanced Settings)</h2>
-                <p className="text-slate-500 mt-2 font-medium">配置产品中心及 BOM 引擎的全局运行参数</p>
+                <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">System Settings</h2>
+                <p className="text-slate-500 mt-2 font-medium">Manage global data and export configurations.</p>
             </div>
 
             <div className="grid grid-cols-1 gap-12">
+                {/* Data Management Section */}
                 <section className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl shadow-slate-200/50">
                     <h4 className="text-sm font-black text-indigo-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
-                        <SlidersHorizontal size={14} /> 核心运行逻辑
+                        <Database size={14} /> Data Management
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block pl-1">BOM 引擎计算模式 (Calculation Engine)</label>
-                            <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none appearance-none">
-                                <option>实时演算 (Real-time Dynamic)</option>
-                                <option>全量快照同步 (Full Snapshot)</option>
-                                <option>定时增量更新 (Nightly Incremental)</option>
-                            </select>
+                        <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                            <h5 className="font-bold text-slate-900 mb-2">Export Configuration</h5>
+                            <p className="text-xs text-slate-500 mb-6">Backup all products, rules, datasets, and settings to a JSON file.</p>
+                            <button
+                                onClick={handleExportSystemData}
+                                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+                            >
+                                <Download size={16} /> Export JSON
+                            </button>
                         </div>
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block pl-1">外部物料库对接 (API Hook)</label>
-                            <button className="w-full py-[18px] border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 text-sm font-bold hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/30 transition-all">
-                                导入 .JSON 标准配置文件
+                        <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                            <h5 className="font-bold text-slate-900 mb-2">Import Configuration</h5>
+                            <p className="text-xs text-slate-500 mb-6">Restore system data from a backup JSON file.</p>
+                            <input
+                                type="file"
+                                ref={dataImportInputRef}
+                                className="hidden"
+                                accept=".json"
+                                onChange={handleImportSystemData}
+                            />
+                            <button
+                                onClick={() => dataImportInputRef.current?.click()}
+                                className="w-full py-3 bg-white border-2 border-slate-200 hover:border-indigo-400 hover:text-indigo-600 text-slate-600 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                            >
+                                <Upload size={16} /> Import JSON
                             </button>
                         </div>
                     </div>
                 </section>
 
+                {/* Naming Rules Section */}
                 <section className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl shadow-slate-200/50">
                     <h4 className="text-sm font-black text-rose-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
-                        <Layers size={14} /> 数据治理与维护
+                        <FileText size={14} /> Export Files Naming Rule
                     </h4>
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center p-6 bg-slate-50 rounded-[1.5rem] group hover:bg-slate-100 transition-colors cursor-pointer">
-                            <div>
-                                <span className="text-sm font-bold text-slate-800">自动清理 30 天前的订单记录</span>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Automatic Data Purging</p>
+
+                    <div className="space-y-6">
+                        <div className="flex flex-wrap gap-2 items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 min-h-[60px]">
+                            {namingRules.length === 0 && <span className="text-slate-400 text-sm italic">No rules defined. Default formatting will be used.</span>}
+                            {namingRules.map((rule, index) => (
+                                <div key={rule.id} className="group relative flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-200 text-sm font-bold text-slate-700 animate-in zoom-in-95">
+                                    <span className="text-[10px] uppercase font-extrabold text-slate-300 tracking-wider select-none">{rule.type}</span>
+                                    {rule.type === 'custom' ? (
+                                        <span className="text-indigo-600">"{rule.value}"</span>
+                                    ) : (
+                                        <span className="text-slate-900">{rule.value || '(Empty)'}</span>
+                                    )}
+
+                                    {/* Edit Controls */}
+                                    <div className="absolute -top-2 -right-2 hidden group-hover:flex gap-1 z-10">
+                                        <button
+                                            onClick={() => {
+                                                const newRules = [...namingRules];
+                                                if (index > 0) {
+                                                    [newRules[index - 1], newRules[index]] = [newRules[index], newRules[index - 1]];
+                                                    setNamingRules(newRules);
+                                                }
+                                            }}
+                                            className="p-1.5 bg-slate-800 text-white rounded-full hover:bg-indigo-600 shadow-sm"
+                                            title="Move Left"
+                                        >
+                                            <ChevronLeft size={10} />
+                                        </button>
+                                        <button
+                                            onClick={() => setNamingRules(prev => prev.filter(r => r.id !== rule.id))}
+                                            className="p-1.5 bg-rose-500 text-white rounded-full hover:bg-rose-600 shadow-sm"
+                                            title="Remove"
+                                        >
+                                            <X size={10} />
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const newRules = [...namingRules];
+                                                if (index < newRules.length - 1) {
+                                                    [newRules[index + 1], newRules[index]] = [newRules[index], newRules[index + 1]];
+                                                    setNamingRules(newRules);
+                                                }
+                                            }}
+                                            className="p-1.5 bg-slate-800 text-white rounded-full hover:bg-indigo-600 shadow-sm"
+                                            title="Move Right"
+                                        >
+                                            <ChevronRight size={10} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Add Rule Controls */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+                            {/* Project Selector */}
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block pl-1">Add Project Field</label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        list="project-list"
+                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
+                                        placeholder="Select or Type Project..."
+                                        id="naming-project-input"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                const val = e.currentTarget.value.trim();
+                                                if (!val) return;
+                                                const exists = activeProjects.some(p => p.info.name === val);
+                                                const addRule = () => {
+                                                    setNamingRules(prev => [...prev, { id: Date.now().toString(), type: 'project', value: val }]);
+                                                    (document.getElementById('naming-project-input') as HTMLInputElement).value = '';
+                                                };
+
+                                                if (!exists && onAddProject) {
+                                                    triggerConfirm('Create New Project?', `Project "${val}" does not exist in the library. Create it?`, () => {
+                                                        onAddProject(val);
+                                                        addRule();
+                                                    }, 'info', 'Create & Add');
+                                                } else {
+                                                    addRule();
+                                                }
+                                            }
+                                        }}
+                                    />
+                                    <datalist id="project-list">
+                                        {activeProjects.map(p => <option key={p.id} value={p.info.name} />)}
+                                    </datalist>
+                                    <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 font-bold text-xs" onClick={() => {
+                                        const input = document.getElementById('naming-project-input') as HTMLInputElement;
+                                        const val = input.value.trim();
+                                        if (val) {
+                                            const exists = activeProjects.some(p => p.info.name === val);
+                                            const addRule = () => {
+                                                setNamingRules(prev => [...prev, { id: Date.now().toString(), type: 'project', value: val }]);
+                                                input.value = '';
+                                            };
+
+                                            if (!exists && onAddProject) {
+                                                triggerConfirm('Create New Project?', `Project "${val}" does not exist in the library. Create it?`, () => {
+                                                    onAddProject(val);
+                                                    addRule();
+                                                }, 'info', 'Create & Add');
+                                            } else {
+                                                addRule();
+                                            }
+                                        }
+                                    }}>Add</button>
+                                </div>
                             </div>
-                            <div className="w-14 h-7 bg-indigo-600 rounded-full relative shadow-inner">
-                                <div className="absolute right-1 top-1 w-5 h-5 bg-white rounded-full shadow-md"></div>
+
+                            {/* Personnel Selector */}
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block pl-1">Add Personnel Field</label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        list="team-list"
+                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
+                                        placeholder="Select or Type Name..."
+                                        id="naming-team-input"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                const val = e.currentTarget.value.trim();
+                                                if (!val) return;
+                                                const exists = activeTeamMembers.some(p => p.name === val);
+                                                const addRule = () => {
+                                                    setNamingRules(prev => [...prev, { id: Date.now().toString(), type: 'personnel', value: val }]);
+                                                    (document.getElementById('naming-team-input') as HTMLInputElement).value = '';
+                                                };
+
+                                                if (!exists && onAddTeamMember) {
+                                                    triggerConfirm('Create Team Member?', `"${val}" is not in the team library. Add them?`, () => {
+                                                        onAddTeamMember(val);
+                                                        addRule();
+                                                    }, 'info', 'Create & Add');
+                                                } else {
+                                                    addRule();
+                                                }
+                                            }
+                                        }}
+                                    />
+                                    <datalist id="team-list">
+                                        {activeTeamMembers.map(p => <option key={p.id} value={p.name} />)}
+                                    </datalist>
+                                    <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 font-bold text-xs" onClick={() => {
+                                        const input = document.getElementById('naming-team-input') as HTMLInputElement;
+                                        const val = input.value.trim();
+                                        if (val) {
+                                            const exists = activeTeamMembers.some(p => p.name === val);
+                                            const addRule = () => {
+                                                setNamingRules(prev => [...prev, { id: Date.now().toString(), type: 'personnel', value: val }]);
+                                                input.value = '';
+                                            };
+
+                                            if (!exists && onAddTeamMember) {
+                                                triggerConfirm('Create Team Member?', `"${val}" is not in the team library. Add them?`, () => {
+                                                    onAddTeamMember(val);
+                                                    addRule();
+                                                }, 'info', 'Create & Add');
+                                            } else {
+                                                addRule();
+                                            }
+                                        }
+                                    }}>Add</button>
+                                </div>
+                            </div>
+
+                            {/* Custom Text */}
+
+                            {/* Custom Text */}
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block pl-1">Add Custom Text</label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        id="naming-custom-input"
+                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
+                                        placeholder="e.g. v1, final, _"
+                                    />
+                                    <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 font-bold text-xs" onClick={() => {
+                                        const input = document.getElementById('naming-custom-input') as HTMLInputElement;
+                                        const val = input.value;
+                                        if (val) {
+                                            setNamingRules(prev => [...prev, { id: Date.now().toString(), type: 'custom', value: val }]);
+                                            input.value = '';
+                                        }
+                                    }}>Add</button>
+                                </div>
+                            </div>
+
+                            {/* Date */}
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block pl-1">Add Date</label>
+                                <button className="w-full py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 font-bold text-xs" onClick={() => {
+                                    setNamingRules(prev => [...prev, { id: Date.now().toString(), type: 'date', value: 'YYYY-MM-DD' }]);
+                                }}>Add Current Date</button>
                             </div>
                         </div>
-                        <div className="flex justify-between items-center p-6 bg-slate-50 rounded-[1.5rem] group hover:bg-slate-100 transition-colors cursor-pointer">
-                            <div>
-                                <span className="text-sm font-bold text-slate-800">启用 BOM 实时价格变动提醒</span>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Dynamic Price Alerts</p>
-                            </div>
-                            <div className="w-14 h-7 bg-slate-300 rounded-full relative shadow-inner">
-                                <div className="absolute left-1 top-1 w-5 h-5 bg-white rounded-full shadow-md"></div>
-                            </div>
-                        </div>
-                        <div className="flex justify-between items-center p-6 bg-slate-50 rounded-[1.5rem] group hover:bg-slate-100 transition-colors cursor-pointer">
-                            <div>
-                                <span className="text-sm font-bold text-slate-800">第三方平台库存库存接口关联 (ERP/MES)</span>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">External Systems Integration</p>
-                            </div>
-                            <div className="w-14 h-7 bg-slate-300 rounded-full relative shadow-inner">
-                                <div className="absolute left-1 top-1 w-5 h-5 bg-white rounded-full shadow-md"></div>
-                            </div>
+
+                        <div className="mt-8 p-4 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center justify-between">
+                            <span className="text-sm font-bold text-indigo-900">Preview:</span>
+                            <span className="font-mono text-sm text-indigo-600 bg-white px-3 py-1 rounded-lg border border-indigo-100 shadow-sm">
+                                {namingRules.length > 0
+                                    ? namingRules.map(r => r.type === 'date' ? new Date().toISOString().slice(0, 10) : r.value).join('') + '.xlsx'
+                                    : `BOM_Export_${new Date().toISOString().slice(0, 10)}.xlsx`
+                                }
+                            </span>
                         </div>
                     </div>
-                </section>
-            </div>
-        </div>
+                </section >
+            </div >
+        </div >
     );
 
     const renderProductCenter = () => {

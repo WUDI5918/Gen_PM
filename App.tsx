@@ -1144,7 +1144,15 @@ const AppContent: React.FC = () => {
 
                 {/* ERP MANAGER VIEW */}
                 {currentView === 'erp' && (
-                    <SuperTable />
+                    <SuperTable
+                        activeProjects={projects}
+                        activeTeamMembers={teamMembers}
+                        onAddProject={(name) => handleCreateProject(name)}
+                        onAddTeamMember={(name) => {
+                            const newTeam = [...teamMembers, { id: `tm-${Date.now()}`, name, role: 'Member', avatar: name.charAt(0).toUpperCase(), color: 'bg-gray-100 text-gray-700' }];
+                            handleUpdateTeam(newTeam);
+                        }}
+                    />
                 )}
 
                 {/* ISSUES VIEW */}
