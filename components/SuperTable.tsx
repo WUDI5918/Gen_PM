@@ -1918,7 +1918,19 @@ const UnifiedRuleBuilder: React.FC<{
 
     // NEW: Cascade Groups Handlers
     const handleAddCascadeGroup = () => {
-        setMCascadeGroups([...mCascadeGroups, { sourceField: '', targetField: '', sourceRowId: '', mappings: [] }]);
+        // In sync mode, copy source field, target field, and source values from the first group
+        if (mSyncMode && mCascadeGroups.length > 0) {
+            const firstGroup = mCascadeGroups[0];
+            const copiedMappings = firstGroup.mappings.map(m => ({ sourceValue: m.sourceValue, targetValue: '' }));
+            setMCascadeGroups([...mCascadeGroups, {
+                sourceField: firstGroup.sourceField,
+                targetField: firstGroup.targetField,
+                sourceRowId: '',
+                mappings: copiedMappings.length > 0 ? copiedMappings : []
+            }]);
+        } else {
+            setMCascadeGroups([...mCascadeGroups, { sourceField: '', targetField: '', sourceRowId: '', mappings: [] }]);
+        }
     };
 
     const handleRemoveCascadeGroup = (groupIdx: number) => {
@@ -1926,19 +1938,47 @@ const UnifiedRuleBuilder: React.FC<{
     };
 
     const handleUpdateCascadeGroup = (groupIdx: number, updates: Partial<{ sourceField: string, targetField: string, sourceRowId: string }>) => {
-        setMCascadeGroups(mCascadeGroups.map((g, i) => i === groupIdx ? { ...g, ...updates } : g));
+        // In sync mode, sync sourceField and targetField across all groups
+        if (mSyncMode && (updates.sourceField !== undefined || updates.targetField !== undefined)) {
+            setMCascadeGroups(mCascadeGroups.map((g, i) => {
+                const syncedUpdates: any = {};
+                if (updates.sourceField !== undefined) syncedUpdates.sourceField = updates.sourceField;
+                if (updates.targetField !== undefined) syncedUpdates.targetField = updates.targetField;
+                // Only apply sourceRowId to the specific group
+                if (i === groupIdx && updates.sourceRowId !== undefined) syncedUpdates.sourceRowId = updates.sourceRowId;
+                return { ...g, ...syncedUpdates };
+            }));
+        } else {
+            setMCascadeGroups(mCascadeGroups.map((g, i) => i === groupIdx ? { ...g, ...updates } : g));
+        }
     };
 
     const handleAddCascadeMapping = (groupIdx: number) => {
-        setMCascadeGroups(mCascadeGroups.map((g, i) =>
-            i === groupIdx ? { ...g, mappings: [...g.mappings, { sourceValue: '', targetValue: '' }] } : g
-        ));
+        // In sync mode, add mapping row to ALL groups
+        if (mSyncMode) {
+            setMCascadeGroups(mCascadeGroups.map(g => ({
+                ...g,
+                mappings: [...g.mappings, { sourceValue: '', targetValue: '' }]
+            })));
+        } else {
+            setMCascadeGroups(mCascadeGroups.map((g, i) =>
+                i === groupIdx ? { ...g, mappings: [...g.mappings, { sourceValue: '', targetValue: '' }] } : g
+            ));
+        }
     };
 
     const handleRemoveCascadeMapping = (groupIdx: number, mappingIdx: number) => {
-        setMCascadeGroups(mCascadeGroups.map((g, i) =>
-            i === groupIdx ? { ...g, mappings: g.mappings.filter((_, mi) => mi !== mappingIdx) } : g
-        ));
+        // In sync mode, remove mapping row from ALL groups at the same index
+        if (mSyncMode) {
+            setMCascadeGroups(mCascadeGroups.map(g => ({
+                ...g,
+                mappings: g.mappings.filter((_, mi) => mi !== mappingIdx)
+            })));
+        } else {
+            setMCascadeGroups(mCascadeGroups.map((g, i) =>
+                i === groupIdx ? { ...g, mappings: g.mappings.filter((_, mi) => mi !== mappingIdx) } : g
+            ));
+        }
     };
 
     const handleUpdateCascadeMapping = (groupIdx: number, mappingIdx: number, updates: Partial<{ sourceValue: string, targetValue: string }>) => {
@@ -1972,12 +2012,11 @@ const UnifiedRuleBuilder: React.FC<{
             : {
                 id: `rule_${Date.now()}`,
                 ruleType: 'mapping',
-                sourceField: mSourceField,
-                sourceRowId: mSourceRowId || undefined,
-                targetField: mTargetField,
-                mappings: mMappings,
-                // NEW: Include cascade groups
-                cascadeGroups: mCascadeGroups.length > 0 ? mCascadeGroups : undefined,
+                // Use first cascade group's fields as main reference
+                sourceField: mCascadeGroups[0]?.sourceField || '',
+                targetField: mCascadeGroups[0]?.targetField || '',
+                // Include all cascade groups
+                cascadeGroups: mCascadeGroups,
                 syncMode: mSyncMode,
                 description: ruleDescription,
                 title: ruleTitle
@@ -2002,12 +2041,10 @@ const UnifiedRuleBuilder: React.FC<{
 
 
     const isLogicValid = conditions.length > 0 && conditions.every(c => c.fieldId && c.operator) && targetField;
-    // Support both legacy single mapping and new cascade groups
-    const hasValidLegacyMapping = mSourceField && mTargetField && mMappings.length > 0 && mMappings.every(m => m.sourceValue);
-    const hasValidCascadeGroups = mCascadeGroups.length > 0 && mCascadeGroups.every(g =>
+    // Only cascade groups validation (legacy mapping removed)
+    const isMappingValid = mCascadeGroups.length > 0 && mCascadeGroups.every(g =>
         g.sourceField && g.targetField && g.mappings.length > 0 && g.mappings.every(m => m.sourceValue)
     );
-    const isMappingValid = hasValidLegacyMapping || hasValidCascadeGroups;
 
     return (
         <div className="space-y-4">
@@ -2119,103 +2156,8 @@ const UnifiedRuleBuilder: React.FC<{
             ) : (
                 <div className="animate-in fade-in slide-in-from-bottom-2">
                     <div className="space-y-4">
-                        <div className="p-3 bg-amber-50/30 rounded-xl border border-amber-100/50 mb-2">
-                            <label className="text-[10px] font-bold text-amber-600 uppercase block mb-1.5 flex items-center justify-between">
-                                <span className="flex items-center gap-1"><BoxSelect size={12} /> 监听行范围 (Source Row Focus)</span>
-                                {onEnableRowPicker && (
-                                    <button
-                                        onClick={() => onEnableRowPicker((id) => setMSourceRowId(id))}
-                                        className="text-[9px] bg-amber-100 hover:bg-amber-200 text-amber-700 px-1.5 py-0.5 rounded-md transition-colors flex items-center gap-1"
-                                        title="Pick from table"
-                                    >
-                                        <MousePointerClick size={10} /> Pick Row
-                                    </button>
-                                )}
-                            </label>
-                            <select
-                                value={mSourceRowId}
-                                onChange={(e) => setMSourceRowId(e.target.value)}
-                                className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-[11px] outline-none focus:ring-1 focus:ring-amber-500 font-bold"
-                            >
-                                <option value="">当前行 (Current Row Context)</option>
-                                {records.map(r => (
-                                    <option key={r._id} value={String(r._id)}>指定行: {getRecordLabel(r)}</option>
-                                ))}
-                            </select>
-                            <p className="text-[9px] text-slate-400 mt-1.5 italic">
-                                {mSourceRowId ? "已开启‘指定行级联’：该行的变化将影响预览中的所有相关行。" : "‘同行级联’模式：每行根据自身的单元格变化触发映射。"}
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">监听字段 (Source)</label>
-                                <select
-                                    value={mSourceField}
-                                    onChange={(e) => setMSourceField(e.target.value)}
-                                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs outline-none focus:ring-1 focus:ring-indigo-300 font-bold"
-                                >
-                                    <option value="">选择监听字段...</option>
-                                    {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">影响字段 (Target)</label>
-                                <select
-                                    value={mTargetField}
-                                    onChange={(e) => setMTargetField(e.target.value)}
-                                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs outline-none focus:ring-1 focus:ring-indigo-300 font-bold"
-                                >
-                                    <option value="">选择目标字段...</option>
-                                    {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                    映射表 (Mapping Table)
-                                </span>
-                                <span className="text-[9px] text-slate-400">输入源值与对应目标值</span>
-                            </div>
-
-                            <div className="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                                {mMappings.map((m, idx) => (
-                                    <div key={idx} className="flex items-center gap-1.5 group/mapping">
-                                        <input
-                                            value={m.sourceValue}
-                                            onChange={(e) => handleUpdateMappingRow(idx, { sourceValue: e.target.value })}
-                                            placeholder="选项值 (Enum)"
-                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none focus:border-indigo-500"
-                                        />
-                                        <div className="text-slate-300"><ArrowRight size={12} /></div>
-                                        <input
-                                            value={m.targetValue}
-                                            onChange={(e) => handleUpdateMappingRow(idx, { targetValue: e.target.value })}
-                                            placeholder="目标结果"
-                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-medium outline-none focus:border-indigo-500"
-                                        />
-                                        <button
-                                            onClick={() => handleRemoveMappingRow(idx)}
-                                            className="p-1 text-slate-300 hover:text-red-500 transition-colors"
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <button
-                                onClick={handleAddMappingRow}
-                                className="w-full py-2 border border-dashed border-slate-200 rounded-lg text-[9px] font-bold text-slate-500 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
-                            >
-                                <Plus size={12} /> 增加映射行 (Add Row)
-                            </button>
-                        </div>
-
-                        {/* NEW: Multiple Cascade Groups Section */}
-                        <div className="mt-4 space-y-3">
+                        {/* Multiple Cascade Groups Section - Now the main UI */}
+                        <div className="space-y-3">
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest flex items-center gap-1.5">
                                     <Layers size={12} /> 多级联映射 (Multi-Cascade)
@@ -2241,8 +2183,35 @@ const UnifiedRuleBuilder: React.FC<{
                             <div className="space-y-3">
                                 {mCascadeGroups.map((group, gIdx) => (
                                     <div key={gIdx} className="p-3 bg-gradient-to-br from-indigo-50/50 to-slate-50 rounded-xl border border-indigo-100">
-                                        <div className="flex items-center justify-between mb-2">
+                                        {/* Header with Row Picker on Right */}
+                                        <div className="flex items-center gap-2 mb-2">
+                                            {/* Group Title - Left */}
                                             <span className="text-[10px] font-bold text-indigo-600">级联组 #{gIdx + 1}</span>
+
+                                            <div className="flex-1" />
+
+                                            {/* Row Picker - Right Side */}
+                                            <select
+                                                value={group.sourceRowId || ''}
+                                                onChange={(e) => handleUpdateCascadeGroup(gIdx, { sourceRowId: e.target.value })}
+                                                className={`min-w-0 max-w-[120px] bg-white rounded px-1.5 py-0.5 text-[8px] outline-none truncate ${group.sourceRowId ? 'border border-amber-200 text-amber-700 font-bold' : 'border-0 text-slate-400'}`}
+                                            >
+                                                <option value="">当前行</option>
+                                                {records.map(r => (
+                                                    <option key={r._id} value={String(r._id)}>📍 {getRecordLabel(r)}</option>
+                                                ))}
+                                            </select>
+                                            {onEnableRowPicker && (
+                                                <button
+                                                    onClick={() => onEnableRowPicker((id) => handleUpdateCascadeGroup(gIdx, { sourceRowId: id }))}
+                                                    className="text-[8px] bg-amber-50 hover:bg-amber-100 text-amber-600 p-1 rounded transition-colors"
+                                                    title="Pick from table"
+                                                >
+                                                    <MousePointerClick size={10} />
+                                                </button>
+                                            )}
+
+                                            {/* Delete Button - Far Right */}
                                             <button
                                                 onClick={() => handleRemoveCascadeGroup(gIdx)}
                                                 className="p-1 text-slate-300 hover:text-red-500 transition-colors"
@@ -2268,29 +2237,6 @@ const UnifiedRuleBuilder: React.FC<{
                                                 <option value="">目标字段...</option>
                                                 {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
                                             </select>
-                                        </div>
-
-                                        {/* Row Picker for this cascade group */}
-                                        <div className="mb-2 flex items-center gap-2">
-                                            <select
-                                                value={group.sourceRowId || ''}
-                                                onChange={(e) => handleUpdateCascadeGroup(gIdx, { sourceRowId: e.target.value })}
-                                                className={`flex-1 bg-white border rounded px-2 py-1 text-[9px] outline-none ${group.sourceRowId ? 'border-amber-200 text-amber-700 font-bold' : 'border-slate-200 text-slate-500'}`}
-                                            >
-                                                <option value="">当前行 (Current Row)</option>
-                                                {records.map(r => (
-                                                    <option key={r._id} value={String(r._id)}>指定: {getRecordLabel(r)}</option>
-                                                ))}
-                                            </select>
-                                            {onEnableRowPicker && (
-                                                <button
-                                                    onClick={() => onEnableRowPicker((id) => handleUpdateCascadeGroup(gIdx, { sourceRowId: id }))}
-                                                    className="text-[8px] bg-amber-50 hover:bg-amber-100 text-amber-600 px-1.5 py-1 rounded transition-colors flex items-center gap-0.5"
-                                                    title="Pick from table"
-                                                >
-                                                    <MousePointerClick size={10} /> Pick
-                                                </button>
-                                            )}
                                         </div>
 
                                         <div className="space-y-1">
@@ -4292,27 +4238,52 @@ export const SuperTable: React.FC = () => {
 
             configRules.forEach(rule => {
                 if (rule.ruleType === 'mapping') {
-                    if (rule.sourceRowId) {
-                        // Master Row Logic: Only the specified row drives itself
-                        // (User feedback: Don't update the entire column, only the specific row)
-                        const sourceRecord = processedRecords.find(r => String(r._id) === String(rule.sourceRowId));
-                        if (sourceRecord) {
-                            const sourceVal = sourceRecord[rule.sourceField];
-                            const match = rule.mappings?.find((m: any) => String(m.sourceValue) === String(sourceVal));
+                    // NEW: Process each cascade group independently
+                    if (rule.cascadeGroups && rule.cascadeGroups.length > 0) {
+                        rule.cascadeGroups.forEach((cg: any) => {
+                            const { sourceField, targetField, sourceRowId, mappings } = cg;
 
-                            if (match && String(sourceRecord[rule.targetField]) !== String(match.targetValue)) {
-                                sourceRecord[rule.targetField] = match.targetValue;
-                            }
-                        }
-                    } else {
-                        // Same Row Logic: Every row drives itself
-                        processedRecords.forEach(r => {
-                            const sourceVal = r[rule.sourceField];
-                            const match = rule.mappings?.find((m: any) => String(m.sourceValue) === String(sourceVal));
-                            if (match && String(r[rule.targetField]) !== String(match.targetValue)) {
-                                r[rule.targetField] = match.targetValue;
+                            if (sourceRowId) {
+                                // Specific row logic for this cascade group
+                                const sourceRecord = processedRecords.find(r => String(r._id) === String(sourceRowId));
+                                if (sourceRecord) {
+                                    const sourceVal = sourceRecord[sourceField];
+                                    const match = mappings?.find((m: any) => String(m.sourceValue) === String(sourceVal));
+                                    if (match && String(sourceRecord[targetField]) !== String(match.targetValue)) {
+                                        sourceRecord[targetField] = match.targetValue;
+                                    }
+                                }
+                            } else {
+                                // Same Row Logic: Every row drives itself for this cascade group
+                                processedRecords.forEach(r => {
+                                    const sourceVal = r[sourceField];
+                                    const match = mappings?.find((m: any) => String(m.sourceValue) === String(sourceVal));
+                                    if (match && String(r[targetField]) !== String(match.targetValue)) {
+                                        r[targetField] = match.targetValue;
+                                    }
+                                });
                             }
                         });
+                    } else if (rule.mappings && rule.mappings.length > 0) {
+                        // Legacy support for old-style mappings
+                        if (rule.sourceRowId) {
+                            const sourceRecord = processedRecords.find(r => String(r._id) === String(rule.sourceRowId));
+                            if (sourceRecord) {
+                                const sourceVal = sourceRecord[rule.sourceField];
+                                const match = rule.mappings?.find((m: any) => String(m.sourceValue) === String(sourceVal));
+                                if (match && String(sourceRecord[rule.targetField]) !== String(match.targetValue)) {
+                                    sourceRecord[rule.targetField] = match.targetValue;
+                                }
+                            }
+                        } else {
+                            processedRecords.forEach(r => {
+                                const sourceVal = r[rule.sourceField];
+                                const match = rule.mappings?.find((m: any) => String(m.sourceValue) === String(sourceVal));
+                                if (match && String(r[rule.targetField]) !== String(match.targetValue)) {
+                                    r[rule.targetField] = match.targetValue;
+                                }
+                            });
+                        }
                     }
                 }
             });
@@ -4346,26 +4317,71 @@ export const SuperTable: React.FC = () => {
         const getCellStatus = (record: any, fieldId: string) => {
             // Priority 1: Check if it's a source field (monitor)
             const sourceRules = configRules.filter(r => {
-                if (r.ruleType !== 'mapping' || r.sourceField !== fieldId) return false;
+                if (r.ruleType !== 'mapping') return false;
+
+                // Cascade Groups Check
+                if (r.cascadeGroups && r.cascadeGroups.length > 0) {
+                    return r.cascadeGroups.some((cg: any) => {
+                        if (cg.sourceField !== fieldId) return false;
+                        if (cg.sourceRowId) return String(record._id) === String(cg.sourceRowId);
+                        return true;
+                    });
+                }
+
+                // Legacy Check
+                if (r.sourceField !== fieldId) return false;
                 if (r.sourceRowId) return String(record._id) === String(r.sourceRowId);
                 return true;
             });
 
             if (sourceRules.length > 0) {
-                const allEnumValues = Array.from(new Set(sourceRules.flatMap(r => r.mappings.map((m: any) => m.sourceValue))));
+                const allEnumValues = Array.from(new Set(sourceRules.flatMap(r => {
+                    if (r.cascadeGroups && r.cascadeGroups.length > 0) {
+                        return r.cascadeGroups
+                            .filter((cg: any) => cg.sourceField === fieldId)
+                            .flatMap((cg: any) => (cg.mappings || []).map((m: any) => m.sourceValue));
+                    }
+                    return (r.mappings || []).map((m: any) => m.sourceValue);
+                })));
+
                 return {
                     type: 'source',
                     options: allEnumValues,
-                    isMaster: sourceRules.some(r => r.sourceRowId)
+                    isMaster: sourceRules.some(r => r.sourceRowId || r.cascadeGroups?.some((cg: any) => cg.sourceField === fieldId && cg.sourceRowId))
                 };
             }
 
             // Priority 2: Check if it's a target field
             for (const rule of configRules) {
+                // Cascade Targets
+                if (rule.ruleType === 'mapping' && rule.cascadeGroups && rule.cascadeGroups.length > 0) {
+                    const group = rule.cascadeGroups.find((cg: any) => cg.targetField === fieldId);
+                    if (group) {
+                        // Determine source value for this group
+                        let sourceVal;
+                        if (group.sourceRowId) {
+                            const sourceRecord = processedRecords.find(r => String(r._id) === String(group.sourceRowId));
+                            sourceVal = sourceRecord ? sourceRecord[group.sourceField] : undefined;
+                        } else {
+                            sourceVal = record[group.sourceField];
+                        }
+
+                        const match = (group.mappings || []).find((m: any) => String(m.sourceValue) === String(sourceVal));
+                        if (match) return {
+                            type: 'target',
+                            subtype: 'mapping',
+                            color: 'bg-emerald-50/50 text-emerald-700 font-bold border-emerald-200',
+                            value: match.targetValue,
+                            isFromMaster: !!group.sourceRowId
+                        };
+                    }
+                }
+
+                // Legacy Targets
                 if (fieldId !== rule.targetField) continue;
 
                 if (rule.ruleType === 'logic') {
-                    const conditionResults = rule.conditions.map((c: any) => evaluateFilter(record, c as any));
+                    const conditionResults = (rule.conditions || []).map((c: any) => evaluateFilter(record, c as any));
                     const match = rule.logic === 'AND' ? conditionResults.every((r: any) => r) : conditionResults.some((r: any) => r);
                     if (match) return { type: 'target', subtype: 'logic', color: 'bg-indigo-50/50 text-indigo-700 font-bold border-indigo-200', value: rule.expression };
                 } else if (rule.ruleType === 'mapping') {
@@ -4378,7 +4394,7 @@ export const SuperTable: React.FC = () => {
                         sourceVal = record[rule.sourceField];
                     }
 
-                    const match = rule.mappings?.find((m: any) => String(m.sourceValue) === String(sourceVal));
+                    const match = (rule.mappings || []).find((m: any) => String(m.sourceValue) === String(sourceVal));
                     if (match) return {
                         type: 'target',
                         subtype: 'mapping',
@@ -4394,6 +4410,20 @@ export const SuperTable: React.FC = () => {
         const stats = {
             affected: processedRecords.filter(r => configRules.some(rule => {
                 if (rule.ruleType !== 'mapping') return false;
+
+                if (rule.cascadeGroups && rule.cascadeGroups.length > 0) {
+                    return rule.cascadeGroups.some((cg: any) => {
+                        let sVal;
+                        if (cg.sourceRowId) {
+                            const sRec = processedRecords.find(sr => String(sr._id) === String(cg.sourceRowId));
+                            sVal = sRec ? sRec[cg.sourceField] : undefined;
+                        } else {
+                            sVal = r[cg.sourceField];
+                        }
+                        return (cg.mappings || []).some((m: any) => String(m.sourceValue) === String(sVal));
+                    });
+                }
+
                 let sVal;
                 if (rule.sourceRowId) {
                     const sRec = processedRecords.find(sr => String(sr._id) === String(rule.sourceRowId));
@@ -4401,7 +4431,7 @@ export const SuperTable: React.FC = () => {
                 } else {
                     sVal = r[rule.sourceField];
                 }
-                return rule.mappings?.some((m: any) => String(m.sourceValue) === String(sVal));
+                return (rule.mappings || []).some((m: any) => String(m.sourceValue) === String(sVal));
             })).length,
             valid: processedRecords.length
         };
@@ -4508,13 +4538,13 @@ export const SuperTable: React.FC = () => {
     };
 
     const renderProductConfig = () => {
-        const selectedDataset = savedDatasets.find(d => d.id === configState.datasetId);
-        const availableViewsForDataset = savedViews.filter(v => (v as any).datasetId === configState.datasetId);
+        const selectedDataset = (savedDatasets || []).find(d => d.id === configState.datasetId);
+        const availableViewsForDataset = (savedViews || []).filter(v => (v as any).datasetId === configState.datasetId);
 
-        const isConfigComplete = !!configState.datasetId && !!configState.name && configState.configRules.length > 0;
+        const isConfigComplete = !!configState.datasetId && !!configState.name && (configState.configRules || []).length > 0;
         const missingSteps = [
             !configState.datasetId && "Data Source",
-            configState.configRules.length === 0 && "Rules",
+            (configState.configRules || []).length === 0 && "Rules",
             !configState.name && "Product Identity"
         ].filter(Boolean);
 
@@ -4584,7 +4614,7 @@ export const SuperTable: React.FC = () => {
                                                         className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 appearance-none cursor-pointer focus:ring-2 focus:ring-indigo-100 outline-none transition-all hover:border-slate-300"
                                                     >
                                                         <option value="">Choose Dataset...</option>
-                                                        {savedDatasets.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                                        {(savedDatasets || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                                                     </select>
                                                     <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                                 </div>
@@ -4599,15 +4629,16 @@ export const SuperTable: React.FC = () => {
                                                     ) : availableViewsForDataset.length === 0 ? (
                                                         <span className="text-[11px] text-slate-300 italic py-1">No views found</span>
                                                     ) : (
-                                                        availableViewsForDataset.map(v => {
-                                                            const isSelected = configState.viewNames.includes(v.name);
+                                                        (availableViewsForDataset || []).map(v => {
+                                                            const isSelected = (configState.viewNames || []).includes(v.name);
                                                             return (
                                                                 <button
                                                                     key={v.name}
                                                                     onClick={() => {
+                                                                        const currentViewNames = configState.viewNames || [];
                                                                         const next = isSelected
-                                                                            ? configState.viewNames.filter(n => n !== v.name)
-                                                                            : [...configState.viewNames, v.name];
+                                                                            ? currentViewNames.filter(n => n !== v.name)
+                                                                            : [...currentViewNames, v.name];
                                                                         setConfigState({ ...configState, viewNames: next });
                                                                     }}
                                                                     className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border ${isSelected
@@ -4657,17 +4688,18 @@ export const SuperTable: React.FC = () => {
                                                             <div className="text-[10px] text-slate-300 italic pl-1">Empty</div>
                                                         )}
                                                         {savedRulePresets.filter(p => p.datasetId === configState.datasetId && (!p.rules[0] || p.rules[0].ruleType === 'logic')).map(preset => (
-                                                            <div key={preset.id} className="group/pill flex items-center justify-between bg-white border border-slate-200 pl-2 pr-1 py-1.5 rounded-lg hover:border-indigo-300 transition-all cursor-pointer shadow-sm hover:shadow-md">
-                                                                <span
-                                                                    className="text-[10px] font-bold text-slate-600 truncate max-w-[100px]"
-                                                                    onClick={() => {
-                                                                        const currentRuleSignatures = new Set(configState.configRules.map(r => JSON.stringify({ ...r, id: undefined })));
-                                                                        const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
-                                                                        if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
-                                                                        setConfigState(prev => ({ ...prev, configRules: [...prev.configRules, ...newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }))] }));
-                                                                        addToast(`Added ${preset.name}`, 'success');
-                                                                    }}
-                                                                >
+                                                            <div
+                                                                key={preset.id}
+                                                                className="group/pill flex items-center justify-between bg-white border border-slate-200 pl-2 pr-1 py-1.5 rounded-lg hover:border-indigo-300 transition-all cursor-pointer shadow-sm hover:shadow-md"
+                                                                onClick={() => {
+                                                                    const currentRuleSignatures = new Set((configState.configRules || []).map(r => JSON.stringify({ ...r, id: undefined })));
+                                                                    const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
+                                                                    if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
+                                                                    setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }))] }));
+                                                                    addToast(`Added ${preset.name}`, 'success');
+                                                                }}
+                                                            >
+                                                                <span className="text-[10px] font-bold text-slate-600 truncate max-w-[100px]">
                                                                     {preset.name}
                                                                 </span>
                                                                 <button
@@ -4694,17 +4726,18 @@ export const SuperTable: React.FC = () => {
                                                             <div className="text-[10px] text-slate-300 italic pl-1">Empty</div>
                                                         )}
                                                         {savedRulePresets.filter(p => p.datasetId === configState.datasetId && p.rules[0]?.ruleType === 'mapping').map(preset => (
-                                                            <div key={preset.id} className="group/pill flex items-center justify-between bg-white border border-slate-200 pl-2 pr-1 py-1.5 rounded-lg hover:border-emerald-300 transition-all cursor-pointer shadow-sm hover:shadow-md">
-                                                                <span
-                                                                    className="text-[10px] font-bold text-slate-600 truncate max-w-[100px]"
-                                                                    onClick={() => {
-                                                                        const currentRuleSignatures = new Set(configState.configRules.map(r => JSON.stringify({ ...r, id: undefined })));
-                                                                        const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
-                                                                        if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
-                                                                        setConfigState(prev => ({ ...prev, configRules: [...prev.configRules, ...newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }))] }));
-                                                                        addToast(`Added ${preset.name}`, 'success');
-                                                                    }}
-                                                                >
+                                                            <div
+                                                                key={preset.id}
+                                                                className="group/pill flex items-center justify-between bg-white border border-slate-200 pl-2 pr-1 py-1.5 rounded-lg hover:border-emerald-300 transition-all cursor-pointer shadow-sm hover:shadow-md"
+                                                                onClick={() => {
+                                                                    const currentRuleSignatures = new Set((configState.configRules || []).map(r => JSON.stringify({ ...r, id: undefined })));
+                                                                    const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
+                                                                    if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
+                                                                    setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }))] }));
+                                                                    addToast(`Added ${preset.name}`, 'success');
+                                                                }}
+                                                            >
+                                                                <span className="text-[10px] font-bold text-slate-600 truncate max-w-[100px]">
                                                                     {preset.name}
                                                                 </span>
                                                                 <button
@@ -4723,13 +4756,13 @@ export const SuperTable: React.FC = () => {
                                             </div>
 
                                             {/* Existing Rules List */}
-                                            {configState.configRules.length > 0 && (
+                                            {(configState.configRules || []).length > 0 && (
                                                 <div className="space-y-2 max-h-60 overflow-y-auto overflow-x-hidden px-0.5 custom-scrollbar-mini">
                                                     <div className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-2 mb-2 px-1">
                                                         <SlidersHorizontal size={10} />
-                                                        Active Rules Stack ({configState.configRules.length})
+                                                        Active Rules Stack ({(configState.configRules || []).length})
                                                     </div>
-                                                    {configState.configRules.map((rule) => (
+                                                    {(configState.configRules || []).map((rule) => (
                                                         <div key={rule.id} className="group/rule bg-white border border-slate-100 rounded-xl p-3 relative transition-all hover:border-indigo-200 hover:shadow-sm">
                                                             <div className={`absolute left-0 top-3 bottom-3 w-1 rounded-r-full ${rule.ruleType === 'mapping' ? 'bg-emerald-400' : 'bg-indigo-400'}`}></div>
 
@@ -4737,7 +4770,7 @@ export const SuperTable: React.FC = () => {
                                                             <button
                                                                 onClick={() => setConfigState({
                                                                     ...configState,
-                                                                    configRules: configState.configRules.filter(r => r.id !== rule.id)
+                                                                    configRules: (configState.configRules || []).filter(r => r.id !== rule.id)
                                                                 })}
                                                                 className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-slate-200 text-slate-400 rounded-full text-[10px] opacity-0 group-hover/rule:opacity-100 transition-opacity flex items-center justify-center shadow-lg hover:text-red-500 hover:border-red-100 z-10"
                                                                 title="Remove Rule"
@@ -5104,7 +5137,7 @@ export const SuperTable: React.FC = () => {
                     <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative min-h-0">
                         {configState.datasetId ? (
                             <div className="absolute inset-0 overflow-auto custom-scrollbar">
-                                {renderBOMTable(configState.datasetId, configState.viewNames, productConfigHiddenFields, configState.configRules)}
+                                {renderBOMTable(configState.datasetId, configState.viewNames || [], productConfigHiddenFields, configState.configRules || [])}
                             </div>
                         ) : (
                             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300">
@@ -5364,72 +5397,37 @@ export const SuperTable: React.FC = () => {
 
                                                         {rule.ruleType === 'mapping' ? (
                                                             <div className="space-y-4">
-                                                                <div className="flex flex-wrap items-center gap-2 text-xs">
-                                                                    <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase">Mapping</span>
-                                                                    {rule.sourceRowId && (
-                                                                        <span className="bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-100 flex items-center gap-1">
-                                                                            Specified Row
+                                                                {/* Rule Summary Header */}
+                                                                <div className="p-3 bg-gradient-to-br from-indigo-50 to-slate-50 rounded-lg border border-indigo-100">
+                                                                    <div className="flex flex-wrap items-center gap-2 text-xs mb-2">
+                                                                        <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">级联映射</span>
+                                                                        {rule.syncMode && (
+                                                                            <span className="text-[8px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full">🔗 同步模式</span>
+                                                                        )}
+                                                                        <span className="text-[9px] text-slate-400">
+                                                                            {rule.cascadeGroups?.length || 0} 个级联组
                                                                         </span>
-                                                                    )}
-                                                                    <span className="text-slate-400">When</span>
-                                                                    <b className="text-slate-800">{rule.sourceField}</b>
-                                                                    <span className="text-slate-400">changes</span>
-                                                                </div>
-
-                                                                <div className="pl-3 border-l-2 border-slate-100 space-y-2">
-                                                                    <div className="text-[10px] text-slate-400 font-bold uppercase mb-1 flex items-center gap-1">
-                                                                        <ArrowRight size={10} /> Update {rule.targetField}
                                                                     </div>
-                                                                    <div className="flex flex-wrap gap-2">
-                                                                        {rule.mappings?.map((m: any, idx: number) => {
-                                                                            const ds = savedDatasets.find(d => d.id === product.datasetId);
-                                                                            const referenceRowId = rule.sourceRowId || (ds?.records[0]?._id);
-                                                                            const isSelected = referenceRowId && previewOverrides[referenceRowId]?.[rule.sourceField] === m.sourceValue;
 
-                                                                            return (
-                                                                                <button
-                                                                                    key={idx}
-                                                                                    onClick={() => {
-                                                                                        const rowId = rule.sourceRowId;
-                                                                                        if (!rowId) {
-                                                                                            // Apply to ALL records if no specific row is target
-                                                                                            const ds = savedDatasets.find(d => d.id === product.datasetId);
-                                                                                            if (ds) {
-                                                                                                const updates: any = {};
-                                                                                                ds.records.forEach(dr => {
-                                                                                                    updates[dr._id] = { ...(previewOverrides[dr._id] || {}), [rule.sourceField]: m.sourceValue };
-                                                                                                });
-                                                                                                setPreviewOverrides(prev => ({ ...prev, ...updates }));
-                                                                                            }
-                                                                                        } else {
-                                                                                            setPreviewOverrides(prev => ({
-                                                                                                ...prev,
-                                                                                                [rowId]: { ...(prev[rowId] || {}), [rule.sourceField]: m.sourceValue }
-                                                                                            }));
-                                                                                        }
-                                                                                    }}
-                                                                                    className={`flex items-center rounded-lg px-2.5 py-1.5 text-[11px] transition-all border ${isSelected
-                                                                                        ? 'bg-indigo-50 text-indigo-700 border-indigo-200 font-bold shadow-sm'
-                                                                                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                                                                                        }`}
-                                                                                >
-                                                                                    <span className={isSelected ? 'text-indigo-700' : 'font-medium'}>{m.sourceValue}</span>
-                                                                                    <ArrowRight size={10} className={`mx-1.5 ${isSelected ? 'text-indigo-300' : 'text-slate-300'}`} />
-                                                                                    <span className={isSelected ? 'text-indigo-700' : 'text-slate-500'}>{m.targetValue}</span>
-                                                                                </button>
-                                                                            );
-                                                                        })}
+                                                                    {/* Quick Summary of All Groups */}
+                                                                    <div className="text-[10px] text-slate-500 flex flex-wrap gap-2">
+                                                                        {rule.cascadeGroups?.map((cg: any, idx: number) => (
+                                                                            <span key={idx} className="bg-white px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1">
+                                                                                <span className="text-indigo-500 font-bold">#{idx + 1}</span>
+                                                                                <span className="text-slate-600">{cg.sourceField}</span>
+                                                                                <ArrowRight size={8} className="text-slate-300" />
+                                                                                <span className="text-slate-600">{cg.targetField}</span>
+                                                                                {cg.sourceRowId && <span className="text-amber-500">📍</span>}
+                                                                            </span>
+                                                                        ))}
                                                                     </div>
                                                                 </div>
 
-                                                                {/* NEW: Cascade Groups Display */}
+                                                                {/* Cascade Groups Display - Main Content */}
                                                                 {rule.cascadeGroups && rule.cascadeGroups.length > 0 && (
-                                                                    <div className="mt-4 space-y-3">
+                                                                    <div className="space-y-3">
                                                                         <div className="text-[10px] text-indigo-500 font-bold uppercase flex items-center gap-1.5">
-                                                                            <Layers size={10} /> 多级联映射
-                                                                            {rule.syncMode && (
-                                                                                <span className="text-[8px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full">🔗 同步</span>
-                                                                            )}
+                                                                            <Layers size={10} /> 点击选项应用映射
                                                                         </div>
                                                                         {rule.cascadeGroups.map((cg: any, cgIdx: number) => {
                                                                             const ds = savedDatasets.find(d => d.id === product.datasetId);
