@@ -2352,17 +2352,7 @@ const UnifiedRuleBuilder: React.FC<{
                         </div>
                     </div>
 
-                    <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5 flex items-center gap-1">
-                            <Info size={12} /> 规则说明 (Rule Description)
-                        </label>
-                        <textarea
-                            value={ruleDescription}
-                            onChange={(e) => setRuleDescription(e.target.value)}
-                            placeholder="输入此规则的作用说明，例如：根据产品型号自动匹配附件清单..."
-                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-[10px] outline-none focus:ring-1 focus:ring-indigo-300 min-h-[60px] resize-none"
-                        />
-                    </div>
+
 
                     <div className="mt-2 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
                         <label className="text-[10px] font-bold text-indigo-400 uppercase block mb-1.5 flex items-center gap-1">
@@ -2413,14 +2403,12 @@ export const SuperTable: React.FC = () => {
     const [sidebarWidth, setSidebarWidth] = useState(() => loadFromStorage('erp_sidebar_width', 400));
     const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
     const [builderActiveRuleType, setBuilderActiveRuleType] = useState<'logic' | 'mapping'>('mapping');
-    const [expandedRuleIds, setExpandedRuleIds] = useState<Set<string>>(new Set());
+    const [expandedRules, setExpandedRules] = useState<Record<string, boolean>>({});
     const toggleRuleExpanded = (id: string) => {
-        setExpandedRuleIds(prev => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-        });
+        setExpandedRules(prev => ({
+            ...prev,
+            [id]: !prev[id]
+        }));
     };
     const isResizingSidebarRef = useRef(false);
 
@@ -2554,6 +2542,7 @@ export const SuperTable: React.FC = () => {
             sourceField?: string;
             sourceRowId?: string;
             mappings?: { sourceValue: string, targetValue: string }[];
+            cascadeGroups?: { sourceField: string, targetField: string, sourceRowId?: string, mappings?: { sourceValue: string, targetValue: string }[] }[];
             description?: string; // Added description field
         }[];
     }[]>(() => loadFromStorage('erp_products', []));
@@ -2583,6 +2572,7 @@ export const SuperTable: React.FC = () => {
             sourceField?: string;
             sourceRowId?: string;
             mappings?: { sourceValue: string, targetValue: string }[];
+            cascadeGroups?: { sourceField: string, targetField: string, sourceRowId?: string, mappings?: { sourceValue: string, targetValue: string }[] }[];
             description?: string; // Added description field
             title?: string; // Added title field
         }[]
@@ -4737,7 +4727,10 @@ export const SuperTable: React.FC = () => {
                                                 <div className="relative">
                                                     <select
                                                         value={configState.datasetId}
-                                                        onChange={(e) => setConfigState({ ...configState, datasetId: e.target.value, viewNames: [] })}
+                                                        onChange={(e) => {
+                                                            setConfigState({ ...configState, datasetId: e.target.value, viewNames: [], configRules: [] });
+                                                            setPreviewOverrides({});
+                                                        }}
                                                         className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 appearance-none cursor-pointer focus:ring-2 focus:ring-indigo-100 outline-none transition-all hover:border-slate-300"
                                                     >
                                                         <option value="">Choose Dataset...</option>
@@ -4827,7 +4820,17 @@ export const SuperTable: React.FC = () => {
                                                                         const currentRuleSignatures = new Set((configState.configRules || []).map(r => JSON.stringify({ ...r, id: undefined })));
                                                                         const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
                                                                         if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
-                                                                        setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }))] }));
+
+                                                                        const rulesWithIds = newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }));
+                                                                        setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...rulesWithIds] }));
+
+                                                                        // Auto-expand all added rules
+                                                                        setExpandedRules(prev => {
+                                                                            const next = { ...prev };
+                                                                            rulesWithIds.forEach(r => { next[r.id] = true; });
+                                                                            return next;
+                                                                        });
+
                                                                         setPreviewOverrides({});
                                                                         addToast(`Added ${preset.name}`, 'success');
                                                                     }}
@@ -4861,7 +4864,17 @@ export const SuperTable: React.FC = () => {
                                                                         const currentRuleSignatures = new Set((configState.configRules || []).map(r => JSON.stringify({ ...r, id: undefined })));
                                                                         const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
                                                                         if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
-                                                                        setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }))] }));
+
+                                                                        const rulesWithIds = newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }));
+                                                                        setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...rulesWithIds] }));
+
+                                                                        // Auto-expand all added rules
+                                                                        setExpandedRules(prev => {
+                                                                            const next = { ...prev };
+                                                                            rulesWithIds.forEach(r => { next[r.id] = true; });
+                                                                            return next;
+                                                                        });
+
                                                                         setPreviewOverrides({});
                                                                         addToast(`Added ${preset.name}`, 'success');
                                                                     }}
@@ -4893,7 +4906,7 @@ export const SuperTable: React.FC = () => {
                                                         Active Rules Stack ({(configState.configRules || []).length})
                                                     </div>
                                                     {(configState.configRules || []).map((rule) => {
-                                                        const isExpanded = expandedRuleIds.has(rule.id);
+                                                        const isExpanded = !!expandedRules[rule.id];
                                                         const isLogic = rule.ruleType !== 'mapping';
 
                                                         return (
@@ -4946,7 +4959,7 @@ export const SuperTable: React.FC = () => {
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation(); // Prevent collapse
                                                                                 setEditingRuleId(rule.id);
-                                                                                setExpandedRuleIds(prev => new Set(prev).add(rule.id)); // Ensure expanded
+                                                                                setExpandedRules(prev => ({ ...prev, [rule.id]: true })); // Ensure expanded
                                                                             }}
                                                                             className="p-1 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded transition-all"
                                                                             title="Edit Rule"
@@ -4995,27 +5008,72 @@ export const SuperTable: React.FC = () => {
                                                                                 </div>
 
                                                                                 {/* Mapping Table Preview */}
-                                                                                <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
-                                                                                    <div className="grid grid-cols-[1fr,auto,1fr] gap-2 px-3 py-1.5 bg-slate-100/50 border-b border-slate-200 text-[9px] font-bold text-slate-500 uppercase">
-                                                                                        <div>Value</div>
-                                                                                        <div></div>
-                                                                                        <div>Result</div>
-                                                                                    </div>
-                                                                                    <div className="divide-y divide-slate-100">
-                                                                                        {(rule.mappings || []).slice(0, 5).map((m: any, i: number) => (
-                                                                                            <div key={i} className="grid grid-cols-[1fr,auto,1fr] gap-2 px-3 py-1.5 items-center text-[10px]">
-                                                                                                <div className="font-medium text-slate-600 truncate" title={m.sourceValue}>{m.sourceValue}</div>
-                                                                                                <ArrowRight size={10} className="text-slate-300" />
-                                                                                                <div className="font-bold text-emerald-700 truncate" title={m.targetValue}>{m.targetValue}</div>
+                                                                                {/* Mapping Table Preview */}
+                                                                                {(rule.cascadeGroups && rule.cascadeGroups.length > 0) ? (
+                                                                                    <div className="space-y-2">
+                                                                                        {rule.cascadeGroups.map((group: any, gIdx: number) => (
+                                                                                            <div key={gIdx} className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
+                                                                                                <div className="px-3 py-1.5 bg-slate-100/50 border-b border-slate-200 flex items-center gap-2">
+                                                                                                    <span className="bg-indigo-50 text-indigo-600 px-1.5 rounded text-[9px] font-bold">#{gIdx + 1}</span>
+                                                                                                    <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500 uppercase">
+                                                                                                        <span className="text-slate-700">{group.sourceField}</span>
+                                                                                                        <ArrowRight size={10} className="text-slate-300" />
+                                                                                                        <span className="text-emerald-700">{group.targetField}</span>
+                                                                                                    </div>
+                                                                                                    {group.sourceRowId && (
+                                                                                                        <span className="ml-auto text-[8px] bg-amber-50 text-amber-600 px-1 py-0.5 rounded border border-amber-100 flex items-center gap-1">
+                                                                                                            <MousePointerClick size={8} /> Pinned
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                                <div className="divide-y divide-slate-100">
+                                                                                                    {(group.mappings || []).length > 0 ? (
+                                                                                                        (group.mappings || []).slice(0, 5).map((m: any, i: number) => (
+                                                                                                            <div key={i} className="grid grid-cols-[1fr,auto,1fr] gap-2 px-3 py-1.5 items-center text-[10px]">
+                                                                                                                <div className="font-medium text-slate-600 truncate" title={m.sourceValue}>{m.sourceValue}</div>
+                                                                                                                <ArrowRight size={10} className="text-slate-300" />
+                                                                                                                <div className="font-bold text-emerald-700 truncate" title={m.targetValue}>{m.targetValue}</div>
+                                                                                                            </div>
+                                                                                                        ))
+                                                                                                    ) : (
+                                                                                                        <div className="p-2 text-center text-[10px] text-slate-400 italic">No mappings defined</div>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                                {(group.mappings?.length || 0) > 5 && (
+                                                                                                    <div className="px-3 py-1.5 text-[9px] text-slate-400 bg-slate-50/50 border-t border-slate-100 text-center italic">
+                                                                                                        + {(group.mappings?.length || 0) - 5} more...
+                                                                                                    </div>
+                                                                                                )}
                                                                                             </div>
                                                                                         ))}
                                                                                     </div>
-                                                                                    {(rule.mappings?.length || 0) > 5 && (
-                                                                                        <div className="px-3 py-1.5 text-[9px] text-slate-400 bg-slate-50/50 border-t border-slate-100 italic">
-                                                                                            + {(rule.mappings?.length || 0) - 5} more mappings...
+                                                                                ) : (
+                                                                                    <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
+                                                                                        <div className="grid grid-cols-[1fr,auto,1fr] gap-2 px-3 py-1.5 bg-slate-100/50 border-b border-slate-200 text-[9px] font-bold text-slate-500 uppercase">
+                                                                                            <div>Value</div>
+                                                                                            <div></div>
+                                                                                            <div>Result</div>
                                                                                         </div>
-                                                                                    )}
-                                                                                </div>
+                                                                                        <div className="divide-y divide-slate-100">
+                                                                                            {(rule.mappings || []).length > 0 ? (
+                                                                                                (rule.mappings || []).slice(0, 5).map((m: any, i: number) => (
+                                                                                                    <div key={i} className="grid grid-cols-[1fr,auto,1fr] gap-2 px-3 py-1.5 items-center text-[10px]">
+                                                                                                        <div className="font-medium text-slate-600 truncate" title={m.sourceValue}>{m.sourceValue}</div>
+                                                                                                        <ArrowRight size={10} className="text-slate-300" />
+                                                                                                        <div className="font-bold text-emerald-700 truncate" title={m.targetValue}>{m.targetValue}</div>
+                                                                                                    </div>
+                                                                                                ))
+                                                                                            ) : (
+                                                                                                <div className="p-3 text-center text-[10px] text-slate-400 italic">No mappings defined</div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                        {(rule.mappings?.length || 0) > 5 && (
+                                                                                            <div className="px-3 py-1.5 text-[9px] text-slate-400 bg-slate-50/50 border-t border-slate-100 italic">
+                                                                                                + {(rule.mappings?.length || 0) - 5} more mappings...
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
 
                                                                                 {rule.sourceRowId && (
                                                                                     <div className="flex justify-end">
@@ -5113,10 +5171,12 @@ export const SuperTable: React.FC = () => {
                                                         addToast('Please click a row in the Preview table', 'info');
                                                     }}
                                                     onAdd={(rule) => {
+                                                        const newId = `rule_${Date.now()}_${Math.random()}`;
                                                         setConfigState({
                                                             ...configState,
-                                                            configRules: [...(configState.configRules || []), { ...rule, id: `rule_${Date.now()}` }]
+                                                            configRules: [...(configState.configRules || []), { ...rule, id: newId }]
                                                         });
+                                                        setExpandedRules(prev => ({ ...prev, [newId]: true }));
                                                         setPreviewOverrides({});
                                                         addToast('Rule added to stack', 'success');
                                                     }}
