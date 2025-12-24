@@ -13,7 +13,7 @@ import {
     ArrowDownUp, ArrowDownAZ, ArrowUpAZ, ArrowUp,
     Package, Box, Settings, ChevronLeft, ShoppingCart, MousePointerClick, Tag, Bot
 } from 'lucide-react';
-import { read, utils } from 'xlsx';
+import { read, utils, writeFile } from 'xlsx';
 import { generateFormSchemaFromData, generateFormFromDescription, generateFormLogic } from '../services/geminiService';
 import { useToast } from '../contexts/ToastContext';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -4289,16 +4289,16 @@ export const SuperTable: React.FC = () => {
         }
     };
 
-    const renderBOMTable = (
+    // Helper to process BOM data for both Display and Export
+    const getProcessedBOMData = (
         datasetId: string,
         viewNames: string[],
         hiddenFields: string[] = [],
         configRules: any[] = []
     ) => {
         const dataset = savedDatasets.find(d => d.id === datasetId);
-        if (!dataset) return <div className="p-8 text-center text-gray-400 italic">Dataset not found</div>;
+        if (!dataset) return null;
 
-        // --- Apply Cascading Logic to Records ---
         const rawRecords = [...dataset.records];
 
         // Filter overrides: only apply if the field is an active 'sourceField' in current rules
@@ -4429,6 +4429,54 @@ export const SuperTable: React.FC = () => {
         const displayFields = dataset.schema
             .filter(f => !['divider', 'spacer', 'notice'].includes(f.type))
             .filter(f => !hiddenFields.includes(f.id));
+
+        return { processedRecords, filteredRecords: filtered, displayFields, dataset };
+    };
+
+    const handleExportBOM = (
+        datasetId: string,
+        viewNames: string[],
+        hiddenFields: string[],
+        configRules: any[],
+        quantityMultiplier: number
+    ) => {
+        const data = getProcessedBOMData(datasetId, viewNames, hiddenFields, configRules);
+        if (!data) return;
+        const { filteredRecords, displayFields } = data;
+
+        const exportBytes = filteredRecords.map(r => {
+            const row: any = {};
+            displayFields.forEach((f, index) => {
+                const isMultiplierTarget = quantityMultiplier > 1 && index === displayFields.length - 1;
+                let val = r[f.id];
+                if (isMultiplierTarget && !isNaN(Number(val))) {
+                    val = Number(val) * quantityMultiplier;
+                }
+                // Try to render object values as string if needed
+                const headerName = f.label || f.name || f.id;
+                row[headerName] = (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
+            });
+            return row;
+        });
+
+        const ws = utils.json_to_sheet(exportBytes);
+        const wb = utils.book_new();
+        utils.book_append_sheet(wb, ws, "BOM Architecture");
+        writeFile(wb, `BOM_Export_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    };
+
+    const renderBOMTable = (
+        datasetId: string,
+        viewNames: string[],
+        hiddenFields: string[] = [],
+        configRules: any[] = [],
+        quantityMultiplier: number = 1 // New Argument
+    ) => {
+        const data = getProcessedBOMData(datasetId, viewNames, hiddenFields, configRules);
+        if (!data) return <div className="p-8 text-center text-gray-400 italic">Dataset not found</div>;
+
+        // Destructure BOTH processedRecords (for rules lookup) and filteredRecords (for display)
+        const { processedRecords, filteredRecords: filtered, displayFields } = data;
 
         // Determine which cells are affected by rules or are active monitors
         const getCellStatus = (record: any, fieldId: string) => {
@@ -4607,10 +4655,15 @@ export const SuperTable: React.FC = () => {
                             >
                                 {displayFields.map(f => {
                                     const status = getCellStatus(r, f.id);
+                                    const isMultiplierTarget = quantityMultiplier > 1 && f.id === displayFields[displayFields.length - 1].id;
+                                    const finalValue = isMultiplierTarget && !isNaN(Number(r[f.id]))
+                                        ? Number(r[f.id]) * quantityMultiplier
+                                        : r[f.id];
+
                                     return (
                                         <td
                                             key={f.id}
-                                            className={`px-4 py-2 max-w-[300px] truncate transition-all duration-300 ${status.type === 'target' ? (status.color || 'bg-blue-50/30 text-blue-700') : 'text-slate-600'}`}
+                                            className={`px-4 py-2 max-w-[300px] truncate transition-all duration-300 ${status.type === 'target' ? (status.color || 'bg-blue-50/30 text-blue-700') : 'text-slate-600'} ${isMultiplierTarget ? 'font-black text-indigo-600 bg-indigo-50/50' : ''}`}
                                         >
                                             {status.type === 'source' ? (
                                                 <div className="relative group/select">
@@ -4637,8 +4690,9 @@ export const SuperTable: React.FC = () => {
                                             ) : (
                                                 <div className="flex items-center gap-2">
                                                     {status.type === 'target' && <ArrowRight size={10} className="text-current opacity-50 shrink-0" />}
-                                                    <span className="truncate" title={String(r[f.id] || '')}>
-                                                        {safeRenderValue(r[f.id]) || <span className="text-gray-300 italic">-</span>}
+                                                    <span className="truncate" title={String(finalValue || '')}>
+                                                        {safeRenderValue(finalValue) || <span className="text-gray-300 italic">-</span>}
+                                                        {isMultiplierTarget && <span className="text-[8px] text-indigo-400 ml-1 font-normal">(x{quantityMultiplier})</span>}
                                                     </span>
                                                 </div>
                                             )}
@@ -5846,7 +5900,17 @@ export const SuperTable: React.FC = () => {
                                         onClick={() => {
                                             const order = { id: `ord_${Date.now()}`, productId: product.id, quantity: orderQuantity, timestamp: Date.now() };
                                             setProductOrders([...productOrders, order]);
-                                            addToast('Order Placed Successfully', 'success');
+
+                                            // Trigger Export
+                                            handleExportBOM(
+                                                product.datasetId,
+                                                product.viewNames || [],
+                                                [],
+                                                (product as any).configRules || [],
+                                                orderQuantity
+                                            );
+
+                                            addToast('Order Placed & BOM Exported', 'success');
                                         }}
                                         className="h-[52px] px-8 bg-slate-900 text-white rounded-xl font-bold hover:bg-indigo-600 transition-all active:scale-95 flex items-center gap-2 shadow-xl shadow-slate-200"
                                     >
@@ -5865,8 +5929,8 @@ export const SuperTable: React.FC = () => {
                                 </button>
                             </div>
                             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[300px]">
-                                <div className="overflow-x-auto">
-                                    {renderBOMTable(product.datasetId, product.viewNames || [], [], (product as any).configRules || [])}
+                                <div className="overflow-auto max-h-[600px] custom-scrollbar">
+                                    {renderBOMTable(product.datasetId, product.viewNames || [], [], (product as any).configRules || [], orderQuantity)}
                                 </div>
                             </div>
                         </div>
