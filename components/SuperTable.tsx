@@ -9544,14 +9544,15 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
 
                         {/* Filename Preview */}
+                        {/* Filename Preview */}
                         <div className="px-6 pt-2 pb-4">
-                            <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-2xl flex items-center gap-4">
-                                <div className="p-2.5 bg-white rounded-xl text-indigo-600 shadow-sm border border-indigo-50">
-                                    <Eye size={18} />
+                            <div className="flex items-start gap-4 px-2">
+                                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-500 mt-1">
+                                    <Eye size={16} />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <div className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest mb-0.5">Preview Result</div>
-                                    <div className="font-mono text-sm font-bold text-indigo-900 truncate">
+                                    <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Preview Result</div>
+                                    <div className="font-mono text-sm font-bold text-slate-700 break-all whitespace-normal leading-relaxed">
                                         {generateFilename(exportNamingDialog.variableOverrides, exportNamingDialog.exportParams?.quantityMultiplier)}.xlsx
                                     </div>
                                 </div>
