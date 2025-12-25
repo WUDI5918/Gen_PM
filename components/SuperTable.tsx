@@ -4873,10 +4873,9 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         const selectedDataset = (savedDatasets || []).find(d => d.id === configState.datasetId);
         const availableViewsForDataset = (savedViews || []).filter(v => (v as any).datasetId === configState.datasetId);
 
-        const isConfigComplete = !!configState.datasetId && !!configState.name && (configState.configRules || []).length > 0;
+        const isConfigComplete = !!configState.datasetId && !!configState.name;
         const missingSteps = [
             !configState.datasetId && "Data Source",
-            (configState.configRules || []).length === 0 && "Rules",
             !configState.name && "Product Identity"
         ].filter(Boolean);
 
@@ -5705,7 +5704,19 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         {/* Overlay Actions */}
                                         <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0">
                                             <button
-                                                onClick={(e) => { e.stopPropagation(); setProducts(products.filter(item => item.id !== p.id)); }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    triggerConfirm(
+                                                        '删除产品',
+                                                        `确定要删除产品 "${p.name}" 吗？此操作无法撤销。`,
+                                                        () => {
+                                                            setProducts(products.filter(item => item.id !== p.id));
+                                                            addToast(`Product "${p.name}" deleted`, 'success');
+                                                        },
+                                                        'danger',
+                                                        '确认删除'
+                                                    );
+                                                }}
                                                 className="p-2 bg-white/90 text-rose-500 rounded-lg shadow-sm hover:bg-rose-500 hover:text-white transition-all"
                                             >
                                                 <Trash2 size={14} />
@@ -6042,21 +6053,23 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                     </div>
                                 )}
 
-                                <div className="flex items-center gap-6 max-w-lg">
-                                    <div className="flex items-center gap-4 bg-white rounded-xl shadow-sm border border-slate-200 p-1.5 pr-4">
-                                        <div className="flex items-center gap-1">
-                                            <button onClick={() => setOrderQuantity(Math.max(1, orderQuantity - 1))} className="w-9 h-9 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center transition-colors"><Minus size={16} /></button>
+                                <div className="flex items-center gap-6 w-fit">
+                                    {/* Quantity Controls */}
+                                    <div className="flex items-center gap-3 pl-2">
+                                        <div className="flex items-center gap-1 bg-slate-50 rounded-lg p-1">
+                                            <button onClick={() => setOrderQuantity(Math.max(1, orderQuantity - 1))} className="w-8 h-8 rounded-md hover:bg-white hover:shadow-sm text-slate-500 flex items-center justify-center transition-all font-bold"><Minus size={14} /></button>
                                             <input
                                                 type="number"
                                                 value={orderQuantity}
                                                 onChange={(e) => setOrderQuantity(parseInt(e.target.value) || 1)}
-                                                className="w-12 text-center text-lg font-bold text-slate-900 outline-none border-none bg-transparent"
+                                                className="w-10 text-center text-sm font-black text-slate-700 outline-none border-none bg-transparent"
                                             />
-                                            <button onClick={() => setOrderQuantity(orderQuantity + 1)} className="w-9 h-9 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center transition-colors"><Plus size={16} /></button>
+                                            <button onClick={() => setOrderQuantity(orderQuantity + 1)} className="w-8 h-8 rounded-md hover:bg-white hover:shadow-sm text-slate-500 flex items-center justify-center transition-all font-bold"><Plus size={14} /></button>
                                         </div>
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-l border-slate-100 pl-4">Quantity</span>
+                                        <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Quantity</span>
                                     </div>
 
+                                    {/* Place Order Button */}
                                     <button
                                         onClick={() => {
                                             const order = { id: `ord_${Date.now()}`, productId: product.id, quantity: orderQuantity, timestamp: Date.now() };
@@ -6073,7 +6086,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
                                             addToast('Order Placed & BOM Exported', 'success');
                                         }}
-                                        className="h-[52px] px-8 bg-slate-900 text-white rounded-xl font-bold hover:bg-indigo-600 transition-all active:scale-95 flex items-center gap-2 shadow-xl shadow-slate-200"
+                                        className="h-[48px] px-8 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl font-bold hover:bg-indigo-100 hover:border-indigo-200 transition-all active:scale-95 flex items-center gap-2"
                                     >
                                         <ShoppingCart size={18} /> Place Order
                                     </button>
@@ -6731,10 +6744,10 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                             })}
                         </div>
 
-                        {/* Real-time Filename Preview */}
-                        <div className="mx-6 mb-6 bg-slate-900 rounded-xl p-4">
+                        {/* Real-time Filename Preview - Light Background */}
+                        <div className="mx-6 mb-6 bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl p-4 border border-slate-200">
                             <span className="text-[10px] uppercase font-bold text-slate-500 mb-2 block tracking-widest">预计文件名 Preview</span>
-                            <div className="font-mono text-sm text-emerald-400 font-medium break-all">
+                            <div className="font-mono text-sm text-indigo-700 font-medium break-all">
                                 {generateFilename(exportNamingDialog.variableOverrides, 1)}.xlsx
                             </div>
                         </div>
@@ -9395,10 +9408,10 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                             })}
                         </div>
 
-                        {/* Real-time Filename Preview */}
-                        <div className="mx-6 mb-6 bg-slate-900 rounded-xl p-4">
+                        {/* Real-time Filename Preview - Light Background */}
+                        <div className="mx-6 mb-6 bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl p-4 border border-slate-200">
                             <span className="text-[10px] uppercase font-bold text-slate-500 mb-2 block tracking-widest">预计文件名 Preview</span>
-                            <div className="font-mono text-sm text-emerald-400 font-medium break-all">
+                            <div className="font-mono text-sm text-indigo-700 font-medium break-all">
                                 {generateFilename(exportNamingDialog.variableOverrides, exportNamingDialog.exportParams?.quantityMultiplier || 1)}.xlsx
                             </div>
                         </div>
