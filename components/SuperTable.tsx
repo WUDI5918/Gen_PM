@@ -5908,10 +5908,10 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         return (
             <div className="h-full flex flex-col animate-in fade-in duration-500">
                 {/* Header */}
-                <div className="px-10 py-8 flex justify-between items-end bg-white border-b border-gray-100 sticky top-0 z-10">
+                <div className="px-6 py-4 flex justify-between items-end bg-white border-b border-gray-100 sticky top-0 z-10">
                     <div>
-                        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Product Library</h2>
-                        <p className="text-xs text-slate-500 mt-2 font-medium uppercase tracking-wider">Catalog of Configured BOMs</p>
+                        <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Product Library</h2>
+                        <p className="text-xs text-slate-500 mt-0.5 font-medium uppercase tracking-wider">Catalog of Configured BOMs</p>
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="relative group">
@@ -5928,7 +5928,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 </div>
 
                 {/* Grid */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-10">
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     {products.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {products.map(p => (
@@ -6463,14 +6463,11 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
     const renderProductSettings = () => (
         <div className="p-12 max-w-5xl mx-auto animate-in fade-in duration-500 pb-32">
-            <div className="mb-12">
-                <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">{t('erp.settings.system_title')}</h2>
-                <p className="text-slate-500 mt-2 font-medium">{t('erp.settings.system_desc')}</p>
-            </div>
+
 
             <div className="grid grid-cols-1 gap-12">
                 {/* Data Management Section */}
-                <section className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl shadow-slate-200/50">
+                <section className="">
                     <h4 className="text-sm font-black text-indigo-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
                         <Database size={14} /> {t('erp.settings.data')}
                     </h4>
@@ -6506,13 +6503,13 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 </section>
 
                 {/* Naming Rules Section - Visual Builder */}
-                <section className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl shadow-slate-200/50">
+                <section className="">
                     {/* Collapsible Header */}
                     <div
                         className="flex items-center justify-between cursor-pointer group"
                         onClick={() => setIsNamingBuilderCollapsed(!isNamingBuilderCollapsed)}
                     >
-                        <h4 className="text-sm font-black text-rose-600 uppercase tracking-[0.2em] flex items-center gap-2">
+                        <h4 className="text-sm font-black text-indigo-600 uppercase tracking-[0.2em] flex items-center gap-2">
                             <Tag size={14} /> {t('erp.naming.builder_full')}
                             <ChevronDown
                                 size={16}
