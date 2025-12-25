@@ -5167,20 +5167,20 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 <div>
                                     <h3 className="text-xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
                                         <Sparkles className="text-indigo-600" size={20} />
-                                        定义产品
+                                        {t('erp.tabs.define_product')}
                                     </h3>
-                                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-0.5 opacity-80">Product Configurator Studio</p>
+                                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-0.5 opacity-80">{t('erp.product.studio')}</p>
                                 </div>
                                 <button
                                     onClick={() => triggerConfirm(
-                                        'Reset Configuration',
-                                        'Clear all settings and start over?',
+                                        t('erp.product.reset_title'),
+                                        t('erp.product.reset_desc'),
                                         () => {
                                             setConfigState({ datasetId: '', viewNames: [], name: '', description: '', image: '', imageFit: 'cover', configRules: [] });
-                                            addToast('Configuration Reset', 'info');
+                                            addToast(t('erp.product.reset_toast'), 'info');
                                         },
                                         'danger',
-                                        'Reset'
+                                        t('erp.product.reset_button')
                                     )}
                                     className="p-2 hover:bg-slate-100 text-slate-400 rounded-xl transition-all"
                                     title="Reset Config"
@@ -5201,7 +5201,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         <div className={`text-slate-400 group-hover:text-indigo-600 transition-colors`}>
                                             <Database size={16} />
                                         </div>
-                                        <span className="text-sm font-bold tracking-tight">1. Data Source</span>
+                                        <span className="text-sm font-bold tracking-tight">{t('erp.product.step_datasource')}</span>
                                     </div>
                                     {expandedSections['datasource'] ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
                                 </button>
@@ -5211,7 +5211,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         <div className="space-y-4">
                                             {/* Select Table */}
                                             <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Database</label>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('erp.product.label_database')}</label>
                                                 <div className="relative">
                                                     <select
                                                         value={configState.datasetId}
@@ -5221,7 +5221,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                         }}
                                                         className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 appearance-none cursor-pointer focus:ring-2 focus:ring-indigo-100 outline-none transition-all hover:border-slate-300"
                                                     >
-                                                        <option value="">Choose Dataset...</option>
+                                                        <option value="">{t('erp.product.choose_dataset')}</option>
                                                         {(savedDatasets || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                                                     </select>
                                                     <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -5230,12 +5230,12 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
                                             {/* Select View (Multi-select UI) */}
                                             <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filter Presets</label>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('erp.product.label_filter_presets')}</label>
                                                 <div className="flex flex-wrap gap-2 min-h-[40px]">
                                                     {!configState.datasetId ? (
-                                                        <span className="text-[11px] text-slate-300 italic py-1">Select a database first...</span>
+                                                        <span className="text-[11px] text-slate-300 italic py-1">{t('erp.product.select_db_first')}</span>
                                                     ) : availableViewsForDataset.length === 0 ? (
-                                                        <span className="text-[11px] text-slate-300 italic py-1">No views found</span>
+                                                        <span className="text-[11px] text-slate-300 italic py-1">{t('erp.product.no_views')}</span>
                                                     ) : (
                                                         (availableViewsForDataset || []).map(v => {
                                                             const isSelected = (configState.viewNames || []).includes(v.name);
@@ -5275,7 +5275,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         <div className={`text-slate-400 group-hover:text-indigo-600 transition-colors`}>
                                             <Layers size={16} />
                                         </div>
-                                        <span className="text-sm font-bold tracking-tight">2. Rule Engine</span>
+                                        <span className="text-sm font-bold tracking-tight">{t('erp.product.step_rule_engine')}</span>
                                     </div>
                                     {expandedSections['rules'] ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
                                 </button>
@@ -5287,7 +5287,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                 <div className="p-2 w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center mx-auto mb-2 text-slate-400">
                                                     <Database size={14} />
                                                 </div>
-                                                <p className="text-[10px] text-slate-400 font-medium">Please select a data source first</p>
+                                                <p className="text-[10px] text-slate-400 font-medium">{t('erp.product.select_ds_first')}</p>
                                             </div>
                                         ) : (
                                             <div className="space-y-6">
@@ -5295,7 +5295,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                 {/* Templates Library Header (Collapsible) */}
                                                 <div onClick={() => toggleSection('templates')} className="flex items-center gap-2 cursor-pointer mb-3 select-none group/tmpl opacity-70 hover:opacity-100 transition-opacity">
                                                     <LayoutTemplate size={12} className="text-slate-400" />
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide">Rule Templates</span>
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide">{t('erp.product.rule_templates')}</span>
                                                     <span className="bg-slate-100 text-slate-400 text-[9px] px-1.5 rounded-full font-bold">{savedRulePresets.length}</span>
                                                     <div className="h-px bg-slate-100 flex-1 ml-2"></div>
                                                     <ChevronDown size={12} className={`text-slate-300 transition-transform duration-200 ${expandedSections['templates'] ? 'rotate-180' : ''}`} />
@@ -5306,7 +5306,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                         {builderActiveRuleType === 'logic' ? (
                                                             <div className="grid grid-cols-2 gap-2">
                                                                 {savedRulePresets.filter(p => p.datasetId === configState.datasetId && (!p.rules[0] || p.rules[0].ruleType === 'logic')).length === 0 && (
-                                                                    <div className="col-span-2 text-[10px] text-slate-300 italic text-center py-2">No logic templates found</div>
+                                                                    <div className="col-span-2 text-[10px] text-slate-300 italic text-center py-2">{t('erp.product.no_templates')}</div>
                                                                 )}
                                                                 {savedRulePresets.filter(p => p.datasetId === configState.datasetId && (!p.rules[0] || p.rules[0].ruleType === 'logic')).map(preset => (
                                                                     <div
@@ -5315,7 +5315,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                         onClick={() => {
                                                                             const currentRuleSignatures = new Set((configState.configRules || []).map(r => JSON.stringify({ ...r, id: undefined })));
                                                                             const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
-                                                                            if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
+                                                                            if (newRules.length === 0) { addToast(t('erp.product.skipped_dup_rules'), 'info'); return; }
 
                                                                             const rulesWithIds = newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }));
                                                                             setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...rulesWithIds] }));
@@ -5328,7 +5328,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                             });
 
                                                                             setPreviewOverrides({});
-                                                                            addToast(`Added ${preset.name}`, 'success');
+                                                                            addToast(t('erp.product.added_preset').replace('{name}', preset.name), 'success');
                                                                         }}
                                                                     >
                                                                         <div className="flex items-center gap-2 overflow-hidden">
@@ -5338,7 +5338,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                         <button
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
-                                                                                triggerConfirm('Delete', `Delete "${preset.name}"?`, () => setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id)), 'danger', 'Confirm');
+                                                                                triggerConfirm(t('erp.product.delete_preset_title'), t('erp.product.delete_preset_desc').replace('{name}', preset.name), () => setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id)), 'danger', t('common.confirm'));
                                                                             }}
                                                                             className="text-slate-300 hover:text-red-400 opacity-0 group-hover/pill:opacity-100 p-0.5 transition-opacity"
                                                                         >
@@ -5350,7 +5350,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                         ) : (
                                                             <div className="grid grid-cols-2 gap-2">
                                                                 {savedRulePresets.filter(p => p.datasetId === configState.datasetId && p.rules[0]?.ruleType === 'mapping').length === 0 && (
-                                                                    <div className="col-span-2 text-[10px] text-slate-300 italic text-center py-2">No mapping templates found</div>
+                                                                    <div className="col-span-2 text-[10px] text-slate-300 italic text-center py-2">{t('erp.product.no_mapping_templates')}</div>
                                                                 )}
                                                                 {savedRulePresets.filter(p => p.datasetId === configState.datasetId && p.rules[0]?.ruleType === 'mapping').map(preset => (
                                                                     <div
@@ -5359,7 +5359,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                         onClick={() => {
                                                                             const currentRuleSignatures = new Set((configState.configRules || []).map(r => JSON.stringify({ ...r, id: undefined })));
                                                                             const newRules = preset.rules.filter(r => !currentRuleSignatures.has(JSON.stringify({ ...r, id: undefined })));
-                                                                            if (newRules.length === 0) { addToast('Skipped duplicate rules', 'info'); return; }
+                                                                            if (newRules.length === 0) { addToast(t('erp.product.skipped_dup_rules'), 'info'); return; }
 
                                                                             const rulesWithIds = newRules.map(r => ({ ...r, id: `rule_${Date.now()}_${Math.random()}` }));
                                                                             setConfigState(prev => ({ ...prev, configRules: [...(prev.configRules || []), ...rulesWithIds] }));
@@ -5372,7 +5372,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                             });
 
                                                                             setPreviewOverrides({});
-                                                                            addToast(`Added ${preset.name}`, 'success');
+                                                                            addToast(t('erp.product.added_preset').replace('{name}', preset.name), 'success');
                                                                         }}
                                                                     >
                                                                         <div className="flex items-center gap-2 overflow-hidden">
@@ -5382,7 +5382,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                         <button
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
-                                                                                triggerConfirm('Delete', `Delete "${preset.name}"?`, () => setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id)), 'danger', 'Confirm');
+                                                                                triggerConfirm(t('erp.product.delete_preset_title'), t('erp.product.delete_preset_desc').replace('{name}', preset.name), () => setSavedRulePresets(prev => prev.filter(p => p.id !== preset.id)), 'danger', t('common.confirm'));
                                                                             }}
                                                                             className="text-slate-300 hover:text-red-400 opacity-0 group-hover/pill:opacity-100 p-0.5 transition-opacity"
                                                                         >
@@ -5399,7 +5399,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                     <div className="space-y-1.5 px-0.5">
                                                         <div className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-2 mb-2 px-1">
                                                             <SlidersHorizontal size={10} />
-                                                            Active Rules Stack ({(configState.configRules || []).length})
+                                                            {t('erp.product.active_rules_stack')} ({(configState.configRules || []).length})
                                                         </div>
                                                         {(configState.configRules || []).map((rule) => {
                                                             const isExpanded = !!expandedRules[rule.id];
@@ -5435,14 +5435,14 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                 <div className="text-[11px] font-medium text-slate-600 truncate flex items-center gap-1.5">
                                                                                     {!isLogic ? (
                                                                                         <>
-                                                                                            <span>{rule.sourceField || 'Source'}</span>
+                                                                                            <span>{rule.sourceField || t('erp.product.source')}</span>
                                                                                             <ArrowRight size={10} className="text-slate-300" />
-                                                                                            <span>{rule.targetField || 'Target'}</span>
+                                                                                            <span>{rule.targetField || t('erp.product.target')}</span>
                                                                                         </>
                                                                                     ) : (
                                                                                         <>
-                                                                                            <span className="text-slate-400 italic text-[10px] pr-1">IF...</span>
-                                                                                            <span className="font-bold text-indigo-600">SET {rule.targetField}</span>
+                                                                                            <span className="text-slate-400 italic text-[10px] pr-1">{t('erp.product.logic_if')}...</span>
+                                                                                            <span className="font-bold text-indigo-600">{t('erp.product.logic_set')} {rule.targetField}</span>
                                                                                         </>
                                                                                     )}
                                                                                 </div>
@@ -5458,7 +5458,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                     setExpandedRules(prev => ({ ...prev, [rule.id]: true })); // Ensure expanded
                                                                                 }}
                                                                                 className="p-1 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded transition-all"
-                                                                                title="Edit Rule"
+                                                                                title={t('erp.product.edit_rule')}
                                                                             >
                                                                                 <Edit3 size={12} />
                                                                             </button>
@@ -5472,7 +5472,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                     setPreviewOverrides({});
                                                                                 }}
                                                                                 className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
-                                                                                title="Delete Rule"
+                                                                                title={t('erp.product.delete_rule')}
                                                                             >
                                                                                 <X size={12} />
                                                                             </button>
@@ -5495,11 +5495,11 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                             {!isLogic ? ( // Mapping
                                                                                 <div className="space-y-3">
                                                                                     <div className="flex items-center flex-wrap gap-1.5 text-[10px] leading-relaxed select-none">
-                                                                                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">WHEN</span>
+                                                                                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">{t('erp.product.when')}</span>
                                                                                         <span className="font-bold text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">{rule.sourceField}</span>
-                                                                                        <span className="text-slate-400">changes</span>
+                                                                                        <span className="text-slate-400">{t('erp.product.changes')}</span>
                                                                                         <ArrowRight size={10} className="text-slate-300" />
-                                                                                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">UPDATE</span>
+                                                                                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">{t('erp.product.update')}</span>
                                                                                         <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">{rule.targetField}</span>
                                                                                     </div>
 
@@ -5518,7 +5518,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                                         </div>
                                                                                                         {group.sourceRowId && (
                                                                                                             <span className="ml-auto text-[8px] bg-amber-50 text-amber-600 px-1 py-0.5 rounded border border-amber-100 flex items-center gap-1">
-                                                                                                                <MousePointerClick size={8} /> Pinned
+                                                                                                                <MousePointerClick size={8} /> {t('erp.product.pinned')}
                                                                                                             </span>
                                                                                                         )}
                                                                                                     </div>
@@ -5532,12 +5532,12 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                                                 </div>
                                                                                                             ))
                                                                                                         ) : (
-                                                                                                            <div className="p-2 text-center text-[10px] text-slate-400 italic">No mappings defined</div>
+                                                                                                            <div className="p-2 text-center text-[10px] text-slate-400 italic">{t('erp.product.no_mappings')}</div>
                                                                                                         )}
                                                                                                     </div>
                                                                                                     {(group.mappings?.length || 0) > 5 && (
                                                                                                         <div className="px-3 py-1.5 text-[9px] text-slate-400 bg-slate-50/50 border-t border-slate-100 text-center italic">
-                                                                                                            + {(group.mappings?.length || 0) - 5} more...
+                                                                                                            + {(group.mappings?.length || 0) - 5} {t('erp.product.more')}
                                                                                                         </div>
                                                                                                     )}
                                                                                                 </div>
@@ -5546,9 +5546,9 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                     ) : (
                                                                                         <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
                                                                                             <div className="grid grid-cols-[1fr,auto,1fr] gap-2 px-3 py-1.5 bg-slate-100/50 border-b border-slate-200 text-[9px] font-bold text-slate-500 uppercase">
-                                                                                                <div>Value</div>
+                                                                                                <div>{t('erp.product.value')}</div>
                                                                                                 <div></div>
-                                                                                                <div>Result</div>
+                                                                                                <div>{t('erp.product.result')}</div>
                                                                                             </div>
                                                                                             <div className="divide-y divide-slate-100">
                                                                                                 {(rule.mappings || []).length > 0 ? (
@@ -5560,12 +5560,12 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                                         </div>
                                                                                                     ))
                                                                                                 ) : (
-                                                                                                    <div className="p-3 text-center text-[10px] text-slate-400 italic">No mappings defined</div>
+                                                                                                    <div className="p-3 text-center text-[10px] text-slate-400 italic">{t('erp.product.no_mappings')}</div>
                                                                                                 )}
                                                                                             </div>
                                                                                             {(rule.mappings?.length || 0) > 5 && (
                                                                                                 <div className="px-3 py-1.5 text-[9px] text-slate-400 bg-slate-50/50 border-t border-slate-100 italic">
-                                                                                                    + {(rule.mappings?.length || 0) - 5} more mappings...
+                                                                                                    + {(rule.mappings?.length || 0) - 5} {t('erp.product.more_mappings')}
                                                                                                 </div>
                                                                                             )}
                                                                                         </div>
@@ -5574,7 +5574,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                     {rule.sourceRowId && (
                                                                                         <div className="flex justify-end">
                                                                                             <span className="bg-orange-50 text-orange-600 border border-orange-100 px-2 py-1 rounded-md text-[9px] font-bold uppercase flex items-center gap-1.5">
-                                                                                                <MousePointerClick size={10} /> Row #{rule.sourceRowId} Pinned
+                                                                                                <MousePointerClick size={10} /> {t('erp.product.row_pinned').replace('{row}', rule.sourceRowId)}
                                                                                             </span>
                                                                                         </div>
                                                                                     )}
@@ -5582,17 +5582,17 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                             ) : ( // Logic
                                                                                 <div className="space-y-3">
                                                                                     <div className="flex items-center flex-wrap gap-1.5 text-[10px]">
-                                                                                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">IF</span>
+                                                                                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">{t('erp.product.logic_if')}</span>
                                                                                         <div className="text-slate-600 font-mono text-[10px] bg-amber-50 px-2 py-1 rounded border border-amber-100">
                                                                                             {rule.conditions?.map((c: any) => `${c.fieldId} ${c.operator} ${c.value}`).join(rule.logic === 'OR' ? ' || ' : ' && ')}
                                                                                         </div>
                                                                                         <ArrowRight size={10} className="text-slate-300" />
-                                                                                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">SET</span>
+                                                                                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">{t('erp.product.logic_set')}</span>
                                                                                         <div className="font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">{rule.targetField}</div>
                                                                                     </div>
 
                                                                                     <div className="bg-slate-900 text-slate-50 font-mono text-[10px] p-2.5 rounded-lg border border-slate-800 shadow-inner">
-                                                                                        <div className="opacity-50 text-[8px] mb-1">EXPRESSION:</div>
+                                                                                        <div className="opacity-50 text-[8px] mb-1">{t('erp.product.expression')}</div>
                                                                                         = {rule.expression}
                                                                                     </div>
                                                                                 </div>
@@ -5608,7 +5608,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                     }}
                                                                                     className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-bold text-indigo-500 hover:bg-indigo-50 transition-colors"
                                                                                 >
-                                                                                    <Bookmark size={10} /> Save as Template
+                                                                                    <Bookmark size={10} /> {t('erp.product.save_template')}
                                                                                 </button>
                                                                             </div>
 
@@ -5623,19 +5623,19 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                             autoFocus
                                                                                             value={newPresetName}
                                                                                             onChange={e => setNewPresetName(e.target.value)}
-                                                                                            placeholder="Template Name..."
+                                                                                            placeholder={t('erp.product.placeholder_template_name')}
                                                                                             className="flex-1 border border-indigo-200 rounded px-2 py-1 outline-none ring-2 ring-indigo-100"
                                                                                         />
                                                                                         <button
                                                                                             onClick={() => {
                                                                                                 if (!newPresetName.trim()) return;
                                                                                                 setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name: newPresetName.trim(), rules: [rule], datasetId: configState.datasetId }]);
-                                                                                                addToast('Saved as Preset', 'success');
+                                                                                                addToast(t('erp.product.saved_as_preset'), 'success');
                                                                                                 setSavingRuleId(null);
                                                                                             }}
                                                                                             className="bg-indigo-600 text-white px-2 py-1 rounded font-bold hover:bg-indigo-700"
-                                                                                        >Save</button>
-                                                                                        <button onClick={() => setSavingRuleId(null)} className="px-2 text-slate-400 hover:text-slate-600">Cancel</button>
+                                                                                        >{t('common.save')}</button>
+                                                                                        <button onClick={() => setSavingRuleId(null)} className="px-2 text-slate-400 hover:text-slate-600">{t('common.cancel')}</button>
                                                                                     </div>
                                                                                 </div>
                                                                             )}
@@ -5660,11 +5660,11 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                             });
                                                             setEditingRuleId(null);
                                                             setPreviewOverrides({});
-                                                            addToast('Rule updated successfully', 'success');
+                                                            addToast(t('erp.product.rule_updated'), 'success');
                                                         }}
                                                         onEnableRowPicker={(cb) => {
                                                             setActiveRowPicker(() => cb);
-                                                            addToast('Please click a row in the Preview table', 'info');
+                                                            addToast(t('erp.product.click_row_preview'), 'info');
                                                         }}
                                                         onAdd={(rule) => {
                                                             const newId = `rule_${Date.now()}_${Math.random()}`;
@@ -5674,16 +5674,16 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                             });
                                                             setExpandedRules(prev => ({ ...prev, [newId]: true }));
                                                             setPreviewOverrides({});
-                                                            addToast('Rule added to stack', 'success');
+                                                            addToast(t('erp.product.rule_added'), 'success');
                                                         }}
                                                         onSaveAsPreset={(name, rules) => {
                                                             const exists = savedRulePresets.some(p => p.name === name);
                                                             if (exists) {
-                                                                addToast(`预设名称 "${name}" 已存在`, 'error');
+                                                                addToast(t('erp.product.preset_exists').replace('{name}', name), 'error');
                                                                 return;
                                                             }
                                                             setSavedRulePresets(prev => [...prev, { id: `preset_${Date.now()}`, name, rules, datasetId: configState.datasetId }]);
-                                                            addToast(`预设 "${name}" 已保存到库`, 'success');
+                                                            addToast(t('erp.product.preset_saved').replace('{name}', name), 'success');
                                                         }}
                                                         activeRuleType={builderActiveRuleType}
                                                         onRuleTypeChange={setBuilderActiveRuleType}
@@ -5705,7 +5705,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         <div className={`text-slate-400 group-hover:text-indigo-600 transition-colors`}>
                                             <Box size={16} />
                                         </div>
-                                        <span className="text-sm font-bold tracking-tight">3. Product Identity</span>
+                                        <span className="text-sm font-bold tracking-tight">{t('erp.product.step_identity')}</span>
                                     </div>
                                     {expandedSections['identity'] ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
                                 </button>
@@ -5715,27 +5715,27 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         <div className="space-y-4">
 
                                             <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Product Name</label>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('erp.product.name')}</label>
                                                 <input
                                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-100 outline-none transition-all hover:border-slate-300 placeholder:font-normal"
                                                     value={configState.name}
                                                     onChange={e => setConfigState({ ...configState, name: e.target.value })}
-                                                    placeholder="e.g. Solar Panel X500"
+                                                    placeholder={t('erp.product.placeholder_name')}
                                                 />
                                             </div>
 
                                             <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Brief Description</label>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('erp.product.label_desc')}</label>
                                                 <textarea
                                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 focus:ring-2 focus:ring-indigo-100 outline-none transition-all resize-none h-20 hover:border-slate-300 placeholder:font-normal"
                                                     value={configState.description}
                                                     onChange={e => setConfigState({ ...configState, description: e.target.value })}
-                                                    placeholder="Describe the product context..."
+                                                    placeholder={t('erp.product.placeholder_desc')}
                                                 />
                                             </div>
 
                                             <div className="relative group/field">
-                                                <div className="absolute left-3 top-2 text-[10px] font-black text-slate-500 uppercase tracking-tighter z-10">Product Image</div>
+                                                <div className="absolute left-3 top-2 text-[10px] font-black text-slate-500 uppercase tracking-tighter z-10">{t('erp.product.image')}</div>
                                                 <div className="w-full bg-slate-50 border-none rounded-xl px-3 pt-6 pb-3 space-y-3">
                                                     {/* Image Preview */}
                                                     {configState.image && (
@@ -5754,13 +5754,13 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                     {/* Fit Mode Selector */}
                                                     {configState.image && (
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Fit:</span>
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{t('erp.product.label_fit')}</span>
                                                             <div className="flex gap-1">
                                                                 {[
-                                                                    { value: 'cover', label: '填充', icon: 'Fill' },
-                                                                    { value: 'contain', label: '合适', icon: 'Fit' },
-                                                                    { value: 'fill', label: '拉伸', icon: 'Stretch' },
-                                                                    { value: 'tile', label: '平铺', icon: 'Tile' },
+                                                                    { value: 'cover', label: t('erp.product.fit_cover'), icon: 'Fill' },
+                                                                    { value: 'contain', label: t('erp.product.fit_contain'), icon: 'Fit' },
+                                                                    { value: 'fill', label: t('erp.product.fit_fill'), icon: 'Stretch' },
+                                                                    { value: 'tile', label: t('erp.product.fit_tile'), icon: 'Tile' },
                                                                 ].map(opt => (
                                                                     <button
                                                                         key={opt.value}
@@ -5782,11 +5782,11 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                         <input
                                                             value={configState.image}
                                                             onChange={e => setConfigState({ ...configState, image: e.target.value })}
-                                                            placeholder="Image URL..."
+                                                            placeholder={t('erp.product.placeholder_img_url')}
                                                             className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-mono text-slate-500 outline-none focus:ring-1 focus:ring-indigo-200"
                                                         />
                                                         <label className="text-[9px] text-indigo-500 font-bold cursor-pointer hover:underline flex items-center gap-1 px-2 py-1.5 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors">
-                                                            <Upload size={10} /> Upload
+                                                            <Upload size={10} /> {t('erp.product.upload')}
                                                             <input
                                                                 type="file"
                                                                 className="hidden"
