@@ -2599,7 +2599,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const [orderQuantity, setOrderQuantity] = useState<number>(1);
 
     // Naming Rules - Enhanced with custom variables
-    type NamingRuleType = 'project' | 'personnel' | 'custom' | 'date' | 'quantity' | 'separator' | 'counter' | 'variable';
+    type NamingRuleType = 'project' | 'personnel' | 'product' | 'custom' | 'date' | 'quantity' | 'separator' | 'counter' | 'variable';
     type NamingRule = { id: string; type: NamingRuleType; value: string; label?: string; variableId?: string; format?: string };
     type NamingVariable = { id: string; name: string; type: 'text' | 'select'; options: string[]; defaultValue: string };
 
@@ -4492,6 +4492,10 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                     // Use override if provided, otherwise use placeholder
                     if (overrides[rule.id]) return overrides[rule.id];
                     return 'User';
+                case 'product':
+                    // Auto-fill with current product name (from the product being ordered)
+                    const currentProduct = products.find(p => p.id === selectedProductId);
+                    return currentProduct?.name || 'UnknownProduct';
                 case 'date':
                     return new Date().toISOString().slice(0, 10);
                 case 'quantity':
@@ -6429,6 +6433,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                             <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">System Variables</h5>
                             <div className="flex flex-wrap gap-2">
                                 {[
+                                    { label: 'Product Name', type: 'product', value: 'product' },
                                     { label: 'Project Name', type: 'project', value: 'project' },
                                     { label: 'User Name', type: 'personnel', value: 'user' },
                                     { label: 'Date (YYYY-MM-DD)', type: 'date', value: 'date' },
