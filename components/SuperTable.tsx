@@ -2627,11 +2627,39 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const [newVariableOptions, setNewVariableOptions] = useState<string[]>([]);
     const [currentOptionInput, setCurrentOptionInput] = useState('');
 
+    // Naming Rule Library - Save and manage naming rule templates
+    type NamingRuleTemplate = {
+        id: string;
+        name: string;
+        rules: NamingRule[];
+        variables: NamingVariable[];
+        createdAt: number;
+    };
+    const [namingRuleLibrary, setNamingRuleLibrary] = useState<NamingRuleTemplate[]>(() => loadFromStorage('erp_naming_rule_library', []));
+    const [defaultNamingRuleId, setDefaultNamingRuleId] = useState<string | null>(() => loadFromStorage('erp_default_naming_rule', null));
+    const [isNamingBuilderCollapsed, setIsNamingBuilderCollapsed] = useState<boolean>(() => loadFromStorage('erp_naming_builder_collapsed', false));
+    const [newTemplateNameInput, setNewTemplateNameInput] = useState('');
+    const [isShowingLibrary, setIsShowingLibrary] = useState(false);
+
     // Persist naming settings
     useEffect(() => { window.localStorage.setItem('erp_naming_rules', JSON.stringify(namingRules)); }, [namingRules]);
     useEffect(() => { window.localStorage.setItem('erp_naming_variables', JSON.stringify(namingVariables)); }, [namingVariables]);
     useEffect(() => { window.localStorage.setItem('erp_naming_counter', JSON.stringify(namingCounter)); }, [namingCounter]);
     useEffect(() => { window.localStorage.setItem('erp_naming_interactive', JSON.stringify(namingInteractiveMode)); }, [namingInteractiveMode]);
+    useEffect(() => { window.localStorage.setItem('erp_naming_rule_library', JSON.stringify(namingRuleLibrary)); }, [namingRuleLibrary]);
+    useEffect(() => { window.localStorage.setItem('erp_default_naming_rule', JSON.stringify(defaultNamingRuleId)); }, [defaultNamingRuleId]);
+    useEffect(() => { window.localStorage.setItem('erp_naming_builder_collapsed', JSON.stringify(isNamingBuilderCollapsed)); }, [isNamingBuilderCollapsed]);
+
+    // Auto-load default naming rule template on component mount if current rules are empty
+    useEffect(() => {
+        if (namingRules.length === 0 && defaultNamingRuleId && namingRuleLibrary.length > 0) {
+            const defaultTemplate = namingRuleLibrary.find(t => t.id === defaultNamingRuleId);
+            if (defaultTemplate) {
+                setNamingRules(defaultTemplate.rules);
+                setNamingVariables(defaultTemplate.variables);
+            }
+        }
+    }, []); // Only run on mount
 
     // Load saved key configurations when product is selected
     useEffect(() => {
@@ -6220,12 +6248,31 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
                 {/* Naming Rules Section - Visual Builder */}
                 <section className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl shadow-slate-200/50">
-                    <div className="flex items-center justify-between mb-8">
+                    {/* Collapsible Header */}
+                    <div
+                        className="flex items-center justify-between cursor-pointer group"
+                        onClick={() => setIsNamingBuilderCollapsed(!isNamingBuilderCollapsed)}
+                    >
                         <h4 className="text-sm font-black text-rose-600 uppercase tracking-[0.2em] flex items-center gap-2">
                             <Tag size={14} /> Naming Rule Builder
+                            <ChevronDown
+                                size={16}
+                                className={`text-slate-400 transition-transform duration-300 ${isNamingBuilderCollapsed ? '-rotate-90' : ''}`}
+                            />
                         </h4>
 
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-4" onClick={(e) => e.stopPropagation()}>
+                            {/* Library Toggle Button */}
+                            <button
+                                onClick={() => setIsShowingLibrary(!isShowingLibrary)}
+                                className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 px-3 py-1.5 rounded-lg border transition-colors ${isShowingLibrary
+                                    ? 'bg-amber-100 text-amber-700 border-amber-200'
+                                    : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-amber-200 hover:text-amber-600'
+                                    }`}
+                            >
+                                <Bookmark size={12} /> 规则库
+                            </button>
+
                             {/* Interactive Export Mode Toggle */}
                             <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
                                 <span className={`text-[10px] font-bold uppercase tracking-wider transition-colors ${namingInteractiveMode ? 'text-indigo-600' : 'text-slate-400'}`}>
@@ -6256,244 +6303,358 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                         </div>
                     </div>
 
-                    {/* Inline Creator Workspace */}
-                    {isCreatingVariable && (
-                        <div className="mb-8 p-6 bg-indigo-50/50 rounded-3xl border border-indigo-100 animate-in zoom-in-95 duration-300">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest block pl-1">Variable Name</label>
-                                    <input
-                                        type="text"
-                                        value={newVariableName}
-                                        onChange={(e) => setNewVariableName(e.target.value)}
-                                        placeholder="e.g. Status, Phase, Model"
-                                        className="w-full bg-white border border-indigo-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
-                                    />
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest block pl-1">Add Options (Values)</label>
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            value={currentOptionInput}
-                                            onChange={(e) => setCurrentOptionInput(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter' && currentOptionInput.trim()) {
-                                                    setNewVariableOptions(prev => [...prev, currentOptionInput.trim()]);
-                                                    setCurrentOptionInput('');
-                                                }
-                                            }}
-                                            placeholder="Type and press Enter..."
-                                            className="flex-1 bg-white border border-indigo-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
-                                        />
+                    {/* Collapsible Content */}
+                    {!isNamingBuilderCollapsed && (
+                        <div className="mt-8 animate-in fade-in slide-in-from-top-2 duration-300">
+
+                            {/* Inline Creator Workspace */}
+                            {isCreatingVariable && (
+                                <div className="mb-8 p-6 bg-indigo-50/50 rounded-3xl border border-indigo-100 animate-in zoom-in-95 duration-300">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest block pl-1">Variable Name</label>
+                                            <input
+                                                type="text"
+                                                value={newVariableName}
+                                                onChange={(e) => setNewVariableName(e.target.value)}
+                                                placeholder="e.g. Status, Phase, Model"
+                                                className="w-full bg-white border border-indigo-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
+                                            />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest block pl-1">Add Options (Values)</label>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={currentOptionInput}
+                                                    onChange={(e) => setCurrentOptionInput(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && currentOptionInput.trim()) {
+                                                            setNewVariableOptions(prev => [...prev, currentOptionInput.trim()]);
+                                                            setCurrentOptionInput('');
+                                                        }
+                                                    }}
+                                                    placeholder="Type and press Enter..."
+                                                    className="flex-1 bg-white border border-indigo-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        if (currentOptionInput.trim()) {
+                                                            setNewVariableOptions(prev => [...prev, currentOptionInput.trim()]);
+                                                            setCurrentOptionInput('');
+                                                        }
+                                                    }}
+                                                    className="px-4 py-2 bg-indigo-500 text-white rounded-xl font-bold text-xs"
+                                                >Add</button>
+                                            </div>
+                                            {/* Option Tags */}
+                                            <div className="flex flex-wrap gap-2 mt-2">
+                                                {newVariableOptions.map((opt, i) => (
+                                                    <span key={i} className="flex items-center gap-1 bg-white border border-indigo-100 px-2 py-1 rounded-lg text-xs font-bold text-indigo-600">
+                                                        {opt}
+                                                        <button onClick={() => setNewVariableOptions(prev => prev.filter((_, idx) => idx !== i))}><X size={10} /></button>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-6 flex justify-end">
                                         <button
+                                            disabled={!newVariableName || newVariableOptions.length === 0}
                                             onClick={() => {
-                                                if (currentOptionInput.trim()) {
-                                                    setNewVariableOptions(prev => [...prev, currentOptionInput.trim()]);
-                                                    setCurrentOptionInput('');
-                                                }
+                                                setNamingVariables(prev => [...prev, {
+                                                    id: Date.now().toString(),
+                                                    name: newVariableName,
+                                                    type: 'select',
+                                                    options: newVariableOptions,
+                                                    defaultValue: newVariableOptions[0]
+                                                }]);
+                                                setIsCreatingVariable(false);
+                                                setNewVariableName('');
+                                                setNewVariableOptions([]);
                                             }}
-                                            className="px-4 py-2 bg-indigo-500 text-white rounded-xl font-bold text-xs"
-                                        >Add</button>
-                                    </div>
-                                    {/* Option Tags */}
-                                    <div className="flex flex-wrap gap-2 mt-2">
-                                        {newVariableOptions.map((opt, i) => (
-                                            <span key={i} className="flex items-center gap-1 bg-white border border-indigo-100 px-2 py-1 rounded-lg text-xs font-bold text-indigo-600">
-                                                {opt}
-                                                <button onClick={() => setNewVariableOptions(prev => prev.filter((_, idx) => idx !== i))}><X size={10} /></button>
-                                            </span>
-                                        ))}
+                                            className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+                                        >
+                                            Create Variable Library Item
+                                        </button>
                                     </div>
                                 </div>
+                            )}
+
+                            {/* Preview Area - Light Background */}
+                            <div className="mb-8 bg-gradient-to-r from-slate-50 to-indigo-50 rounded-2xl p-6 relative overflow-hidden group border border-slate-200">
+                                <div className="absolute top-0 right-0 p-4 opacity-20"><FileText className="text-indigo-600 w-12 h-12 rotate-12" /></div>
+                                <span className="text-[10px] uppercase font-bold text-slate-500 mb-2 block tracking-widest">Real-time Preview 实时预览</span>
+                                <div className="font-mono text-lg text-indigo-700 font-medium truncate">
+                                    {namingRules.length > 0 ? namingRules.map(r => {
+                                        if (r.type === 'project') return '[ProjectName]';
+                                        if (r.type === 'personnel') return '[User]';
+                                        if (r.type === 'date') return '2025-10-24';
+                                        if (r.type === 'quantity') return '100';
+                                        if (r.type === 'variable') return `[${r.label}]`;
+                                        return r.value;
+                                    }).join('') : 'Empty_Rule_Set'}.xlsx
+                                </div>
                             </div>
-                            <div className="mt-6 flex justify-end">
-                                <button
-                                    disabled={!newVariableName || newVariableOptions.length === 0}
-                                    onClick={() => {
-                                        setNamingVariables(prev => [...prev, {
-                                            id: Date.now().toString(),
-                                            name: newVariableName,
-                                            type: 'select',
-                                            options: newVariableOptions,
-                                            defaultValue: newVariableOptions[0]
-                                        }]);
-                                        setIsCreatingVariable(false);
-                                        setNewVariableName('');
-                                        setNewVariableOptions([]);
-                                    }}
-                                    className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
-                                >
-                                    Create Variable Library Item
-                                </button>
-                            </div>
-                        </div>
-                    )}
 
-                    {/* Preview Area */}
-                    <div className="mb-8 bg-slate-900 rounded-2xl p-6 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-4 opacity-50"><FileText className="text-white w-12 h-12 rotate-12" /></div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 mb-2 block tracking-widest">Real-time Preview</span>
-                        <div className="font-mono text-lg text-emerald-400 font-medium truncate">
-                            {namingRules.length > 0 ? namingRules.map(r => {
-                                if (r.type === 'project') return '[ProjectName]';
-                                if (r.type === 'personnel') return '[User]';
-                                if (r.type === 'date') return '2025-10-24';
-                                if (r.type === 'quantity') return '100';
-                                if (r.type === 'variable') return `[${r.label}]`;
-                                return r.value;
-                            }).join('') : 'Empty_Rule_Set'}.xlsx
-                        </div>
-                    </div>
+                            {/* Naming Rule Library Panel */}
+                            {isShowingLibrary && (
+                                <div className="mb-8 bg-amber-50/50 rounded-2xl border border-amber-200 p-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h5 className="text-sm font-bold text-amber-800 flex items-center gap-2">
+                                            <Bookmark size={14} /> 命名规则库 Naming Rule Library
+                                        </h5>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="text"
+                                                value={newTemplateNameInput}
+                                                onChange={(e) => setNewTemplateNameInput(e.target.value)}
+                                                placeholder="模板名称..."
+                                                className="px-3 py-1.5 text-xs border border-amber-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 w-40"
+                                            />
+                                            <button
+                                                onClick={() => {
+                                                    if (namingRules.length > 0 && newTemplateNameInput.trim()) {
+                                                        const newTemplate = {
+                                                            id: Date.now().toString(),
+                                                            name: newTemplateNameInput.trim(),
+                                                            rules: [...namingRules],
+                                                            variables: [...namingVariables],
+                                                            createdAt: Date.now()
+                                                        };
+                                                        setNamingRuleLibrary(prev => [...prev, newTemplate]);
+                                                        setNewTemplateNameInput('');
+                                                        addToast('规则模板已保存', 'success');
+                                                    }
+                                                }}
+                                                disabled={namingRules.length === 0 || !newTemplateNameInput.trim()}
+                                                className="px-3 py-1.5 text-xs font-bold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                            >
+                                                <Save size={12} /> 保存当前规则
+                                            </button>
+                                        </div>
+                                    </div>
 
-                    {/* Builder Canvas (Drop Zone) */}
-                    <div
-                        onDragOver={handleDragOver}
-                        onDrop={handleDrop}
-                        className="min-h-[120px] bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 p-6 flex flex-wrap gap-3 content-start transition-colors hover:border-indigo-300 hover:bg-slate-50/80"
-                    >
-                        {namingRules.length === 0 && (
-                            <div className="w-full h-full flex items-center justify-center text-slate-300 text-sm font-bold italic pointer-events-none">
-                                Drag capsules here to build your naming pattern...
-                            </div>
-                        )}
+                                    {/* Template List */}
+                                    {namingRuleLibrary.length === 0 ? (
+                                        <div className="text-center py-8 text-amber-400 text-sm italic">
+                                            暂无保存的规则模板，请先创建命名规则后保存
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {namingRuleLibrary.map(template => (
+                                                <div
+                                                    key={template.id}
+                                                    className={`flex items-center justify-between p-3 rounded-xl transition-all ${defaultNamingRuleId === template.id
+                                                        ? 'bg-amber-100 border-2 border-amber-400'
+                                                        : 'bg-white border border-amber-100 hover:border-amber-300'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        {defaultNamingRuleId === template.id && (
+                                                            <span className="flex items-center gap-1 text-[9px] font-black text-amber-600 bg-amber-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                                                <Star size={10} /> 默认
+                                                            </span>
+                                                        )}
+                                                        <span className="font-bold text-slate-700">{template.name}</span>
+                                                        <span className="text-[10px] text-slate-400">
+                                                            {template.rules.length} 条规则 · {new Date(template.createdAt).toLocaleDateString()}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {/* Set as Default */}
+                                                        <button
+                                                            onClick={() => setDefaultNamingRuleId(defaultNamingRuleId === template.id ? null : template.id)}
+                                                            className={`p-1.5 rounded-lg transition-colors ${defaultNamingRuleId === template.id
+                                                                ? 'text-amber-600 bg-amber-200'
+                                                                : 'text-slate-400 hover:text-amber-600 hover:bg-amber-100'
+                                                                }`}
+                                                            title={defaultNamingRuleId === template.id ? "取消默认" : "设为默认"}
+                                                        >
+                                                            <Star size={14} />
+                                                        </button>
+                                                        {/* Load Template */}
+                                                        <button
+                                                            onClick={() => {
+                                                                setNamingRules(template.rules);
+                                                                setNamingVariables(template.variables);
+                                                                addToast('已加载规则模板', 'success');
+                                                            }}
+                                                            className="px-3 py-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                                                        >
+                                                            加载
+                                                        </button>
+                                                        {/* Delete Template */}
+                                                        <button
+                                                            onClick={() => {
+                                                                setNamingRuleLibrary(prev => prev.filter(t => t.id !== template.id));
+                                                                if (defaultNamingRuleId === template.id) {
+                                                                    setDefaultNamingRuleId(null);
+                                                                }
+                                                                addToast('规则模板已删除', 'info');
+                                                            }}
+                                                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
-                        {namingRules.map((rule, idx) => {
-                            const variableDefinition = rule.type === 'variable' ? namingVariables.find(v => v.id === rule.variableId) : null;
+                            {/* Builder Canvas (Drop Zone) */}
+                            <div
+                                onDragOver={handleDragOver}
+                                onDrop={handleDrop}
+                                className="min-h-[120px] bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 p-6 flex flex-wrap gap-3 content-start transition-colors hover:border-indigo-300 hover:bg-slate-50/80"
+                            >
+                                {namingRules.length === 0 && (
+                                    <div className="w-full h-full flex items-center justify-center text-slate-300 text-sm font-bold italic pointer-events-none">
+                                        Drag capsules here to build your naming pattern...
+                                    </div>
+                                )}
 
-                            return (
-                                <div
-                                    key={rule.id}
-                                    draggable
-                                    onDragStart={(e) => handleDragStart(e, rule.type, rule.value, rule.label || '', rule.variableId, idx)}
-                                    onDragOver={handleDragOver}
-                                    onDrop={(e) => handleDrop(e, idx)}
-                                    className={`
+                                {namingRules.map((rule, idx) => {
+                                    const variableDefinition = rule.type === 'variable' ? namingVariables.find(v => v.id === rule.variableId) : null;
+
+                                    return (
+                                        <div
+                                            key={rule.id}
+                                            draggable
+                                            onDragStart={(e) => handleDragStart(e, rule.type, rule.value, rule.label || '', rule.variableId, idx)}
+                                            onDragOver={handleDragOver}
+                                            onDrop={(e) => handleDrop(e, idx)}
+                                            className={`
                                         group relative flex items-center pl-3 pr-2 py-1.5 rounded-full text-xs font-bold animate-in zoom-in-95 cursor-grab active:cursor-grabbing border shadow-sm select-none
                                         ${rule.type === 'separator' ? 'bg-white text-slate-600 border-slate-300' :
-                                            rule.type === 'variable' ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                                                'bg-indigo-100 text-indigo-700 border-indigo-200'}
+                                                    rule.type === 'variable' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                                                        'bg-indigo-100 text-indigo-700 border-indigo-200'}
                                         hover:border-indigo-400 hover:ring-2 hover:ring-indigo-400/20 transition-all
                                         [&.dragging-over-left]:border-l-4 [&.dragging-over-left]:border-l-indigo-500
                                         [&.dragging-over-right]:border-r-4 [&.dragging-over-right]:border-r-indigo-500
                                     `}
-                                    onDragEnter={(e) => {
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        const isRight = e.clientX > rect.left + rect.width / 2;
-                                        e.currentTarget.classList.add(isRight ? 'dragging-over-right' : 'dragging-over-left');
-                                    }}
-                                    onDragLeave={(e) => {
-                                        e.currentTarget.classList.remove('dragging-over-left', 'dragging-over-right');
-                                    }}
-                                    onDragOverCapture={(e) => {
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        const isRight = e.clientX > rect.left + rect.width / 2;
-                                        e.currentTarget.classList.toggle('dragging-over-left', !isRight);
-                                        e.currentTarget.classList.toggle('dragging-over-right', isRight);
-                                    }}
-                                >
-                                    <span className="mr-2 flex items-center gap-1.5">
-                                        {rule.type === 'separator' ? rule.value : `{${rule.label}}`}
-                                        {variableDefinition && variableDefinition.type === 'select' && (
-                                            <select
-                                                className="bg-purple-50 border-none text-[10px] font-black text-purple-800 focus:ring-0 cursor-pointer p-0 h-4 rounded"
-                                                value={rule.value}
-                                                onChange={(e) => {
-                                                    const newVal = e.target.value;
-                                                    setNamingRules(prev => prev.map(r => r.id === rule.id ? { ...r, value: newVal } : r));
-                                                }}
-                                            >
-                                                {variableDefinition.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                            </select>
-                                        )}
-                                        {variableDefinition && variableDefinition.type === 'text' && (
-                                            <input
-                                                className="bg-transparent border-b border-purple-300 w-16 text-[10px] focus:outline-none focus:border-purple-500 placeholder-purple-300"
-                                                value={rule.value}
-                                                placeholder="Value..."
-                                                onChange={(e) => {
-                                                    const newVal = e.target.value;
-                                                    setNamingRules(prev => prev.map(r => r.id === rule.id ? { ...r, value: newVal } : r));
-                                                }}
-                                            />
-                                        )}
-                                    </span>
-                                    <button onClick={() => removeRule(rule.id)} className="p-0.5 rounded-full hover:bg-black/10 transition-colors">
-                                        <X size={10} />
-                                    </button>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* Component Library */}
-                    <div className="mt-8 space-y-6">
-                        {/* System Variables */}
-                        <div>
-                            <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">System Variables</h5>
-                            <div className="flex flex-wrap gap-2">
-                                {[
-                                    { label: 'Product Name', type: 'product', value: 'product' },
-                                    { label: 'Project Name', type: 'project', value: 'project' },
-                                    { label: 'User Name', type: 'personnel', value: 'user' },
-                                    { label: 'Date (YYYY-MM-DD)', type: 'date', value: 'date' },
-                                    { label: 'Order Qty', type: 'quantity', value: 'qty' }
-                                ].map((item, i) => (
-                                    <div
-                                        key={i}
-                                        draggable
-                                        onDragStart={(e) => handleDragStart(e, item.type as any, item.value, item.label)}
-                                        className="bg-white border border-slate-200 px-3 py-1.5 rounded-full text-xs font-bold text-slate-600 shadow-sm cursor-grab hover:border-indigo-400 hover:text-indigo-600 transition-all select-none flex items-center gap-1.5"
-                                    >
-                                        <Bot size={12} className="text-indigo-400" />
-                                        {item.label}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Custom Variables */}
-                        <div>
-                            <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">Custom Lists</h5>
-                            <div className="flex flex-wrap gap-2">
-                                {namingVariables.length === 0 && <span className="text-xs text-slate-300 italic pl-1">No custom lists created yet.</span>}
-                                {namingVariables.map(v => (
-                                    <div
-                                        key={v.id}
-                                        draggable
-                                        onDragStart={(e) => handleDragStart(e, 'variable', v.defaultValue, v.name, v.id)}
-                                        className="bg-purple-50 border border-purple-100 px-3 py-1.5 rounded-full text-xs font-bold text-purple-600 shadow-sm cursor-grab hover:border-purple-300 transition-all select-none flex items-center gap-1.5 group"
-                                    >
-                                        <List size={12} className="text-purple-400" />
-                                        {v.name}
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setNamingVariables(prev => prev.filter(p => p.id !== v.id)); }}
-                                            className="ml-1 text-purple-300 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onDragEnter={(e) => {
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                const isRight = e.clientX > rect.left + rect.width / 2;
+                                                e.currentTarget.classList.add(isRight ? 'dragging-over-right' : 'dragging-over-left');
+                                            }}
+                                            onDragLeave={(e) => {
+                                                e.currentTarget.classList.remove('dragging-over-left', 'dragging-over-right');
+                                            }}
+                                            onDragOverCapture={(e) => {
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                const isRight = e.clientX > rect.left + rect.width / 2;
+                                                e.currentTarget.classList.toggle('dragging-over-left', !isRight);
+                                                e.currentTarget.classList.toggle('dragging-over-right', isRight);
+                                            }}
                                         >
-                                            <X size={10} />
-                                        </button>
-                                    </div>
-                                ))}
+                                            <span className="mr-2 flex items-center gap-1.5">
+                                                {rule.type === 'separator' ? rule.value : `{${rule.label}}`}
+                                                {variableDefinition && variableDefinition.type === 'select' && (
+                                                    <select
+                                                        className="bg-purple-50 border-none text-[10px] font-black text-purple-800 focus:ring-0 cursor-pointer p-0 h-4 rounded"
+                                                        value={rule.value}
+                                                        onChange={(e) => {
+                                                            const newVal = e.target.value;
+                                                            setNamingRules(prev => prev.map(r => r.id === rule.id ? { ...r, value: newVal } : r));
+                                                        }}
+                                                    >
+                                                        {variableDefinition.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                    </select>
+                                                )}
+                                                {variableDefinition && variableDefinition.type === 'text' && (
+                                                    <input
+                                                        className="bg-transparent border-b border-purple-300 w-16 text-[10px] focus:outline-none focus:border-purple-500 placeholder-purple-300"
+                                                        value={rule.value}
+                                                        placeholder="Value..."
+                                                        onChange={(e) => {
+                                                            const newVal = e.target.value;
+                                                            setNamingRules(prev => prev.map(r => r.id === rule.id ? { ...r, value: newVal } : r));
+                                                        }}
+                                                    />
+                                                )}
+                                            </span>
+                                            <button onClick={() => removeRule(rule.id)} className="p-0.5 rounded-full hover:bg-black/10 transition-colors">
+                                                <X size={10} />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        </div>
 
-                        {/* Separators */}
-                        <div>
-                            <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">Separators</h5>
-                            <div className="flex flex-wrap gap-2">
-                                {['_', '-', '.', '+', 'Space'].map((sep, i) => (
-                                    <div
-                                        key={i}
-                                        draggable
-                                        onDragStart={(e) => handleDragStart(e, 'separator', sep === 'Space' ? ' ' : sep, sep === 'Space' ? '__' : sep)}
-                                        className="bg-slate-100 border border-slate-200 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-slate-600 hover:bg-slate-200 cursor-grab select-none"
-                                    >
-                                        {sep === 'Space' ? '␣' : sep}
+                            {/* Component Library */}
+                            <div className="mt-8 space-y-6">
+                                {/* System Variables */}
+                                <div>
+                                    <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">System Variables</h5>
+                                    <div className="flex flex-wrap gap-2">
+                                        {[
+                                            { label: 'Product Name', type: 'product', value: 'product' },
+                                            { label: 'Project Name', type: 'project', value: 'project' },
+                                            { label: 'User Name', type: 'personnel', value: 'user' },
+                                            { label: 'Date (YYYY-MM-DD)', type: 'date', value: 'date' },
+                                            { label: 'Order Qty', type: 'quantity', value: 'qty' }
+                                        ].map((item, i) => (
+                                            <div
+                                                key={i}
+                                                draggable
+                                                onDragStart={(e) => handleDragStart(e, item.type as any, item.value, item.label)}
+                                                className="bg-white border border-slate-200 px-3 py-1.5 rounded-full text-xs font-bold text-slate-600 shadow-sm cursor-grab hover:border-indigo-400 hover:text-indigo-600 transition-all select-none flex items-center gap-1.5"
+                                            >
+                                                <Bot size={12} className="text-indigo-400" />
+                                                {item.label}
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
+                                </div>
+
+                                {/* Custom Variables */}
+                                <div>
+                                    <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">Custom Lists</h5>
+                                    <div className="flex flex-wrap gap-2">
+                                        {namingVariables.length === 0 && <span className="text-xs text-slate-300 italic pl-1">No custom lists created yet.</span>}
+                                        {namingVariables.map(v => (
+                                            <div
+                                                key={v.id}
+                                                draggable
+                                                onDragStart={(e) => handleDragStart(e, 'variable', v.defaultValue, v.name, v.id)}
+                                                className="bg-purple-50 border border-purple-100 px-3 py-1.5 rounded-full text-xs font-bold text-purple-600 shadow-sm cursor-grab hover:border-purple-300 transition-all select-none flex items-center gap-1.5 group"
+                                            >
+                                                <List size={12} className="text-purple-400" />
+                                                {v.name}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setNamingVariables(prev => prev.filter(p => p.id !== v.id)); }}
+                                                    className="ml-1 text-purple-300 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <X size={10} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Separators */}
+                                <div>
+                                    <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">Separators</h5>
+                                    <div className="flex flex-wrap gap-2">
+                                        {['_', '-', '.', '+', 'Space'].map((sep, i) => (
+                                            <div
+                                                key={i}
+                                                draggable
+                                                onDragStart={(e) => handleDragStart(e, 'separator', sep === 'Space' ? ' ' : sep, sep === 'Space' ? '__' : sep)}
+                                                className="bg-slate-100 border border-slate-200 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-slate-600 hover:bg-slate-200 cursor-grab select-none"
+                                            >
+                                                {sep === 'Space' ? '␣' : sep}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </section>
             </div>
 
