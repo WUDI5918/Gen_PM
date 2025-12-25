@@ -2598,12 +2598,40 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const [editingRuleTab, setEditingRuleTab] = useState<{ index: number, value: string } | null>(null);
     const [orderQuantity, setOrderQuantity] = useState<number>(1);
 
-    // Settings State for Data & Naming
-    // Local naming rules persistence
-    const [namingRules, setNamingRules] = useState<{ id: string, type: 'project' | 'personnel' | 'custom' | 'date', value: string, label?: string }[]>(() => loadFromStorage('erp_naming_rules', []));
+    // Naming Rules - Enhanced with custom variables
+    type NamingRuleType = 'project' | 'personnel' | 'custom' | 'date' | 'quantity' | 'separator' | 'counter' | 'variable';
+    type NamingRule = { id: string; type: NamingRuleType; value: string; label?: string; variableId?: string; format?: string };
+    type NamingVariable = { id: string; name: string; type: 'text' | 'select'; options: string[]; defaultValue: string };
 
-    // Persist new settings (only naming rules needs local persistence as projects/team are from props)
+    const [namingRules, setNamingRules] = useState<NamingRule[]>(() => loadFromStorage('erp_naming_rules', []));
+    const [namingVariables, setNamingVariables] = useState<NamingVariable[]>(() => loadFromStorage('erp_naming_variables', []));
+    const [namingCounter, setNamingCounter] = useState(() => loadFromStorage('erp_naming_counter', 1));
+    const [namingInteractiveMode, setNamingInteractiveMode] = useState<boolean>(() => loadFromStorage('erp_naming_interactive', false));
+
+    // UI state for Export Naming Dialog
+    const [exportNamingDialog, setExportNamingDialog] = useState<{
+        open: boolean;
+        variableOverrides: Record<string, string>;
+        exportParams: {
+            datasetId: string;
+            viewNames: string[];
+            hiddenFields: string[];
+            configRules: any[];
+            quantityMultiplier: number;
+        } | null;
+    }>({ open: false, variableOverrides: {}, exportParams: null });
+
+    // UI state for inline variable creator
+    const [isCreatingVariable, setIsCreatingVariable] = useState(false);
+    const [newVariableName, setNewVariableName] = useState('');
+    const [newVariableOptions, setNewVariableOptions] = useState<string[]>([]);
+    const [currentOptionInput, setCurrentOptionInput] = useState('');
+
+    // Persist naming settings
     useEffect(() => { window.localStorage.setItem('erp_naming_rules', JSON.stringify(namingRules)); }, [namingRules]);
+    useEffect(() => { window.localStorage.setItem('erp_naming_variables', JSON.stringify(namingVariables)); }, [namingVariables]);
+    useEffect(() => { window.localStorage.setItem('erp_naming_counter', JSON.stringify(namingCounter)); }, [namingCounter]);
+    useEffect(() => { window.localStorage.setItem('erp_naming_interactive', JSON.stringify(namingInteractiveMode)); }, [namingInteractiveMode]);
 
     // Load saved key configurations when product is selected
     useEffect(() => {
@@ -4448,12 +4476,48 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         return { processedRecords, filteredRecords: filtered, displayFields, dataset };
     };
 
-    const handleExportBOM = (
+    // --- Export BOM with Interactive Naming Support ---
+    const generateFilename = (overrides: Record<string, string> = {}, quantityMultiplier: number = 1) => {
+        if (namingRules.length === 0) {
+            return `BOM_Export_${new Date().toISOString().slice(0, 10)}`;
+        }
+        return namingRules.map(rule => {
+            switch (rule.type) {
+                case 'project':
+                    // Use override if provided, otherwise use default
+                    if (overrides[rule.id]) return overrides[rule.id];
+                    const activeProject = activeProjects.find(p => p.id === selectedProductId);
+                    return activeProject?.info.name || 'UnknownProject';
+                case 'personnel':
+                    // Use override if provided, otherwise use placeholder
+                    if (overrides[rule.id]) return overrides[rule.id];
+                    return 'User';
+                case 'date':
+                    return new Date().toISOString().slice(0, 10);
+                case 'quantity':
+                    return String(quantityMultiplier);
+                case 'separator':
+                    return rule.value;
+                case 'variable':
+                    // Use override if provided, otherwise use rule's current value
+                    return overrides[rule.id] || rule.value || rule.label || 'Var';
+                case 'counter':
+                    return String(namingCounter).padStart(3, '0');
+                case 'custom':
+                    return rule.value;
+                default:
+                    return rule.value;
+            }
+        }).join('');
+    };
+
+    const executeExport = (
         datasetId: string,
         viewNames: string[],
         hiddenFields: string[],
         configRules: any[],
-        quantityMultiplier: number
+        quantityMultiplier: number,
+        variableOverrides: Record<string, string> = {}
     ) => {
         const data = getProcessedBOMData(datasetId, viewNames, hiddenFields, configRules);
         if (!data) return;
@@ -4467,7 +4531,6 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 if (isMultiplierTarget && !isNaN(Number(val))) {
                     val = Number(val) * quantityMultiplier;
                 }
-                // Try to render object values as string if needed
                 const headerName = f.label || f.name || f.id;
                 row[headerName] = (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
             });
@@ -4477,7 +4540,58 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         const ws = utils.json_to_sheet(exportBytes);
         const wb = utils.book_new();
         utils.book_append_sheet(wb, ws, "BOM Architecture");
-        writeFile(wb, `BOM_Export_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        const filename = generateFilename(variableOverrides, quantityMultiplier);
+        writeFile(wb, `${filename}.xlsx`);
+    };
+
+    const handleExportBOM = (
+        datasetId: string,
+        viewNames: string[],
+        hiddenFields: string[],
+        configRules: any[],
+        quantityMultiplier: number
+    ) => {
+        // Check for rules that need user selection (system + custom variables)
+        const interactiveRuleTypes = ['project', 'personnel', 'variable'];
+        const interactiveRules = namingRules.filter(r => interactiveRuleTypes.includes(r.type));
+
+        console.log('[Export Intercept]', {
+            namingInteractiveMode,
+            interactiveRulesCount: interactiveRules.length,
+            namingRulesCount: namingRules.length,
+            interactiveRules
+        });
+
+        // Interceptor: If interactive mode is ON and there are selectable placeholders
+        if (namingInteractiveMode && interactiveRules.length > 0) {
+            // Initialize overrides with current default values
+            const initialOverrides: Record<string, string> = {};
+            interactiveRules.forEach(r => {
+                if (r.type === 'variable') {
+                    const varDef = namingVariables.find(v => v.id === r.variableId);
+                    initialOverrides[r.id] = r.value || varDef?.defaultValue || '';
+                } else if (r.type === 'project') {
+                    // Default to current product's project or first project
+                    const currentProject = activeProjects.find(p => p.id === selectedProductId);
+                    initialOverrides[r.id] = currentProject?.info.name || activeProjects[0]?.info.name || '';
+                } else if (r.type === 'personnel') {
+                    // Default to first team member
+                    initialOverrides[r.id] = activeTeamMembers[0]?.name || '';
+                }
+            });
+
+            // Open dialog and store export params for later execution
+            setExportNamingDialog({
+                open: true,
+                variableOverrides: initialOverrides,
+                exportParams: { datasetId, viewNames, hiddenFields, configRules, quantityMultiplier }
+            });
+
+            return; // Stop here - dialog will handle the rest
+        }
+
+        // Direct export: either interactive mode is OFF or no interactive rules exist
+        executeExport(datasetId, viewNames, hiddenFields, configRules, quantityMultiplier);
     };
 
     const renderBOMTable = (
@@ -5981,6 +6095,52 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         addToast('System Data Exported Successfully', 'success');
     };
 
+
+
+    // --- Naming Builder Handlers ---
+    const handleDragStart = (e: React.DragEvent, type: NamingRuleType, value: string, label: string, variableId?: string, fromIndex?: number) => {
+        e.dataTransfer.setData('application/json', JSON.stringify({ type, value, label, variableId, fromIndex }));
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleDrop = (e: React.DragEvent, targetIndex?: number) => {
+        e.preventDefault();
+        e.stopPropagation(); // Prevent bubbling to the canvas if dropping on a specific capsule
+        const data = e.dataTransfer.getData('application/json');
+        if (!data) return;
+        const item = JSON.parse(data);
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        const isRightSide = e.clientX > rect.left + rect.width / 2;
+
+        setNamingRules(prev => {
+            const newRules = [...prev];
+            // Determine where to insert based on side detection
+            let insertIdx = targetIndex !== undefined ? (isRightSide ? targetIndex + 1 : targetIndex) : newRules.length;
+
+            if (item.fromIndex !== undefined) {
+                // Internal Move (Reordering)
+                const movedItem = newRules[item.fromIndex];
+                newRules.splice(item.fromIndex, 1);
+                // Adjust if moving from before the insertion point
+                if (item.fromIndex < insertIdx) insertIdx--;
+                newRules.splice(insertIdx, 0, movedItem);
+            } else {
+                // External Add from Library
+                newRules.splice(insertIdx, 0, { id: Date.now().toString(), ...item });
+            }
+            return newRules;
+        });
+    };
+
+    const removeRule = (id: string) => {
+        setNamingRules(prev => prev.filter(r => r.id !== id));
+    };
+
     const handleImportSystemData = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -6054,225 +6214,398 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                     </div>
                 </section>
 
-                {/* Naming Rules Section */}
+                {/* Naming Rules Section - Visual Builder */}
                 <section className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl shadow-slate-200/50">
-                    <h4 className="text-sm font-black text-rose-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
-                        <FileText size={14} /> Export Files Naming Rule
-                    </h4>
+                    <div className="flex items-center justify-between mb-8">
+                        <h4 className="text-sm font-black text-rose-600 uppercase tracking-[0.2em] flex items-center gap-2">
+                            <Tag size={14} /> Naming Rule Builder
+                        </h4>
 
-                    <div className="space-y-6">
-                        <div className="flex flex-wrap gap-2 items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 min-h-[60px]">
-                            {namingRules.length === 0 && <span className="text-slate-400 text-sm italic">No rules defined. Default formatting will be used.</span>}
-                            {namingRules.map((rule, index) => (
-                                <div key={rule.id} className="group relative flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-200 text-sm font-bold text-slate-700 animate-in zoom-in-95">
-                                    <span className="text-[10px] uppercase font-extrabold text-slate-300 tracking-wider select-none">{rule.type}</span>
-                                    {rule.type === 'custom' ? (
-                                        <span className="text-indigo-600">"{rule.value}"</span>
-                                    ) : (
-                                        <span className="text-slate-900">{rule.value || '(Empty)'}</span>
-                                    )}
+                        <div className="flex items-center gap-4">
+                            {/* Interactive Export Mode Toggle */}
+                            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                                <span className={`text-[10px] font-bold uppercase tracking-wider transition-colors ${namingInteractiveMode ? 'text-indigo-600' : 'text-slate-400'}`}>
+                                    导出时完善命名
+                                </span>
+                                <button
+                                    onClick={() => setNamingInteractiveMode(!namingInteractiveMode)}
+                                    className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${namingInteractiveMode ? 'bg-indigo-500' : 'bg-slate-300'}`}
+                                >
+                                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${namingInteractiveMode ? 'translate-x-4' : 'translate-x-0'}`} />
+                                </button>
+                            </div>
 
-                                    {/* Edit Controls */}
-                                    <div className="absolute -top-2 -right-2 hidden group-hover:flex gap-1 z-10">
-                                        <button
-                                            onClick={() => {
-                                                const newRules = [...namingRules];
-                                                if (index > 0) {
-                                                    [newRules[index - 1], newRules[index]] = [newRules[index], newRules[index - 1]];
-                                                    setNamingRules(newRules);
+                            {/* Inline Variable Creator Toggle */}
+                            {!isCreatingVariable ? (
+                                <button
+                                    onClick={() => setIsCreatingVariable(true)}
+                                    className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 uppercase tracking-wider flex items-center gap-1 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 transition-colors"
+                                >
+                                    <Plus size={12} /> New List Variable
+                                </button>
+                            ) : (
+                                <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right-4 duration-300">
+                                    <button onClick={() => { setIsCreatingVariable(false); setNewVariableName(''); setNewVariableOptions([]); }} className="text-slate-400 hover:text-slate-600"><X size={14} /></button>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">New Variable</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Inline Creator Workspace */}
+                    {isCreatingVariable && (
+                        <div className="mb-8 p-6 bg-indigo-50/50 rounded-3xl border border-indigo-100 animate-in zoom-in-95 duration-300">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest block pl-1">Variable Name</label>
+                                    <input
+                                        type="text"
+                                        value={newVariableName}
+                                        onChange={(e) => setNewVariableName(e.target.value)}
+                                        placeholder="e.g. Status, Phase, Model"
+                                        className="w-full bg-white border border-indigo-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
+                                    />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest block pl-1">Add Options (Values)</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={currentOptionInput}
+                                            onChange={(e) => setCurrentOptionInput(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && currentOptionInput.trim()) {
+                                                    setNewVariableOptions(prev => [...prev, currentOptionInput.trim()]);
+                                                    setCurrentOptionInput('');
                                                 }
                                             }}
-                                            className="p-1.5 bg-slate-800 text-white rounded-full hover:bg-indigo-600 shadow-sm"
-                                            title="Move Left"
-                                        >
-                                            <ChevronLeft size={10} />
-                                        </button>
+                                            placeholder="Type and press Enter..."
+                                            className="flex-1 bg-white border border-indigo-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
+                                        />
                                         <button
-                                            onClick={() => setNamingRules(prev => prev.filter(r => r.id !== rule.id))}
-                                            className="p-1.5 bg-rose-500 text-white rounded-full hover:bg-rose-600 shadow-sm"
-                                            title="Remove"
+                                            onClick={() => {
+                                                if (currentOptionInput.trim()) {
+                                                    setNewVariableOptions(prev => [...prev, currentOptionInput.trim()]);
+                                                    setCurrentOptionInput('');
+                                                }
+                                            }}
+                                            className="px-4 py-2 bg-indigo-500 text-white rounded-xl font-bold text-xs"
+                                        >Add</button>
+                                    </div>
+                                    {/* Option Tags */}
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        {newVariableOptions.map((opt, i) => (
+                                            <span key={i} className="flex items-center gap-1 bg-white border border-indigo-100 px-2 py-1 rounded-lg text-xs font-bold text-indigo-600">
+                                                {opt}
+                                                <button onClick={() => setNewVariableOptions(prev => prev.filter((_, idx) => idx !== i))}><X size={10} /></button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="mt-6 flex justify-end">
+                                <button
+                                    disabled={!newVariableName || newVariableOptions.length === 0}
+                                    onClick={() => {
+                                        setNamingVariables(prev => [...prev, {
+                                            id: Date.now().toString(),
+                                            name: newVariableName,
+                                            type: 'select',
+                                            options: newVariableOptions,
+                                            defaultValue: newVariableOptions[0]
+                                        }]);
+                                        setIsCreatingVariable(false);
+                                        setNewVariableName('');
+                                        setNewVariableOptions([]);
+                                    }}
+                                    className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+                                >
+                                    Create Variable Library Item
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Preview Area */}
+                    <div className="mb-8 bg-slate-900 rounded-2xl p-6 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-4 opacity-50"><FileText className="text-white w-12 h-12 rotate-12" /></div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 mb-2 block tracking-widest">Real-time Preview</span>
+                        <div className="font-mono text-lg text-emerald-400 font-medium truncate">
+                            {namingRules.length > 0 ? namingRules.map(r => {
+                                if (r.type === 'project') return '[ProjectName]';
+                                if (r.type === 'personnel') return '[User]';
+                                if (r.type === 'date') return '2025-10-24';
+                                if (r.type === 'quantity') return '100';
+                                if (r.type === 'variable') return `[${r.label}]`;
+                                return r.value;
+                            }).join('') : 'Empty_Rule_Set'}.xlsx
+                        </div>
+                    </div>
+
+                    {/* Builder Canvas (Drop Zone) */}
+                    <div
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
+                        className="min-h-[120px] bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 p-6 flex flex-wrap gap-3 content-start transition-colors hover:border-indigo-300 hover:bg-slate-50/80"
+                    >
+                        {namingRules.length === 0 && (
+                            <div className="w-full h-full flex items-center justify-center text-slate-300 text-sm font-bold italic pointer-events-none">
+                                Drag capsules here to build your naming pattern...
+                            </div>
+                        )}
+
+                        {namingRules.map((rule, idx) => {
+                            const variableDefinition = rule.type === 'variable' ? namingVariables.find(v => v.id === rule.variableId) : null;
+
+                            return (
+                                <div
+                                    key={rule.id}
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, rule.type, rule.value, rule.label || '', rule.variableId, idx)}
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDrop(e, idx)}
+                                    className={`
+                                        group relative flex items-center pl-3 pr-2 py-1.5 rounded-full text-xs font-bold animate-in zoom-in-95 cursor-grab active:cursor-grabbing border shadow-sm select-none
+                                        ${rule.type === 'separator' ? 'bg-white text-slate-600 border-slate-300' :
+                                            rule.type === 'variable' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                                                'bg-indigo-100 text-indigo-700 border-indigo-200'}
+                                        hover:border-indigo-400 hover:ring-2 hover:ring-indigo-400/20 transition-all
+                                        [&.dragging-over-left]:border-l-4 [&.dragging-over-left]:border-l-indigo-500
+                                        [&.dragging-over-right]:border-r-4 [&.dragging-over-right]:border-r-indigo-500
+                                    `}
+                                    onDragEnter={(e) => {
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        const isRight = e.clientX > rect.left + rect.width / 2;
+                                        e.currentTarget.classList.add(isRight ? 'dragging-over-right' : 'dragging-over-left');
+                                    }}
+                                    onDragLeave={(e) => {
+                                        e.currentTarget.classList.remove('dragging-over-left', 'dragging-over-right');
+                                    }}
+                                    onDragOverCapture={(e) => {
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        const isRight = e.clientX > rect.left + rect.width / 2;
+                                        e.currentTarget.classList.toggle('dragging-over-left', !isRight);
+                                        e.currentTarget.classList.toggle('dragging-over-right', isRight);
+                                    }}
+                                >
+                                    <span className="mr-2 flex items-center gap-1.5">
+                                        {rule.type === 'separator' ? rule.value : `{${rule.label}}`}
+                                        {variableDefinition && variableDefinition.type === 'select' && (
+                                            <select
+                                                className="bg-purple-50 border-none text-[10px] font-black text-purple-800 focus:ring-0 cursor-pointer p-0 h-4 rounded"
+                                                value={rule.value}
+                                                onChange={(e) => {
+                                                    const newVal = e.target.value;
+                                                    setNamingRules(prev => prev.map(r => r.id === rule.id ? { ...r, value: newVal } : r));
+                                                }}
+                                            >
+                                                {variableDefinition.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                            </select>
+                                        )}
+                                        {variableDefinition && variableDefinition.type === 'text' && (
+                                            <input
+                                                className="bg-transparent border-b border-purple-300 w-16 text-[10px] focus:outline-none focus:border-purple-500 placeholder-purple-300"
+                                                value={rule.value}
+                                                placeholder="Value..."
+                                                onChange={(e) => {
+                                                    const newVal = e.target.value;
+                                                    setNamingRules(prev => prev.map(r => r.id === rule.id ? { ...r, value: newVal } : r));
+                                                }}
+                                            />
+                                        )}
+                                    </span>
+                                    <button onClick={() => removeRule(rule.id)} className="p-0.5 rounded-full hover:bg-black/10 transition-colors">
+                                        <X size={10} />
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Component Library */}
+                    <div className="mt-8 space-y-6">
+                        {/* System Variables */}
+                        <div>
+                            <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">System Variables</h5>
+                            <div className="flex flex-wrap gap-2">
+                                {[
+                                    { label: 'Project Name', type: 'project', value: 'project' },
+                                    { label: 'User Name', type: 'personnel', value: 'user' },
+                                    { label: 'Date (YYYY-MM-DD)', type: 'date', value: 'date' },
+                                    { label: 'Order Qty', type: 'quantity', value: 'qty' }
+                                ].map((item, i) => (
+                                    <div
+                                        key={i}
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, item.type as any, item.value, item.label)}
+                                        className="bg-white border border-slate-200 px-3 py-1.5 rounded-full text-xs font-bold text-slate-600 shadow-sm cursor-grab hover:border-indigo-400 hover:text-indigo-600 transition-all select-none flex items-center gap-1.5"
+                                    >
+                                        <Bot size={12} className="text-indigo-400" />
+                                        {item.label}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Custom Variables */}
+                        <div>
+                            <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">Custom Lists</h5>
+                            <div className="flex flex-wrap gap-2">
+                                {namingVariables.length === 0 && <span className="text-xs text-slate-300 italic pl-1">No custom lists created yet.</span>}
+                                {namingVariables.map(v => (
+                                    <div
+                                        key={v.id}
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, 'variable', v.defaultValue, v.name, v.id)}
+                                        className="bg-purple-50 border border-purple-100 px-3 py-1.5 rounded-full text-xs font-bold text-purple-600 shadow-sm cursor-grab hover:border-purple-300 transition-all select-none flex items-center gap-1.5 group"
+                                    >
+                                        <List size={12} className="text-purple-400" />
+                                        {v.name}
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setNamingVariables(prev => prev.filter(p => p.id !== v.id)); }}
+                                            className="ml-1 text-purple-300 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"
                                         >
                                             <X size={10} />
                                         </button>
-                                        <button
-                                            onClick={() => {
-                                                const newRules = [...namingRules];
-                                                if (index < newRules.length - 1) {
-                                                    [newRules[index + 1], newRules[index]] = [newRules[index], newRules[index + 1]];
-                                                    setNamingRules(newRules);
-                                                }
-                                            }}
-                                            className="p-1.5 bg-slate-800 text-white rounded-full hover:bg-indigo-600 shadow-sm"
-                                            title="Move Right"
-                                        >
-                                            <ChevronRight size={10} />
-                                        </button>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Add Rule Controls */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
-                            {/* Project Selector */}
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block pl-1">Add Project Field</label>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        list="project-list"
-                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
-                                        placeholder="Select or Type Project..."
-                                        id="naming-project-input"
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                const val = e.currentTarget.value.trim();
-                                                if (!val) return;
-                                                const exists = activeProjects.some(p => p.info.name === val);
-                                                const addRule = () => {
-                                                    setNamingRules(prev => [...prev, { id: Date.now().toString(), type: 'project', value: val }]);
-                                                    (document.getElementById('naming-project-input') as HTMLInputElement).value = '';
-                                                };
-
-                                                if (!exists && onAddProject) {
-                                                    triggerConfirm('Create New Project?', `Project "${val}" does not exist in the library. Create it?`, () => {
-                                                        onAddProject(val);
-                                                        addRule();
-                                                    }, 'info', 'Create & Add');
-                                                } else {
-                                                    addRule();
-                                                }
-                                            }
-                                        }}
-                                    />
-                                    <datalist id="project-list">
-                                        {activeProjects.map(p => <option key={p.id} value={p.info.name} />)}
-                                    </datalist>
-                                    <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 font-bold text-xs" onClick={() => {
-                                        const input = document.getElementById('naming-project-input') as HTMLInputElement;
-                                        const val = input.value.trim();
-                                        if (val) {
-                                            const exists = activeProjects.some(p => p.info.name === val);
-                                            const addRule = () => {
-                                                setNamingRules(prev => [...prev, { id: Date.now().toString(), type: 'project', value: val }]);
-                                                input.value = '';
-                                            };
-
-                                            if (!exists && onAddProject) {
-                                                triggerConfirm('Create New Project?', `Project "${val}" does not exist in the library. Create it?`, () => {
-                                                    onAddProject(val);
-                                                    addRule();
-                                                }, 'info', 'Create & Add');
-                                            } else {
-                                                addRule();
-                                            }
-                                        }
-                                    }}>Add</button>
-                                </div>
-                            </div>
-
-                            {/* Personnel Selector */}
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block pl-1">Add Personnel Field</label>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        list="team-list"
-                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
-                                        placeholder="Select or Type Name..."
-                                        id="naming-team-input"
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                const val = e.currentTarget.value.trim();
-                                                if (!val) return;
-                                                const exists = activeTeamMembers.some(p => p.name === val);
-                                                const addRule = () => {
-                                                    setNamingRules(prev => [...prev, { id: Date.now().toString(), type: 'personnel', value: val }]);
-                                                    (document.getElementById('naming-team-input') as HTMLInputElement).value = '';
-                                                };
-
-                                                if (!exists && onAddTeamMember) {
-                                                    triggerConfirm('Create Team Member?', `"${val}" is not in the team library. Add them?`, () => {
-                                                        onAddTeamMember(val);
-                                                        addRule();
-                                                    }, 'info', 'Create & Add');
-                                                } else {
-                                                    addRule();
-                                                }
-                                            }
-                                        }}
-                                    />
-                                    <datalist id="team-list">
-                                        {activeTeamMembers.map(p => <option key={p.id} value={p.name} />)}
-                                    </datalist>
-                                    <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 font-bold text-xs" onClick={() => {
-                                        const input = document.getElementById('naming-team-input') as HTMLInputElement;
-                                        const val = input.value.trim();
-                                        if (val) {
-                                            const exists = activeTeamMembers.some(p => p.name === val);
-                                            const addRule = () => {
-                                                setNamingRules(prev => [...prev, { id: Date.now().toString(), type: 'personnel', value: val }]);
-                                                input.value = '';
-                                            };
-
-                                            if (!exists && onAddTeamMember) {
-                                                triggerConfirm('Create Team Member?', `"${val}" is not in the team library. Add them?`, () => {
-                                                    onAddTeamMember(val);
-                                                    addRule();
-                                                }, 'info', 'Create & Add');
-                                            } else {
-                                                addRule();
-                                            }
-                                        }
-                                    }}>Add</button>
-                                </div>
-                            </div>
-
-                            {/* Custom Text */}
-
-                            {/* Custom Text */}
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block pl-1">Add Custom Text</label>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        id="naming-custom-input"
-                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
-                                        placeholder="e.g. v1, final, _"
-                                    />
-                                    <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 font-bold text-xs" onClick={() => {
-                                        const input = document.getElementById('naming-custom-input') as HTMLInputElement;
-                                        const val = input.value;
-                                        if (val) {
-                                            setNamingRules(prev => [...prev, { id: Date.now().toString(), type: 'custom', value: val }]);
-                                            input.value = '';
-                                        }
-                                    }}>Add</button>
-                                </div>
-                            </div>
-
-                            {/* Date */}
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block pl-1">Add Date</label>
-                                <button className="w-full py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 font-bold text-xs" onClick={() => {
-                                    setNamingRules(prev => [...prev, { id: Date.now().toString(), type: 'date', value: 'YYYY-MM-DD' }]);
-                                }}>Add Current Date</button>
+                                ))}
                             </div>
                         </div>
 
-                        <div className="mt-8 p-4 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center justify-between">
-                            <span className="text-sm font-bold text-indigo-900">Preview:</span>
-                            <span className="font-mono text-sm text-indigo-600 bg-white px-3 py-1 rounded-lg border border-indigo-100 shadow-sm">
-                                {namingRules.length > 0
-                                    ? namingRules.map(r => r.type === 'date' ? new Date().toISOString().slice(0, 10) : r.value).join('') + '.xlsx'
-                                    : `BOM_Export_${new Date().toISOString().slice(0, 10)}.xlsx`
-                                }
-                            </span>
+                        {/* Separators */}
+                        <div>
+                            <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">Separators</h5>
+                            <div className="flex flex-wrap gap-2">
+                                {['_', '-', '.', '+', 'Space'].map((sep, i) => (
+                                    <div
+                                        key={i}
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, 'separator', sep === 'Space' ? ' ' : sep, sep === 'Space' ? '__' : sep)}
+                                        className="bg-slate-100 border border-slate-200 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-slate-600 hover:bg-slate-200 cursor-grab select-none"
+                                    >
+                                        {sep === 'Space' ? '␣' : sep}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
-                </section >
-            </div >
-        </div >
+                </section>
+            </div>
+
+            {/* Export Naming Dialog - 完善导出信息 */}
+            {exportNamingDialog.open && (
+                <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black tracking-tight">完善导出信息</h3>
+                                    <p className="text-indigo-100 text-xs font-medium mt-1 opacity-80">请为以下自定义变量选择具体值</p>
+                                </div>
+                                <div className="p-2.5 bg-white/10 rounded-xl">
+                                    <FileText className="text-white" size={22} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Variable Selection Forms */}
+                        <div className="p-6 space-y-5 max-h-[50vh] overflow-y-auto">
+                            {namingRules.filter(r => r.type === 'variable').map(rule => {
+                                const variableDef = namingVariables.find(v => v.id === rule.variableId);
+                                if (!variableDef) return null;
+
+                                const currentValue = exportNamingDialog.variableOverrides[rule.id] || variableDef.defaultValue;
+
+                                return (
+                                    <div key={rule.id} className="space-y-2">
+                                        <label className="text-xs font-extrabold text-slate-500 uppercase tracking-widest pl-1 flex items-center gap-2">
+                                            <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                                            {variableDef.name}
+                                        </label>
+
+                                        {/* Radio buttons for <=5 options, select dropdown for more */}
+                                        {variableDef.options.length <= 5 ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {variableDef.options.map(opt => {
+                                                    const isSelected = currentValue === opt;
+                                                    return (
+                                                        <button
+                                                            key={opt}
+                                                            onClick={() => setExportNamingDialog(prev => ({
+                                                                ...prev,
+                                                                variableOverrides: { ...prev.variableOverrides, [rule.id]: opt }
+                                                            }))}
+                                                            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all border-2 ${isSelected
+                                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200'
+                                                                : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-400 hover:text-indigo-600'
+                                                                }`}
+                                                        >
+                                                            {opt}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <select
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                                                value={currentValue}
+                                                onChange={(e) => setExportNamingDialog(prev => ({
+                                                    ...prev,
+                                                    variableOverrides: { ...prev.variableOverrides, [rule.id]: e.target.value }
+                                                }))}
+                                            >
+                                                {variableDef.options.map(opt => (
+                                                    <option key={opt} value={opt}>{opt}</option>
+                                                ))}
+                                            </select>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Real-time Filename Preview */}
+                        <div className="mx-6 mb-6 bg-slate-900 rounded-xl p-4">
+                            <span className="text-[10px] uppercase font-bold text-slate-500 mb-2 block tracking-widest">预计文件名 Preview</span>
+                            <div className="font-mono text-sm text-emerald-400 font-medium break-all">
+                                {generateFilename(exportNamingDialog.variableOverrides, 1)}.xlsx
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                            <button
+                                onClick={() => setExportNamingDialog({ open: false, variableOverrides: {}, exportParams: null })}
+                                className="px-6 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                            >
+                                取消
+                            </button>
+                            <button
+                                onClick={() => {
+                                    // Execute the export with selected overrides
+                                    const { exportParams, variableOverrides } = exportNamingDialog;
+                                    if (exportParams) {
+                                        executeExport(
+                                            exportParams.datasetId,
+                                            exportParams.viewNames,
+                                            exportParams.hiddenFields,
+                                            exportParams.configRules,
+                                            exportParams.quantityMultiplier,
+                                            variableOverrides
+                                        );
+                                    }
+                                    setExportNamingDialog({ open: false, variableOverrides: {}, exportParams: null });
+                                }}
+                                className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center gap-2"
+                            >
+                                <Download size={14} /> 确定导出
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 
     const renderProductCenter = () => {
@@ -8778,6 +9111,163 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 )
             }
             {renderFillMenu()}
+
+            {/* Export Naming Dialog - Global Modal */}
+            {exportNamingDialog.open && (
+                <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black tracking-tight">完善导出信息</h3>
+                                    <p className="text-indigo-100 text-xs font-medium mt-1 opacity-80">请为以下自定义变量选择具体值</p>
+                                </div>
+                                <div className="p-2.5 bg-white/10 rounded-xl">
+                                    <FileText className="text-white" size={22} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Variable Selection Forms */}
+                        <div className="p-6 space-y-5 max-h-[50vh] overflow-y-auto">
+                            {/* Project Selection */}
+                            {namingRules.filter(r => r.type === 'project').map(rule => (
+                                <div key={rule.id} className="space-y-2">
+                                    <label className="text-xs font-extrabold text-slate-500 uppercase tracking-widest pl-1 flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                        项目名称 Project
+                                    </label>
+                                    <select
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                                        value={exportNamingDialog.variableOverrides[rule.id] || ''}
+                                        onChange={(e) => setExportNamingDialog(prev => ({
+                                            ...prev,
+                                            variableOverrides: { ...prev.variableOverrides, [rule.id]: e.target.value }
+                                        }))}
+                                    >
+                                        {activeProjects.map(proj => (
+                                            <option key={proj.id} value={proj.info.name}>{proj.info.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            ))}
+
+                            {/* Personnel Selection */}
+                            {namingRules.filter(r => r.type === 'personnel').map(rule => (
+                                <div key={rule.id} className="space-y-2">
+                                    <label className="text-xs font-extrabold text-slate-500 uppercase tracking-widest pl-1 flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                        人员名称 Personnel
+                                    </label>
+                                    <select
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                                        value={exportNamingDialog.variableOverrides[rule.id] || ''}
+                                        onChange={(e) => setExportNamingDialog(prev => ({
+                                            ...prev,
+                                            variableOverrides: { ...prev.variableOverrides, [rule.id]: e.target.value }
+                                        }))}
+                                    >
+                                        {activeTeamMembers.map(member => (
+                                            <option key={member.id} value={member.name}>{member.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            ))}
+
+                            {/* Custom Variables Selection */}
+                            {namingRules.filter(r => r.type === 'variable').map(rule => {
+                                const variableDef = namingVariables.find(v => v.id === rule.variableId);
+                                if (!variableDef) return null;
+
+                                const currentValue = exportNamingDialog.variableOverrides[rule.id] || variableDef.defaultValue;
+
+                                return (
+                                    <div key={rule.id} className="space-y-2">
+                                        <label className="text-xs font-extrabold text-slate-500 uppercase tracking-widest pl-1 flex items-center gap-2">
+                                            <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                                            {variableDef.name}
+                                        </label>
+
+                                        {variableDef.options.length <= 5 ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {variableDef.options.map(opt => {
+                                                    const isSelected = currentValue === opt;
+                                                    return (
+                                                        <button
+                                                            key={opt}
+                                                            onClick={() => setExportNamingDialog(prev => ({
+                                                                ...prev,
+                                                                variableOverrides: { ...prev.variableOverrides, [rule.id]: opt }
+                                                            }))}
+                                                            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all border-2 ${isSelected
+                                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200'
+                                                                : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-400 hover:text-indigo-600'
+                                                                }`}
+                                                        >
+                                                            {opt}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <select
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                                                value={currentValue}
+                                                onChange={(e) => setExportNamingDialog(prev => ({
+                                                    ...prev,
+                                                    variableOverrides: { ...prev.variableOverrides, [rule.id]: e.target.value }
+                                                }))}
+                                            >
+                                                {variableDef.options.map(opt => (
+                                                    <option key={opt} value={opt}>{opt}</option>
+                                                ))}
+                                            </select>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Real-time Filename Preview */}
+                        <div className="mx-6 mb-6 bg-slate-900 rounded-xl p-4">
+                            <span className="text-[10px] uppercase font-bold text-slate-500 mb-2 block tracking-widest">预计文件名 Preview</span>
+                            <div className="font-mono text-sm text-emerald-400 font-medium break-all">
+                                {generateFilename(exportNamingDialog.variableOverrides, exportNamingDialog.exportParams?.quantityMultiplier || 1)}.xlsx
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                            <button
+                                onClick={() => setExportNamingDialog({ open: false, variableOverrides: {}, exportParams: null })}
+                                className="px-6 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                            >
+                                取消
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const { exportParams, variableOverrides } = exportNamingDialog;
+                                    if (exportParams) {
+                                        executeExport(
+                                            exportParams.datasetId,
+                                            exportParams.viewNames,
+                                            exportParams.hiddenFields,
+                                            exportParams.configRules,
+                                            exportParams.quantityMultiplier,
+                                            variableOverrides
+                                        );
+                                    }
+                                    setExportNamingDialog({ open: false, variableOverrides: {}, exportParams: null });
+                                }}
+                                className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center gap-2"
+                            >
+                                <Download size={14} /> 确定导出
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
