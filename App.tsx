@@ -73,7 +73,7 @@ const AppContent: React.FC = () => {
     const [globalSelectedProjectId, setGlobalSelectedProjectId] = useState<string | null>(() => localStorage.getItem('gen_pm_global_project'));
 
     // Wiki State
-    const [globalWikiDocId, setGlobalWikiDocId] = useState<string | null>(null);
+    const [globalWikiDocId, setGlobalWikiDocId] = useState<string | null>(() => localStorage.getItem('gen_pm_wiki_doc'));
 
     // Meeting State
     const [activeMeeting, setActiveMeeting] = useState<Meeting | null>(null);
@@ -112,6 +112,12 @@ const AppContent: React.FC = () => {
         if (globalSelectedProjectId) localStorage.setItem('gen_pm_global_project', globalSelectedProjectId);
         else localStorage.removeItem('gen_pm_global_project');
     }, [globalSelectedProjectId]);
+
+    useEffect(() => {
+        if (globalWikiDocId) localStorage.setItem('gen_pm_wiki_doc', globalWikiDocId);
+        else localStorage.removeItem('gen_pm_wiki_doc');
+    }, [globalWikiDocId]);
+
 
     // --- Initialization & Refresh Logic ---
     const refreshData = async (showLoading = false) => {

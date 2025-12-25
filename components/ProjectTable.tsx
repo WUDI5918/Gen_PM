@@ -391,13 +391,10 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({ phases, teamMembers,
             t('table.priority')
         ];
 
-        let csvContent = '\uFEFF' + headers.map(escapeCSV).join(',') + '\n';
-
-        let serialNumber = 1;
-        phases.forEach(phase => {
-            phase.tasks.forEach(task => {
+        const csvContent = headers.map(escapeCSV).join(',') + '\n' +
+            phases.flatMap(phase => phase.tasks.map((task, idx) => {
                 const row = [
-                    serialNumber.toString(),
+                    (idx + 1).toString(),
                     phase.name,
                     task.subTaskName,
                     task.workContent,
@@ -407,16 +404,22 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({ phases, teamMembers,
                     t(`status.${task.status}`) || task.status,
                     t(`priority.${task.score}`) || task.score
                 ];
-                csvContent += row.map(escapeCSV).join(',') + '\n';
-                serialNumber++;
-            });
-        });
+                return row.map(escapeCSV).join(',');
+            })).join('\n');
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        // Add UTF-8 BOM for Excel compatibility
+        const BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const blob = new Blob([BOM, csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `project_tasks_${new Date().toISOString().split('T')[0]}.csv`;
+        link.href = url;
+        const filename = `project_tasks_${new Date().toISOString().split('T')[0]}.csv`.replace(/[\\/:*?"<>|]/g, '_');
+        link.download = filename;
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
+        // Delay URL revocation to ensure download starts
+        setTimeout(() => URL.revokeObjectURL(url), 100);
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

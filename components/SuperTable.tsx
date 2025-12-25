@@ -13,10 +13,12 @@ import {
     ArrowDownUp, ArrowDownAZ, ArrowUpAZ, ArrowUp,
     Package, Box, Settings, ChevronLeft, ShoppingCart, MousePointerClick, Tag, Bot
 } from 'lucide-react';
-import { read, utils, writeFile } from 'xlsx';
+import { read, utils, writeFile, write } from 'xlsx';
 import { generateFormSchemaFromData, generateFormFromDescription, generateFormLogic } from '../services/geminiService';
 import { useToast } from '../contexts/ToastContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { ConfirmDialog } from './ConfirmDialog';
+import { toInputDate, fromInputDate, parseDate, escapeCSV } from '../utils';
 import { db } from '../services/db';
 
 // --- Configuration Constants ---
@@ -522,6 +524,7 @@ const ToolboxItem = ({ type, label, icon: Icon, onClick, colorClass = "text-slat
 const FieldEditor = ({
     field, index, isActive, onClick, onUpdate, onRemove, onUpdateOption, onAddOption, onRemoveOption, onRename, onDragStart, onDragEnter, onDragEnd
 }: any) => {
+    const { t } = useLanguage();
     const isLayout = ['divider', 'notice', 'spacer'].includes(field.type);
     const hasOptions = ['select', 'radio', 'steps', 'tabs'].includes(field.type);
     const [isLogicOpen, setIsLogicOpen] = useState(!!field.logic);
@@ -598,11 +601,11 @@ const FieldEditor = ({
                         </span>
                         {field.required && (
                             <span className="flex items-center gap-0.5 text-[10px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100 font-bold uppercase tracking-wider">
-                                <span className="w-1 h-1 rounded-full bg-red-500"></span> Req
+                                <span className="w-1 h-1 rounded-full bg-red-500"></span> {t('erp.editor.req')}
                             </span>
                         )}
                         <span className="text-[10px] text-slate-400 hidden group-hover:inline-block transition-opacity">
-                            • {field.width === '50%' ? 'Half Width' : 'Full Width'}
+                            • {field.width === '50%' ? t('erp.editor.half') : t('erp.editor.full')}
                         </span>
                     </div>
                 </div>
@@ -628,20 +631,20 @@ const FieldEditor = ({
                         <div className="space-y-3">
                             <div>
                                 <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                                    <Type size={10} /> Field Label
+                                    <Type size={10} /> {t('erp.editor.label')}
                                 </label>
                                 <input
                                     autoFocus
                                     value={field.label}
                                     onChange={(e) => onUpdate(field.id, 'label', e.target.value)}
                                     className="w-full text-xs font-medium px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-indigo-500 outline-none transition-all shadow-sm"
-                                    placeholder="Enter label..."
+                                    placeholder={t('erp.editor.label_ph')}
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                                        <Code size={10} /> Variable ID
+                                        <Code size={10} /> {t('erp.editor.var_id')}
                                     </label>
                                     <div className="relative group/id">
                                         <input
@@ -650,17 +653,17 @@ const FieldEditor = ({
                                             onBlur={handleIdSubmit}
                                             onKeyDown={(e) => e.key === 'Enter' && handleIdSubmit()}
                                             className="w-full text-xs font-mono px-2.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 focus:bg-white focus:border-indigo-500 focus:text-indigo-600 outline-none transition-colors"
-                                            placeholder="Variable Name"
-                                            title="Variable Name for Logic Formulas (Alphanumeric only)"
+                                            placeholder={t('erp.editor.var_name')}
+                                            title={t('erp.editor.var_desc')}
                                         />
                                         {tempId !== field.id && (
-                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold animate-pulse">Save</div>
+                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold animate-pulse">{t('erp.editor.save')}</div>
                                         )}
                                     </div>
                                 </div>
                                 <div>
                                     <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                                        <Columns size={10} /> Width
+                                        <Columns size={10} /> {t('erp.editor.width')}
                                     </label>
                                     <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                                         {widthOptions.map(opt => (
@@ -683,9 +686,9 @@ const FieldEditor = ({
                             <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-3 space-y-3">
                                 {/* Validation Row */}
                                 <div className="flex items-center justify-between">
-                                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Configuration</h4>
+                                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('erp.editor.config')}</h4>
                                     <label className="flex items-center gap-2 cursor-pointer group/toggle">
-                                        <span className="text-xs font-semibold text-slate-600 group-hover/toggle:text-indigo-600 transition-colors">Required</span>
+                                        <span className="text-xs font-semibold text-slate-600 group-hover/toggle:text-indigo-600 transition-colors">{t('erp.editor.required')}</span>
                                         <div className={`relative w-8 h-4 rounded-full transition-colors ${field.required ? 'bg-indigo-500' : 'bg-slate-200'}`}>
                                             <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform ${field.required ? 'translate-x-4' : 'translate-x-0'}`}></div>
                                             <input type="checkbox" className="hidden" checked={field.required} onChange={(e) => onUpdate(field.id, 'required', e.target.checked)} />
@@ -699,7 +702,7 @@ const FieldEditor = ({
                                             value={field.placeholder || ''}
                                             onChange={(e) => onUpdate(field.id, 'placeholder', e.target.value)}
                                             className="w-full text-xs px-2.5 py-2 bg-white border border-slate-200 rounded-lg focus:border-indigo-500 outline-none transition-colors"
-                                            placeholder="Placeholder text..."
+                                            placeholder={t('erp.editor.placeholder_ph')}
                                         />
                                     </div>
                                     <div>
@@ -707,7 +710,7 @@ const FieldEditor = ({
                                             value={field.helpText || ''}
                                             onChange={(e) => onUpdate(field.id, 'helpText', e.target.value)}
                                             className="w-full text-xs px-2.5 py-2 bg-white border border-slate-200 rounded-lg focus:border-indigo-500 outline-none transition-colors"
-                                            placeholder="Help / Hint text..."
+                                            placeholder={t('erp.editor.help_ph')}
                                         />
                                     </div>
                                 </div>
@@ -720,7 +723,7 @@ const FieldEditor = ({
                                             checked={field.showInGrid !== false}
                                             onChange={(e) => onUpdate(field.id, 'showInGrid', e.target.checked)}
                                             className="rounded text-indigo-500 w-3 h-3 focus:ring-0"
-                                        /> Show in Grid
+                                        /> {t('erp.editor.show_grid')}
                                     </label>
                                     <label className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase cursor-pointer hover:text-indigo-600 transition-colors">
                                         <input
@@ -728,7 +731,7 @@ const FieldEditor = ({
                                             checked={field.showInBatch !== false}
                                             onChange={(e) => onUpdate(field.id, 'showInBatch', e.target.checked)}
                                             className="rounded text-indigo-500 w-3 h-3 focus:ring-0"
-                                        /> Show in Batch
+                                        /> {t('erp.editor.show_batch')}
                                     </label>
                                 </div>
                             </div>
@@ -739,9 +742,9 @@ const FieldEditor = ({
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                        <List size={10} /> Options
+                                        <List size={10} /> {t('erp.editor.options')}
                                     </label>
-                                    <span className="text-[10px] text-slate-400 font-mono">{field.options?.length || 0} items</span>
+                                    <span className="text-[10px] text-slate-400 font-mono">{field.options?.length || 0} {t('erp.editor.items')}</span>
                                 </div>
 
                                 <div className="space-y-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200">
@@ -752,13 +755,13 @@ const FieldEditor = ({
                                                 value={opt}
                                                 onChange={(e) => onUpdateOption(field.id, idx, e.target.value)}
                                                 className="flex-1 px-2 py-1.5 bg-transparent border-b border-transparent focus:border-indigo-300 focus:bg-white rounded-sm text-xs outline-none transition-all placeholder-slate-300"
-                                                placeholder={`Option ${idx + 1}`}
+                                                placeholder={`${t('erp.editor.option_ph')} ${idx + 1}`}
                                             />
                                             <button onClick={() => onRemoveOption(field.id, idx)} className="text-slate-300 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors opacity-0 group-hover/opt:opacity-100"><X size={14} /></button>
                                         </div>
                                     ))}
                                     <button onClick={() => onAddOption(field.id)} className="w-full py-1.5 text-xs font-bold text-indigo-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex items-center justify-center gap-1">
-                                        <Plus size={12} /> Add New Option
+                                        <Plus size={12} /> {t('erp.editor.add_option')}
                                     </button>
                                 </div>
                             </div>
@@ -785,7 +788,7 @@ const FieldEditor = ({
                                     value={field.content || ''}
                                     onChange={(e) => onUpdate(field.id, 'content', e.target.value)}
                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-500 transition-colors shadow-sm"
-                                    placeholder={field.type === 'notice' ? "Enter notice content..." : "Enter default content..."}
+                                    placeholder={field.type === 'notice' ? t('erp.editor.notice_content_ph') : t('erp.editor.default_content_ph')}
                                 />
                             </div>
                         )}
@@ -798,7 +801,7 @@ const FieldEditor = ({
                                     onClick={() => setIsLogicOpen(!isLogicOpen)}
                                 >
                                     <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                                        <RefreshCw size={10} /> Logic Engine <span className="normal-case font-mono bg-slate-200 px-1 rounded text-slate-600 ml-1 opacity-70">var: {'{' + field.id + '}'}</span>
+                                        <RefreshCw size={10} /> {t('erp.logic.engine')} <span className="normal-case font-mono bg-slate-200 px-1 rounded text-slate-600 ml-1 opacity-70">var: {'{' + field.id + '}'}</span>
                                     </h4>
                                     {isLogicOpen ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
                                 </div>
@@ -807,28 +810,28 @@ const FieldEditor = ({
                                         {/* Visibility Rule */}
                                         <div>
                                             <div className="flex justify-between mb-1">
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Visibility Rule (Show ...)</label>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">{t('erp.logic.visibility')}</label>
                                                 <span className="text-[10px] text-slate-300 font-mono">e.g. {'{f1}'} == 'Yes'</span>
                                             </div>
                                             <input
                                                 value={field.logic?.visibility || ''}
                                                 onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, visibility: e.target.value })}
                                                 className="w-full text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
-                                                placeholder="Expression..."
+                                                placeholder={t('erp.logic.expression_ph')}
                                             />
                                         </div>
 
                                         {/* Calculation Formula */}
                                         <div>
                                             <div className="flex justify-between mb-1">
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Calculated Value (=)</label>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">{t('erp.logic.calculation')}</label>
                                                 <span className="text-[10px] text-slate-300 font-mono">e.g. CONCAT({'{f1}'}, '-', {'{f2}'})</span>
                                             </div>
                                             <input
                                                 value={field.logic?.calculation || ''}
                                                 onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, calculation: e.target.value })}
                                                 className="w-full text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
-                                                placeholder="Formula..."
+                                                placeholder={t('erp.logic.formula_ph')}
                                             />
                                         </div>
 
@@ -836,8 +839,8 @@ const FieldEditor = ({
                                         {['select', 'radio', 'tabs'].includes(field.type) && (
                                             <div>
                                                 <div className="flex justify-between mb-1">
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Dynamic Options Rule</label>
-                                                    <span className="text-[10px] text-slate-300 font-mono">Returns Array</span>
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">{t('erp.logic.dynamic_options')}</label>
+                                                    <span className="text-[10px] text-slate-300 font-mono">{t('erp.logic.returns_array')}</span>
                                                 </div>
                                                 <input
                                                     value={field.logic?.optionsRule || ''}
@@ -851,8 +854,8 @@ const FieldEditor = ({
                                         {/* API Fetch Rule */}
                                         <div>
                                             <div className="flex justify-between mb-1">
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase">External Data Logic</label>
-                                                <span className="text-[10px] text-slate-300 font-mono">Simulated API</span>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">{t('erp.logic.external_data')}</label>
+                                                <span className="text-[10px] text-slate-300 font-mono">{t('erp.logic.simulated_api')}</span>
                                             </div>
                                             <input
                                                 value={field.logic?.apiRule || ''}
@@ -864,26 +867,26 @@ const FieldEditor = ({
 
                                         {/* Validation Regex */}
                                         <div>
-                                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Regex Validation</label>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">{t('erp.logic.regex_validation')}</label>
                                             <div className="flex gap-2">
                                                 <input
                                                     value={field.logic?.regex || ''}
                                                     onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, regex: e.target.value })}
                                                     className="flex-1 text-xs font-mono px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
-                                                    placeholder="Regex Pattern..."
+                                                    placeholder={t('erp.logic.regex_ph')}
                                                 />
                                                 <input
                                                     value={field.logic?.errorMsg || ''}
                                                     onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, errorMsg: e.target.value })}
                                                     className="w-1/3 text-xs px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
-                                                    placeholder="Error Msg"
+                                                    placeholder={t('erp.logic.error_msg')}
                                                 />
                                             </div>
                                         </div>
 
                                         {/* Cross-Field Validation Rule */}
                                         <div>
-                                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Custom Logic Validation</label>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">{t('erp.logic.custom_validation')}</label>
                                             <div className="flex gap-2">
                                                 <input
                                                     value={field.logic?.customRule || ''}
@@ -895,7 +898,7 @@ const FieldEditor = ({
                                                     value={field.logic?.customErrorMsg || ''}
                                                     onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, customErrorMsg: e.target.value })}
                                                     className="w-1/3 text-xs px-2 py-1.5 bg-white border border-slate-200 rounded focus:border-indigo-500 outline-none"
-                                                    placeholder="Error Msg"
+                                                    placeholder={t('erp.logic.error_msg')}
                                                 />
                                             </div>
                                         </div>
@@ -903,7 +906,7 @@ const FieldEditor = ({
                                         {/* Advanced Rules */}
                                         <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                                             <div>
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Read-Only Rule</label>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">{t('erp.logic.readonly_rule')}</label>
                                                 <input
                                                     value={field.logic?.readOnly || ''}
                                                     onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, readOnly: e.target.value })}
@@ -912,7 +915,7 @@ const FieldEditor = ({
                                                 />
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Required Rule</label>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">{t('erp.logic.required_rule')}</label>
                                                 <input
                                                     value={field.logic?.requiredRule || ''}
                                                     onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, requiredRule: e.target.value })}
@@ -925,7 +928,7 @@ const FieldEditor = ({
                                         {/* New: Disabled Rule & Default Value */}
                                         <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                                             <div>
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Disabled Rule</label>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">{t('erp.logic.disabled_rule')}</label>
                                                 <input
                                                     value={field.logic?.disabledRule || ''}
                                                     onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, disabledRule: e.target.value })}
@@ -934,7 +937,7 @@ const FieldEditor = ({
                                                 />
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Default Value Rule</label>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">{t('erp.logic.default_rule')}</label>
                                                 <input
                                                     value={field.logic?.defaultValueRule || ''}
                                                     onChange={(e) => onUpdate(field.id, 'logic', { ...field.logic, defaultValueRule: e.target.value })}
@@ -956,6 +959,7 @@ const FieldEditor = ({
 
 // 3. Right Side Live Preview
 const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCancel, formName }: any) => {
+    const { t } = useLanguage();
 
     // --- Logic Engine Execution (Debounced to avoid input interference) ---
     useEffect(() => {
@@ -1476,10 +1480,10 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                         onClick={onCancel}
                         className="px-6 py-3 rounded-xl border border-gray-200 text-slate-600 font-bold text-sm hover:bg-gray-50 transition-colors"
                     >
-                        Cancel
+                        {t('common.cancel')}
                     </button>
                 ) : (
-                    <div className="px-6 py-3 rounded-xl bg-slate-100 text-slate-400 font-bold text-sm cursor-not-allowed">Cancel</div>
+                    <div className="px-6 py-3 rounded-xl bg-slate-100 text-slate-400 font-bold text-sm cursor-not-allowed">{t('common.cancel')}</div>
                 )}
 
                 {onSubmit ? (
@@ -1487,11 +1491,11 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                         onClick={onSubmit}
                         className="px-8 py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm shadow-lg shadow-indigo-500/20 flex items-center gap-2 hover:bg-indigo-700 transition-all hover:-translate-y-0.5"
                     >
-                        <CheckCircle size={16} /> Save Record
+                        <CheckCircle size={16} /> {t('erp.form.save_record')}
                     </button>
                 ) : (
                     <div className="px-8 py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm shadow-lg shadow-indigo-500/20 flex items-center gap-2 cursor-not-allowed opacity-80">
-                        <Save size={16} /> Submit
+                        <Save size={16} /> {t('erp.form.submit')}
                     </div>
                 )}
             </div>
@@ -1501,6 +1505,7 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
 
 // 4. Logic Guide & Documentation Component
 const LogicGuide = () => {
+    const { t } = useLanguage();
     const [subTab, setSubTab] = useState<'demo' | 'reference'>('demo');
     const [scenario, setScenario] = useState('visibility');
     const [localData, setLocalData] = useState<any>({ has_details: 'Yes' });
@@ -1863,6 +1868,7 @@ const UnifiedRuleBuilder: React.FC<{
     activeRuleType?: 'logic' | 'mapping';
     onRuleTypeChange?: (type: 'logic' | 'mapping') => void;
 }> = ({ schema, records, onAdd, onUpdate, editingRule, onSaveAsPreset, onEnableRowPicker, activeRuleType: controlledActiveRuleType, onRuleTypeChange }) => {
+    const { t } = useLanguage();
     const [internalActiveRuleType, setInternalActiveRuleType] = useState<'logic' | 'mapping'>('mapping');
     const activeRuleType = controlledActiveRuleType !== undefined ? controlledActiveRuleType : internalActiveRuleType;
 
@@ -2089,14 +2095,14 @@ const UnifiedRuleBuilder: React.FC<{
                     className={`flex-1 flex items-center justify-center gap-2 py-2 text-[10px] font-bold rounded-lg transition-all ${activeRuleType === 'mapping' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                     <ArrowRight size={14} />
-                    <span>级联映射 (Mapping)</span>
+                    <span>{t('erp.rule.mapping_tab')}</span>
                 </button>
                 <button
                     onClick={() => setActiveRuleType('logic')}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 text-[10px] font-bold rounded-lg transition-all ${activeRuleType === 'logic' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                     <Layers size={14} />
-                    <span>逻辑规则 (Logic)</span>
+                    <span>{t('erp.rule.logic_tab')}</span>
                 </button>
             </div>
 
@@ -2106,7 +2112,7 @@ const UnifiedRuleBuilder: React.FC<{
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                逻辑条件组 (Conditions Group)
+                                {t('erp.rule.logic_group')}
                             </span>
                             <div className="flex items-center gap-1 bg-white rounded border border-slate-200 px-1 py-0.5 shadow-sm">
                                 <Database size={10} className="text-slate-400" />
@@ -2115,7 +2121,7 @@ const UnifiedRuleBuilder: React.FC<{
                                     onChange={(e) => setMSourceRowId(e.target.value)}
                                     className="text-[10px] font-bold text-slate-600 outline-none bg-transparent border-none p-0 w-[80px] cursor-pointer"
                                 >
-                                    <option value="">当前行 (Current)</option>
+                                    <option value="">{t('erp.rule.current_row')}</option>
                                     {(records || []).slice(0, 10).map((r: any, i: number) => (
                                         <option key={r._id} value={r._id}>Row #{i + 1}</option>
                                     ))}
@@ -2142,7 +2148,7 @@ const UnifiedRuleBuilder: React.FC<{
                                     onChange={(e) => handleUpdateCondition(idx, { fieldId: e.target.value })}
                                     className="flex-[1.5] min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
                                 >
-                                    <option value="">字段...</option>
+                                    <option value="">{t('erp.rule.field_ph')}</option>
                                     {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
                                 </select>
                                 <select
@@ -2157,7 +2163,7 @@ const UnifiedRuleBuilder: React.FC<{
                                 <input
                                     value={cond.value}
                                     onChange={(e) => handleUpdateCondition(idx, { value: e.target.value })}
-                                    placeholder="值..."
+                                    placeholder={t('erp.rule.value_ph')}
                                     className="flex-[1] min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
                                 />
                                 <button
@@ -2173,30 +2179,30 @@ const UnifiedRuleBuilder: React.FC<{
                             className="w-full py-2 border-2 border-dashed border-slate-100 rounded-lg text-[10px] font-bold text-slate-400 hover:border-indigo-100 hover:text-indigo-400 transition-all flex items-center justify-center gap-2"
                         >
                             <Plus size={12} />
-                            添加条件 (Add Condition)
+                            {t('erp.rule.add_condition')}
                         </button>
                     </div>
 
                     <div className="space-y-3 p-3 bg-indigo-50/30 rounded-xl border border-indigo-100/50">
                         <div>
-                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">目标字段 (Target Field)</label>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">{t('erp.rule.target_field')}</label>
                             <select
                                 value={targetField}
                                 onChange={(e) => setTargetField(e.target.value)}
                                 className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs outline-none focus:ring-1 focus:ring-indigo-300 font-extrabold"
                             >
-                                <option value="">选择生效目标...</option>
+                                <option value="">{t('erp.rule.select_target_ph')}</option>
                                 {selectableFields.map(f => (
                                     <option key={f.id} value={f.id}>{f.label}</option>
                                 ))}
                             </select>
                         </div>
                         <div>
-                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">设定值 (Value / Expr)</label>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">{t('erp.rule.set_value')}</label>
                             <input
                                 value={targetValue}
                                 onChange={(e) => setTargetValue(e.target.value)}
-                                placeholder="例如: VIP, 100, {f1} * 2"
+                                placeholder={t('erp.rule.set_value_ph')}
                                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all"
                             />
                         </div>
@@ -2209,7 +2215,7 @@ const UnifiedRuleBuilder: React.FC<{
                         <div className="space-y-3">
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest flex items-center gap-1.5">
-                                    <Layers size={12} /> 多级联映射 (Multi-Cascade)
+                                    <Layers size={12} /> {t('erp.rule.multi_cascade')}
                                 </span>
                                 <button
                                     onClick={() => setMSyncMode(!mSyncMode)}
@@ -2217,15 +2223,15 @@ const UnifiedRuleBuilder: React.FC<{
                                         ? 'bg-green-100 text-green-700 border border-green-200'
                                         : 'bg-slate-100 text-slate-500 border border-slate-200'
                                         }`}
-                                    title={mSyncMode ? '同步模式: 所有组共享相同的选项值' : '独立模式: 每组的选项值独立设置'}
+                                    title={mSyncMode ? t('erp.rule.sync_mode_title') : t('erp.rule.independent_mode_title')}
                                 >
-                                    {mSyncMode ? '🔗 同步模式' : '🔓 独立模式'}
+                                    {mSyncMode ? t('erp.rule.sync_mode') : t('erp.rule.independent_mode')}
                                 </button>
                             </div>
 
                             {mSyncMode && mCascadeGroups.length > 0 && (
                                 <div className="text-[9px] text-green-600 bg-green-50 px-2 py-1.5 rounded-md border border-green-100">
-                                    💡 同步模式已启用: 修改任意组的"选项值"将自动同步到其他对应行
+                                    {t('erp.rule.sync_enabled_msg')}
                                 </div>
                             )}
 
@@ -2235,7 +2241,7 @@ const UnifiedRuleBuilder: React.FC<{
                                         {/* Header Row: Title & Row Picker (Left), Delete (Right) */}
                                         <div className="flex items-center justify-between mb-3">
                                             <div className="flex items-center gap-3">
-                                                <span className="text-[10px] font-black text-slate-500 uppercase">级联组 #{gIdx + 1}</span>
+                                                <span className="text-[10px] font-black text-slate-500 uppercase">{t('erp.rule.cascade_group_num')} #{gIdx + 1}</span>
 
                                                 {/* Compact Row Picker */}
                                                 <div className="flex items-center gap-1 bg-slate-50 rounded-lg border border-slate-200 p-0.5 hover:border-indigo-200 transition-colors">
@@ -2244,7 +2250,7 @@ const UnifiedRuleBuilder: React.FC<{
                                                         onChange={(e) => handleUpdateCascadeGroup(gIdx, { sourceRowId: e.target.value })}
                                                         className={`bg-transparent text-[9px] font-bold outline-none border-none py-0.5 px-1 max-w-[100px] truncate ${group.sourceRowId ? 'text-amber-600' : 'text-slate-400'}`}
                                                     >
-                                                        <option value="">(当前行)</option>
+                                                        <option value="">{t('erp.rule.current_row')}</option>
                                                         {records.map(r => (
                                                             <option key={r._id} value={String(r._id)}>📍 {getRecordLabel(r)}</option>
                                                         ))}
@@ -2279,7 +2285,7 @@ const UnifiedRuleBuilder: React.FC<{
                                                     onChange={(e) => handleUpdateCascadeGroup(gIdx, { sourceField: e.target.value })}
                                                     className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-slate-600 outline-none focus:border-indigo-400 focus:bg-white transition-all"
                                                 >
-                                                    <option value="">监听字段 (Source)...</option>
+                                                    <option value="">{t('erp.rule.source_field_ph')}</option>
                                                     {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
                                                 </select>
                                             </div>
@@ -2292,7 +2298,7 @@ const UnifiedRuleBuilder: React.FC<{
                                                     onChange={(e) => handleUpdateCascadeGroup(gIdx, { targetField: e.target.value })}
                                                     className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-slate-600 outline-none focus:border-indigo-400 focus:bg-white transition-all"
                                                 >
-                                                    <option value="">目标字段 (Target)...</option>
+                                                    <option value="">{t('erp.rule.target_field_ph')}</option>
                                                     {selectableFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
                                                 </select>
                                             </div>
@@ -2305,7 +2311,7 @@ const UnifiedRuleBuilder: React.FC<{
                                                         <input
                                                             value={m.sourceValue}
                                                             onChange={(e) => handleUpdateCascadeMapping(gIdx, mIdx, { sourceValue: e.target.value })}
-                                                            placeholder="当值为..."
+                                                            placeholder={t('erp.rule.source_val_ph')}
                                                             className={`w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all ${mSyncMode ? 'focus:border-green-400 focus:ring-green-50' : ''}`}
                                                         />
                                                     </div>
@@ -2316,7 +2322,7 @@ const UnifiedRuleBuilder: React.FC<{
                                                         <input
                                                             value={m.targetValue}
                                                             onChange={(e) => handleUpdateCascadeMapping(gIdx, mIdx, { targetValue: e.target.value })}
-                                                            placeholder="设为..."
+                                                            placeholder={t('erp.rule.target_val_ph')}
                                                             className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all"
                                                         />
                                                     </div>
@@ -2338,7 +2344,7 @@ const UnifiedRuleBuilder: React.FC<{
                                             onClick={() => handleAddCascadeMapping(gIdx)}
                                             className="mt-2 w-full py-1 text-[9px] font-bold text-indigo-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition-all flex items-center justify-center gap-1 opacity-60 hover:opacity-100"
                                         >
-                                            <Plus size={10} /> 添加映射值
+                                            <Plus size={10} /> {t('erp.rule.add_mapping_val')}
                                         </button>
                                     </div>
                                 ))}
@@ -2348,7 +2354,7 @@ const UnifiedRuleBuilder: React.FC<{
                                 onClick={handleAddCascadeGroup}
                                 className="w-full py-2.5 border-2 border-dashed border-indigo-200 rounded-xl text-[10px] font-bold text-indigo-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50/50 transition-all flex items-center justify-center gap-2"
                             >
-                                <Plus size={14} /> 添加级联组 (Add Cascade Group)
+                                <Plus size={14} /> {t('erp.rule.add_cascade_group')}
                             </button>
                         </div>
                     </div>
@@ -2357,12 +2363,12 @@ const UnifiedRuleBuilder: React.FC<{
 
                     <div className="mt-2 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
                         <label className="text-[10px] font-bold text-indigo-400 uppercase block mb-1.5 flex items-center gap-1">
-                            <Tag size={12} /> 标签标题 (Tab Title - Optional)
+                            <Tag size={12} /> {t('erp.rule.tab_title')}
                         </label>
                         <input
                             value={ruleTitle}
                             onChange={(e) => setRuleTitle(e.target.value)}
-                            placeholder="默认使用说明文字..."
+                            placeholder={t('erp.rule.tab_title_ph')}
                             className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none focus:ring-1 focus:ring-indigo-300"
                         />
                     </div>
@@ -2377,7 +2383,7 @@ const UnifiedRuleBuilder: React.FC<{
                         className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-30"
                     >
                         <Plus size={14} className="text-slate-400" />
-                        <span>{editingRule ? '保存规则修改' : '应用到当前规则栈'}</span>
+                        <span>{editingRule ? t('erp.rule.save_edit') : t('erp.rule.apply_stack')}</span>
                     </button>
                 </div>
             </div>
@@ -2395,6 +2401,7 @@ interface SuperTableProps {
 
 export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], activeTeamMembers = [], onAddProject, onAddTeamMember }) => {
     const { addToast } = useToast();
+    const { t } = useLanguage();
 
     // Helper to load from localStorage
     const loadFromStorage = <T,>(key: string, defaultValue: T): T => {
@@ -2789,7 +2796,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 setIsDBInitialized(true);
             } catch (error) {
                 console.error("Failed to initialize ERP data from DB", error);
-                addToast("Data restore failed. Check console.", 'error');
+                addToast(t('erp.toast.restore_failed'), 'error');
             }
         };
 
@@ -2958,6 +2965,11 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const [globalSearch, setGlobalSearch] = useState('');
     const [showFilters, setShowFilters] = useState(() => loadFromStorage('erp_show_filters', false));
 
+    // Persist showFilters
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_show_filters', JSON.stringify(showFilters));
+    }, [showFilters]);
+
     // Quick Filter State (column header filters)
     const [quickFilters, setQuickFilters] = useState<Record<string, { open: boolean, value: string }>>({});
 
@@ -2978,9 +2990,19 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     }, [records, schema, lastSavedSnapshot]);
 
     // Preview Resizing Logic
-    const [previewWidth, setPreviewWidth] = useState(450);
-    const [showPreview, setShowPreview] = useState(true);
+    const [previewWidth, setPreviewWidth] = useState(() => loadFromStorage('erp_preview_width', 450));
+    const [showPreview, setShowPreview] = useState(() => loadFromStorage('erp_show_preview', true));
     const [isResizing, setIsResizing] = useState(false);
+
+    // Persist preview settings
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_preview_width', JSON.stringify(previewWidth));
+    }, [previewWidth]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_show_preview', JSON.stringify(showPreview));
+    }, [showPreview]);
+
 
     // --- Form Library State ---
     const [savedForms, setSavedForms] = useState<{ id: string, name: string, description: string, schema: any[], timestamp: number }[]>(() => loadFromStorage('erp_saved_forms', [
@@ -3263,7 +3285,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         };
 
         if (exists) {
-            triggerConfirm('Overwrite Dataset', `Dataset "${name}" already exists. Overwrite?`, doSave, 'info', 'Overwrite');
+            triggerConfirm(t('erp.confirm.overwrite_dataset_title'), t('erp.confirm.overwrite_dataset_msg').replace('{name}', name), doSave, 'info', t('erp.reset'));
         } else {
             doSave();
         }
@@ -3281,16 +3303,16 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const handleDeleteDataset = (e: React.MouseEvent, id: string, name: string) => {
         e.stopPropagation(); // Prevent loading
         triggerConfirm(
-            'Delete Dataset',
-            `Are you sure you want to delete "${name}"? This cannot be undone.`,
+            t('erp.confirm.delete_dataset_title'),
+            t('erp.confirm.delete_dataset_msg'),
             () => {
                 setSavedDatasets(prev => prev.filter(d => d.id !== id));
                 if (id === activeDatasetId) setActiveDatasetId(null);
                 db.deleteERPDataset(id);
-                addToast(`Dataset "${name}" deleted`, 'success');
+                addToast(t('erp.toast.template_deleted'), 'success');
             },
             'danger',
-            'Delete'
+            t('erp.delete')
         );
     };
 
@@ -3332,7 +3354,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 if (updatedDataset) db.saveERPDataset(updatedDataset);
                 return output;
             });
-            addToast('Dataset renamed successfully', 'success');
+            addToast(t('erp.toast.template_saved'), 'success');
         }
 
         setRenameDialog({ isOpen: false, id: '', name: '', type: 'dataset' });
@@ -4222,18 +4244,36 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
     // --- Import/Export ---
     const handleExport = () => {
-        const dataColumns = schema.filter(f => !['divider', 'notice', 'spacer'].includes(f.type));
-        const headers = dataColumns.map(c => c.label);
-        const rows = records.map(r => dataColumns.map(c => `"${r[c.id] || ''}"`).join(','));
-        const csv = [headers.join(','), ...rows].join('\n');
-        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+        const dataset = savedDatasets.find(d => d.id === activeDatasetId);
+
+        const dataColumns = (dataset?.schema || schema).filter(f => !['divider', 'notice', 'spacer'].includes(f.type));
+        const headers = dataColumns.map(c => c.label || c.name || c.id);
+        const rows = filteredRecords.map(r => dataColumns.map(c => escapeCSV(String(r[c.id] ?? ''))).join(','));
+        const csvContent = [headers.map(escapeCSV).join(','), ...rows].join('\n');
+
+        // Add UTF-8 BOM for Excel compatibility
+        const BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const blob = new Blob([BOM, csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = 'erp_export.csv';
+
+        // Check if dataset name is a UUID and use a meaningful default instead
+        const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        let datasetName = dataset?.name?.trim() || 'SuperTable_Data';
+        if (isUUID(datasetName)) {
+            datasetName = 'SuperTable_Data';
+        }
+
+        const rawFilename = `${datasetName}_Export_${new Date().toISOString().slice(0, 10)}.csv`;
+        const filename = rawFilename.replace(/[\\/:*?"<>|]/g, '_');
+
+        link.download = filename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        // Delay URL revocation to ensure download starts
+        setTimeout(() => URL.revokeObjectURL(url), 100);
     };
 
     const handleGenerateMock = () => {
@@ -4244,7 +4284,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
             if (['select', 'radio'].includes(f.type) && f.options) mock[f.id] = f.options[Math.floor(Math.random() * f.options.length)];
         });
         setRecords(prev => [mock, ...prev]);
-        addToast('Generated mock record', 'info');
+        addToast(t('erp.toast.mock_generated'), 'info');
     };
 
     // --- Form Library Actions ---
@@ -4281,7 +4321,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         setSaveFormOpen(false);
         setFormName('');
         setFormDesc('');
-        addToast('Form saved to library', 'success');
+        addToast(t('erp.toast.template_saved'), 'success');
     };
 
     const handleLoadForm = (formId: string, targetTab: 'builder' | 'data' = 'builder') => {
@@ -4300,7 +4340,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
             // Update snapshot to mark as clean (empty data)
             setLastSavedSnapshot(JSON.stringify({ records: [], schema: form.schema }));
 
-            addToast(`Template loaded for modification: ${form.name}`, 'success');
+            addToast(t('erp.toast.template_loaded').replace('{name}', form.name), 'success');
             if (targetTab) setActiveTab(targetTab);
             setTemplateSelectorOpen(false);
         }
@@ -4308,15 +4348,15 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
     const handleDeleteForm = (formId: string) => {
         triggerConfirm(
-            'Delete Template',
-            'Are you sure you want to delete this form template?',
+            t('erp.confirm.delete_template_title'),
+            t('erp.confirm.delete_template_msg'),
             () => {
                 setSavedForms(prev => prev.filter(f => f.id !== formId));
                 db.deleteERPTemplate(formId);
-                addToast('Form template deleted', 'info');
+                addToast(t('erp.toast.template_deleted'), 'info');
             },
             'danger',
-            'Delete'
+            t('erp.delete')
         );
     };
 
@@ -4702,41 +4742,57 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
     // --- Export BOM with Interactive Naming Support ---
     const generateFilename = (overrides: Record<string, string> = {}, quantityMultiplier: number = 1) => {
+        const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
         if (namingRules.length === 0) {
             return `BOM_Export_${new Date().toISOString().slice(0, 10)}`;
         }
-        return namingRules.map(rule => {
+
+        const filename = namingRules.map(rule => {
+            let part = '';
             switch (rule.type) {
                 case 'project':
-                    // Use override if provided, otherwise use default
-                    if (overrides[rule.id]) return overrides[rule.id];
-                    const activeProject = activeProjects.find(p => p.id === selectedProductId);
-                    return activeProject?.info.name || 'UnknownProject';
+                    if (overrides[rule.id]) part = overrides[rule.id];
+                    else {
+                        const activeProject = activeProjects.find(p => p.id === selectedProductId);
+                        part = activeProject?.info.name || 'UnknownProject';
+                    }
+                    break;
                 case 'personnel':
-                    // Use override if provided, otherwise use placeholder
-                    if (overrides[rule.id]) return overrides[rule.id];
-                    return 'User';
+                    if (overrides[rule.id]) part = overrides[rule.id];
+                    else part = 'User';
+                    break;
                 case 'product':
-                    // Auto-fill with current product name (from the product being ordered)
                     const currentProduct = products.find(p => p.id === selectedProductId);
-                    return currentProduct?.name || 'UnknownProduct';
+                    part = currentProduct?.name || 'UnknownProduct';
+                    break;
                 case 'date':
-                    return new Date().toISOString().slice(0, 10);
+                    part = new Date().toISOString().slice(0, 10);
+                    break;
                 case 'quantity':
-                    return String(quantityMultiplier);
+                    part = String(quantityMultiplier);
+                    break;
                 case 'separator':
-                    return rule.value;
+                    part = rule.value === '__' ? ' ' : rule.value;
+                    break;
                 case 'variable':
-                    // Use override if provided, otherwise use rule's current value
-                    return overrides[rule.id] || rule.value || rule.label || 'Var';
+                    part = overrides[rule.id] || rule.value || rule.label || 'Var';
+                    break;
                 case 'counter':
-                    return String(namingCounter).padStart(3, '0');
+                    part = String(namingCounter).padStart(3, '0');
+                    break;
                 case 'custom':
-                    return rule.value;
+                    part = rule.value;
+                    break;
                 default:
-                    return rule.value;
+                    part = rule.value;
+                    break;
             }
+            // Sanitize part: if it's a UUID, it's probably an error or missing name
+            return isUUID(part) ? 'Data' : part;
         }).join('');
+
+        return isUUID(filename) ? `BOM_Export_${new Date().toISOString().slice(0, 10)}` : filename;
     };
 
     const executeExport = (
@@ -4747,29 +4803,51 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         quantityMultiplier: number,
         variableOverrides: Record<string, string> = {}
     ) => {
-        const data = getProcessedBOMData(datasetId, viewNames, hiddenFields, configRules);
-        if (!data) return;
-        const { filteredRecords, displayFields } = data;
+        try {
+            const data = getProcessedBOMData(datasetId, viewNames, hiddenFields, configRules);
+            if (!data) {
+                addToast(t('erp.toast.invalid_format') || 'Export failed: Dataset not found', 'error');
+                console.error('[Export] Dataset not found:', datasetId);
+                return;
+            }
+            const { filteredRecords, displayFields } = data;
 
-        const exportBytes = filteredRecords.map(r => {
-            const row: any = {};
-            displayFields.forEach((f, index) => {
-                const isMultiplierTarget = quantityMultiplier > 1 && index === displayFields.length - 1;
-                let val = r[f.id];
-                if (isMultiplierTarget && !isNaN(Number(val))) {
-                    val = Number(val) * quantityMultiplier;
-                }
-                const headerName = f.label || f.name || f.id;
-                row[headerName] = (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
+            if (filteredRecords.length === 0) {
+                addToast(t('app.no_data') || 'No records to export', 'warning');
+                return;
+            }
+
+            const exportBytes = filteredRecords.map(r => {
+                const row: any = {};
+                displayFields.forEach((f, index) => {
+                    const isMultiplierTarget = quantityMultiplier > 1 && index === displayFields.length - 1;
+                    let val = r[f.id];
+                    if (isMultiplierTarget && !isNaN(Number(val))) {
+                        val = Number(val) * quantityMultiplier;
+                    }
+                    // Handle objects/arrays for CSV/Excel readability
+                    if (typeof val === 'object' && val !== null) {
+                        val = JSON.stringify(val);
+                    }
+                    const headerName = f.label || f.name || f.id;
+                    row[headerName] = val;
+                });
+                return row;
             });
-            return row;
-        });
 
-        const ws = utils.json_to_sheet(exportBytes);
-        const wb = utils.book_new();
-        utils.book_append_sheet(wb, ws, "BOM Architecture");
-        const filename = generateFilename(variableOverrides, quantityMultiplier);
-        writeFile(wb, `${filename}.xlsx`);
+            const ws = utils.json_to_sheet(exportBytes);
+            const wb = utils.book_new();
+            utils.book_append_sheet(wb, ws, "BOM Architecture");
+            const filename = generateFilename(variableOverrides, quantityMultiplier).replace(/[\\/:*?"<>|]/g, '_') || 'BOM_Export';
+
+            // Use xlsx.writeFile for robust browser download with correct filename and MIME type
+            writeFile(wb, `${filename}.xlsx`);
+
+            addToast(t('erp.toast.export_success'), 'success');
+        } catch (error) {
+            console.error('[Export Error]', error);
+            addToast('Export failed: ' + (error as Error).message, 'error');
+        }
     };
 
     const handleExportBOM = (
@@ -5534,8 +5612,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                 </button>
                                                                             </div>
 
-                                                                            {/* Inline Preset Save Form (Reusing existing logic logic if needed, but for now just the button triggering the state is fine. The global preset dialog might be better, but I'll replicate the inline one if it was inline before. 
-                                                                           Wait, existing logic (Line 4919) had inline form. 
+                                                                            {/* Inline Preset Save Form (Reusing existing logic logic if needed, but for now just the button triggering the state is fine. The global preset dialog might be better, but I'll replicate the inline one if it was inline before.
+                                                                           Wait, existing logic (Line 4919) had inline form.
                                                                            I should include the inline form here if savingRuleId matches.
                                                                         */}
                                                                             {savingRuleId === rule.id && (
@@ -6154,7 +6232,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                         <ArrowRight size={10} />
                                                                                         <span>{cg.targetField}</span>
                                                                                         {cg.sourceRowId && (
-                                                                                            <span className="text-[8px] bg-amber-50 text-amber-600 px-1 py-0.5 rounded border border-amber-100">📍 指定行</span>
+                                                                                            <span className="text-[8px] bg-amber-50 text-amber-600 px-1 py-0.5 rounded border border-amber-100">📍 {t('erp.config.located_row')}</span>
                                                                                         )}
                                                                                     </div>
                                                                                     <div className="flex flex-wrap gap-1.5">
@@ -6225,8 +6303,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                         ) : (
                                                             <div className="flex flex-col gap-3">
                                                                 <div className="flex items-center gap-2 text-xs">
-                                                                    <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase">Logic</span>
-                                                                    <span className="text-slate-400">If</span>
+                                                                    <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase">{t('erp.config.logic')}</span>
+                                                                    <span className="text-slate-400">{t('erp.config.if')}</span>
                                                                     <div className="flex flex-wrap gap-1">
                                                                         {rule.conditions?.map((c: any, ci: number) => (
                                                                             <span key={ci} className="bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 font-medium text-[11px]">
@@ -6236,7 +6314,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                     </div>
                                                                 </div>
                                                                 <div className="flex items-center gap-2 text-xs pt-2 border-t border-slate-100 mt-1">
-                                                                    <span className="text-slate-400">Set</span>
+                                                                    <span className="text-slate-400">{t('erp.config.set')}</span>
                                                                     <b className="text-slate-800">{rule.targetField}</b>
                                                                     <span className="text-slate-400">=</span>
                                                                     <span className="text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">{rule.expression}</span>
@@ -6263,7 +6341,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                             />
                                             <button onClick={() => setOrderQuantity(orderQuantity + 1)} className="w-8 h-8 rounded-md hover:bg-white hover:shadow-sm text-slate-500 flex items-center justify-center transition-all font-bold"><Plus size={14} /></button>
                                         </div>
-                                        <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Quantity</span>
+                                        <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">{t('erp.config.quantity')}</span>
                                     </div>
 
                                     {/* Place Order Button */}
@@ -6281,11 +6359,11 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                 orderQuantity
                                             );
 
-                                            addToast('Order Placed & BOM Exported', 'success');
+                                            addToast(t('erp.toast.order_placed'), 'success');
                                         }}
                                         className="h-[48px] px-8 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl font-bold hover:bg-indigo-100 hover:border-indigo-200 transition-all active:scale-95 flex items-center gap-2"
                                     >
-                                        <ShoppingCart size={18} /> Place Order
+                                        <ShoppingCart size={18} /> {t('erp.config.place_order')}
                                     </button>
                                 </div>
                             </div>
@@ -6294,9 +6372,9 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                         {/* BOM Table Section */}
                         <div className="mt-16">
                             <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-xl font-bold text-slate-900">BOM Architecture</h3>
+                                <h3 className="text-xl font-bold text-slate-900">{t('erp.config.bom_arch')}</h3>
                                 <button className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors">
-                                    <Download size={14} /> Export CSV
+                                    <Download size={14} /> {t('erp.export_csv')}
                                 </button>
                             </div>
                             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[300px]">
@@ -6329,12 +6407,14 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `GenPM_Config_Export_${new Date().toISOString().slice(0, 10)}.json`;
+        const filename = `GenPM_Config_Export_${new Date().toISOString().slice(0, 10)}.json`.replace(/[\\/:*?"<>|]/g, '_');
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        addToast('System Data Exported Successfully', 'success');
+        // Delay URL revocation to ensure download starts
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+        addToast(t('erp.toast.system_exported'), 'success');
     };
 
 
@@ -6399,13 +6479,13 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                     // Projects and Teams are managed globally, skipping import to avoid conflict
                     if (payload.data.namingRules) setNamingRules(payload.data.namingRules);
 
-                    addToast('System Data Imported Successfully', 'success');
+                    addToast(t('erp.toast.imported_system'), 'success');
                 } else {
-                    addToast('Invalid File Format', 'error');
+                    addToast(t('erp.toast.invalid_format'), 'error');
                 }
             } catch (err) {
                 console.error(err);
-                addToast('Failed to parse import file', 'error');
+                addToast(t('erp.toast.parse_error'), 'error');
             }
         };
         reader.readAsText(file);
@@ -6415,30 +6495,30 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const renderProductSettings = () => (
         <div className="p-12 max-w-5xl mx-auto animate-in fade-in duration-500 pb-32">
             <div className="mb-12">
-                <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">System Settings</h2>
-                <p className="text-slate-500 mt-2 font-medium">Manage global data and export configurations.</p>
+                <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">{t('erp.settings.system_title')}</h2>
+                <p className="text-slate-500 mt-2 font-medium">{t('erp.settings.system_desc')}</p>
             </div>
 
             <div className="grid grid-cols-1 gap-12">
                 {/* Data Management Section */}
                 <section className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl shadow-slate-200/50">
                     <h4 className="text-sm font-black text-indigo-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
-                        <Database size={14} /> Data Management
+                        <Database size={14} /> {t('erp.settings.data')}
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                            <h5 className="font-bold text-slate-900 mb-2">Export Configuration</h5>
-                            <p className="text-xs text-slate-500 mb-6">Backup all products, rules, datasets, and settings to a JSON file.</p>
+                            <h5 className="font-bold text-slate-900 mb-2">{t('erp.settings.export_config')}</h5>
+                            <p className="text-xs text-slate-500 mb-6">{t('erp.settings.backup_desc')}</p>
                             <button
                                 onClick={handleExportSystemData}
                                 className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
                             >
-                                <Download size={16} /> Export JSON
+                                <Download size={16} /> {t('erp.export_json')}
                             </button>
                         </div>
                         <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                            <h5 className="font-bold text-slate-900 mb-2">Import Configuration</h5>
-                            <p className="text-xs text-slate-500 mb-6">Restore system data from a backup JSON file.</p>
+                            <h5 className="font-bold text-slate-900 mb-2">{t('erp.settings.import_config')}</h5>
+                            <p className="text-xs text-slate-500 mb-6">{t('erp.settings.restore_desc')}</p>
                             <input
                                 type="file"
                                 ref={dataImportInputRef}
@@ -6450,7 +6530,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 onClick={() => dataImportInputRef.current?.click()}
                                 className="w-full py-3 bg-white border-2 border-slate-200 hover:border-indigo-400 hover:text-indigo-600 text-slate-600 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
                             >
-                                <Upload size={16} /> Import JSON
+                                <Upload size={16} /> {t('erp.import_json')}
                             </button>
                         </div>
                     </div>
@@ -6464,7 +6544,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                         onClick={() => setIsNamingBuilderCollapsed(!isNamingBuilderCollapsed)}
                     >
                         <h4 className="text-sm font-black text-rose-600 uppercase tracking-[0.2em] flex items-center gap-2">
-                            <Tag size={14} /> Naming Rule Builder
+                            <Tag size={14} /> {t('erp.naming.builder_full')}
                             <ChevronDown
                                 size={16}
                                 className={`text-slate-400 transition-transform duration-300 ${isNamingBuilderCollapsed ? '-rotate-90' : ''}`}
@@ -6480,13 +6560,13 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                     : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-amber-200 hover:text-amber-600'
                                     }`}
                             >
-                                <Bookmark size={12} /> 规则库
+                                <Bookmark size={12} /> {t('erp.naming.library')}
                             </button>
 
                             {/* Interactive Export Mode Toggle */}
                             <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
                                 <span className={`text-[10px] font-bold uppercase tracking-wider transition-colors ${namingInteractiveMode ? 'text-indigo-600' : 'text-slate-400'}`}>
-                                    导出时完善命名
+                                    {t('erp.naming.interactive_mode')}
                                 </span>
                                 <button
                                     onClick={() => setNamingInteractiveMode(!namingInteractiveMode)}
@@ -6522,7 +6602,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 <div className="mb-8 p-6 bg-indigo-50/50 rounded-3xl border border-indigo-100 animate-in zoom-in-95 duration-300">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-3">
-                                            <label className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest block pl-1">Variable Name</label>
+                                            <label className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest block pl-1">{t('erp.naming.variable_name')}</label>
                                             <input
                                                 type="text"
                                                 value={newVariableName}
@@ -6532,7 +6612,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                             />
                                         </div>
                                         <div className="space-y-3">
-                                            <label className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest block pl-1">Add Options (Values)</label>
+                                            <label className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest block pl-1">{t('erp.naming.add_options')}</label>
                                             <div className="flex gap-2">
                                                 <input
                                                     type="text"
@@ -6544,7 +6624,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                             setCurrentOptionInput('');
                                                         }
                                                     }}
-                                                    placeholder="Type and press Enter..."
+                                                    placeholder={t('erp.naming.type_enter')}
                                                     className="flex-1 bg-white border border-indigo-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-indigo-500 transition-colors"
                                                 />
                                                 <button
@@ -6555,7 +6635,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                         }
                                                     }}
                                                     className="px-4 py-2 bg-indigo-500 text-white rounded-xl font-bold text-xs"
-                                                >Add</button>
+                                                >{t('common.add')}</button>
                                             </div>
                                             {/* Option Tags */}
                                             <div className="flex flex-wrap gap-2 mt-2">
@@ -6585,7 +6665,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                             }}
                                             className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
                                         >
-                                            Create Variable Library Item
+                                            {t('erp.naming.create_variable')}
                                         </button>
                                     </div>
                                 </div>
@@ -6594,7 +6674,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                             {/* Preview Area - Light Background */}
                             <div className="mb-8 bg-gradient-to-r from-slate-50 to-indigo-50 rounded-2xl p-6 relative overflow-hidden group border border-slate-200">
                                 <div className="absolute top-0 right-0 p-4 opacity-20"><FileText className="text-indigo-600 w-12 h-12 rotate-12" /></div>
-                                <span className="text-[10px] uppercase font-bold text-slate-500 mb-2 block tracking-widest">Real-time Preview 实时预览</span>
+                                <span className="text-[10px] uppercase font-bold text-slate-500 mb-2 block tracking-widest">{t('erp.naming.realtime_preview')}</span>
                                 <div className="font-mono text-lg text-indigo-700 font-medium truncate">
                                     {namingRules.length > 0 ? namingRules.map(r => {
                                         if (r.type === 'project') return '[ProjectName]';
@@ -6612,14 +6692,14 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 <div className="mb-8 bg-amber-50/50 rounded-2xl border border-amber-200 p-6 animate-in fade-in slide-in-from-top-2 duration-300">
                                     <div className="flex items-center justify-between mb-4">
                                         <h5 className="text-sm font-bold text-amber-800 flex items-center gap-2">
-                                            <Bookmark size={14} /> 命名规则库 Naming Rule Library
+                                            <Bookmark size={14} /> {t('erp.naming.rule_lib')}
                                         </h5>
                                         <div className="flex items-center gap-2">
                                             <input
                                                 type="text"
                                                 value={newTemplateNameInput}
                                                 onChange={(e) => setNewTemplateNameInput(e.target.value)}
-                                                placeholder="模板名称..."
+                                                placeholder={t('erp.naming.template_name_ph')}
                                                 className="px-3 py-1.5 text-xs border border-amber-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 w-40"
                                             />
                                             <button
@@ -6634,13 +6714,13 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                         };
                                                         setNamingRuleLibrary(prev => [...prev, newTemplate]);
                                                         setNewTemplateNameInput('');
-                                                        addToast('规则模板已保存', 'success');
+                                                        addToast(t('erp.naming.toast_saved'), 'success');
                                                     }
                                                 }}
                                                 disabled={namingRules.length === 0 || !newTemplateNameInput.trim()}
                                                 className="px-3 py-1.5 text-xs font-bold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                                             >
-                                                <Save size={12} /> 保存当前规则
+                                                <Save size={12} /> {t('erp.naming.save_current')}
                                             </button>
                                         </div>
                                     </div>
@@ -6648,7 +6728,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                     {/* Template List */}
                                     {namingRuleLibrary.length === 0 ? (
                                         <div className="text-center py-8 text-amber-400 text-sm italic">
-                                            暂无保存的规则模板，请先创建命名规则后保存
+                                            {t('erp.naming.no_templates')}
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
@@ -6663,7 +6743,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                     <div className="flex items-center gap-3">
                                                         {defaultNamingRuleId === template.id && (
                                                             <span className="flex items-center gap-1 text-[9px] font-black text-amber-600 bg-amber-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                                                <Star size={10} /> 默认
+                                                                <Star size={10} /> {t('erp.naming.default')}
                                                             </span>
                                                         )}
                                                         <span className="font-bold text-slate-700">{template.name}</span>
@@ -6679,7 +6759,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                 ? 'text-amber-600 bg-amber-200'
                                                                 : 'text-slate-400 hover:text-amber-600 hover:bg-amber-100'
                                                                 }`}
-                                                            title={defaultNamingRuleId === template.id ? "取消默认" : "设为默认"}
+                                                            title={defaultNamingRuleId === template.id ? t('erp.naming.unset_default') : t('erp.naming.set_default')}
                                                         >
                                                             <Star size={14} />
                                                         </button>
@@ -6688,11 +6768,11 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                             onClick={() => {
                                                                 setNamingRules(template.rules);
                                                                 setNamingVariables(template.variables);
-                                                                addToast('已加载规则模板', 'success');
+                                                                addToast(t('erp.naming.toast_loaded'), 'success');
                                                             }}
                                                             className="px-3 py-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
                                                         >
-                                                            加载
+                                                            {t('erp.naming.load')}
                                                         </button>
                                                         {/* Delete Template */}
                                                         <button
@@ -6701,7 +6781,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                 if (defaultNamingRuleId === template.id) {
                                                                     setDefaultNamingRuleId(null);
                                                                 }
-                                                                addToast('规则模板已删除', 'info');
+                                                                addToast(t('erp.naming.toast_deleted'), 'info');
                                                             }}
                                                             className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                                         >
@@ -6799,14 +6879,14 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                             <div className="mt-8 space-y-6">
                                 {/* System Variables */}
                                 <div>
-                                    <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">System Variables</h5>
+                                    <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">{t('erp.naming.system_vars')}</h5>
                                     <div className="flex flex-wrap gap-2">
                                         {[
-                                            { label: 'Product Name', type: 'product', value: 'product' },
-                                            { label: 'Project Name', type: 'project', value: 'project' },
-                                            { label: 'User Name', type: 'personnel', value: 'user' },
-                                            { label: 'Date (YYYY-MM-DD)', type: 'date', value: 'date' },
-                                            { label: 'Order Qty', type: 'quantity', value: 'qty' }
+                                            { label: t('erp.naming.var_product'), type: 'product', value: 'product' },
+                                            { label: t('erp.naming.var_project'), type: 'project', value: 'project' },
+                                            { label: t('erp.naming.var_user'), type: 'personnel', value: 'user' },
+                                            { label: t('erp.naming.var_date'), type: 'date', value: 'date' },
+                                            { label: t('erp.naming.var_qty'), type: 'quantity', value: 'qty' }
                                         ].map((item, i) => (
                                             <div
                                                 key={i}
@@ -6823,9 +6903,9 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
                                 {/* Custom Variables */}
                                 <div>
-                                    <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">Custom Lists</h5>
+                                    <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">{t('erp.naming.custom_lists')}</h5>
                                     <div className="flex flex-wrap gap-2">
-                                        {namingVariables.length === 0 && <span className="text-xs text-slate-300 italic pl-1">No custom lists created yet.</span>}
+                                        {namingVariables.length === 0 && <span className="text-xs text-slate-300 italic pl-1">{t('erp.naming.no_custom')}</span>}
                                         {namingVariables.map(v => (
                                             <div
                                                 key={v.id}
@@ -6848,16 +6928,16 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
                                 {/* Separators */}
                                 <div>
-                                    <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">Separators</h5>
+                                    <h5 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 pl-1">{t('erp.naming.separators')}</h5>
                                     <div className="flex flex-wrap gap-2">
-                                        {['_', '-', '.', '+', 'Space'].map((sep, i) => (
+                                        {['_', '-', '.', '+', t('erp.naming.space')].map((sep, i) => (
                                             <div
                                                 key={i}
                                                 draggable
-                                                onDragStart={(e) => handleDragStart(e, 'separator', sep === 'Space' ? ' ' : sep, sep === 'Space' ? '__' : sep)}
+                                                onDragStart={(e) => handleDragStart(e, 'separator', sep === t('erp.naming.space') ? ' ' : sep, sep === t('erp.naming.space') ? '__' : sep)}
                                                 className="bg-slate-100 border border-slate-200 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-slate-600 hover:bg-slate-200 cursor-grab select-none"
                                             >
-                                                {sep === 'Space' ? '␣' : sep}
+                                                {sep === t('erp.naming.space') ? '␣' : sep}
                                             </div>
                                         ))}
                                     </div>
@@ -6867,120 +6947,6 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                     )}
                 </section>
             </div>
-
-            {/* Export Naming Dialog - 完善导出信息 */}
-            {exportNamingDialog.open && (
-                <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300">
-                        {/* Header */}
-                        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h3 className="text-lg font-black tracking-tight">完善导出信息</h3>
-                                    <p className="text-indigo-100 text-xs font-medium mt-1 opacity-80">请为以下自定义变量选择具体值</p>
-                                </div>
-                                <div className="p-2.5 bg-white/10 rounded-xl">
-                                    <FileText className="text-white" size={22} />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Variable Selection Forms */}
-                        <div className="p-6 space-y-5 max-h-[50vh] overflow-y-auto">
-                            {namingRules.filter(r => r.type === 'variable').map(rule => {
-                                const variableDef = namingVariables.find(v => v.id === rule.variableId);
-                                if (!variableDef) return null;
-
-                                const currentValue = exportNamingDialog.variableOverrides[rule.id] || variableDef.defaultValue;
-
-                                return (
-                                    <div key={rule.id} className="space-y-2">
-                                        <label className="text-xs font-extrabold text-slate-500 uppercase tracking-widest pl-1 flex items-center gap-2">
-                                            <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                                            {variableDef.name}
-                                        </label>
-
-                                        {/* Radio buttons for <=5 options, select dropdown for more */}
-                                        {variableDef.options.length <= 5 ? (
-                                            <div className="flex flex-wrap gap-2">
-                                                {variableDef.options.map(opt => {
-                                                    const isSelected = currentValue === opt;
-                                                    return (
-                                                        <button
-                                                            key={opt}
-                                                            onClick={() => setExportNamingDialog(prev => ({
-                                                                ...prev,
-                                                                variableOverrides: { ...prev.variableOverrides, [rule.id]: opt }
-                                                            }))}
-                                                            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all border-2 ${isSelected
-                                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200'
-                                                                : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-400 hover:text-indigo-600'
-                                                                }`}
-                                                        >
-                                                            {opt}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        ) : (
-                                            <select
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
-                                                value={currentValue}
-                                                onChange={(e) => setExportNamingDialog(prev => ({
-                                                    ...prev,
-                                                    variableOverrides: { ...prev.variableOverrides, [rule.id]: e.target.value }
-                                                }))}
-                                            >
-                                                {variableDef.options.map(opt => (
-                                                    <option key={opt} value={opt}>{opt}</option>
-                                                ))}
-                                            </select>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* Real-time Filename Preview - Light Background */}
-                        <div className="mx-6 mb-6 bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl p-4 border border-slate-200">
-                            <span className="text-[10px] uppercase font-bold text-slate-500 mb-2 block tracking-widest">预计文件名 Preview</span>
-                            <div className="font-mono text-sm text-indigo-700 font-medium break-all">
-                                {generateFilename(exportNamingDialog.variableOverrides, 1)}.xlsx
-                            </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
-                            <button
-                                onClick={() => setExportNamingDialog({ open: false, variableOverrides: {}, exportParams: null })}
-                                className="px-6 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors"
-                            >
-                                取消
-                            </button>
-                            <button
-                                onClick={() => {
-                                    // Execute the export with selected overrides
-                                    const { exportParams, variableOverrides } = exportNamingDialog;
-                                    if (exportParams) {
-                                        executeExport(
-                                            exportParams.datasetId,
-                                            exportParams.viewNames,
-                                            exportParams.hiddenFields,
-                                            exportParams.configRules,
-                                            exportParams.quantityMultiplier,
-                                            variableOverrides
-                                        );
-                                    }
-                                    setExportNamingDialog({ open: false, variableOverrides: {}, exportParams: null });
-                                }}
-                                className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center gap-2"
-                            >
-                                <Download size={14} /> 确定导出
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 
@@ -7002,28 +6968,28 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all border ${productSubTab === 'config' ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-white border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
                             >
                                 <Box size={14} className={productSubTab === 'config' ? 'text-indigo-600' : 'text-slate-400'} />
-                                <span>Define Product</span>
+                                <span>{t('erp.tabs.define_product')}</span>
                             </button>
                             <button
                                 onClick={() => { setProductSubTab('library'); setSelectedProductId(null); }}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all border ${productSubTab === 'library' ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-white border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
                             >
                                 <List size={14} className={productSubTab === 'library' ? 'text-indigo-600' : 'text-slate-400'} />
-                                <span>Product Library</span>
+                                <span>{t('erp.tabs.product_library')}</span>
                             </button>
                             <button
                                 onClick={() => { setProductSubTab('settings'); setSelectedProductId(null); }}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all border ${productSubTab === 'settings' ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-white border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
                             >
                                 <Settings size={14} className={productSubTab === 'settings' ? 'text-indigo-600' : 'text-slate-400'} />
-                                <span>Settings</span>
+                                <span>{t('erp.tabs.settings')}</span>
                             </button>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Engine Active</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('erp.engine_active')}</span>
                     </div>
                 </div>
 
@@ -7059,7 +7025,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                     onClick={e => e.stopPropagation()}
                 >
                     <div className="text-xs font-semibold text-gray-500 px-3 py-2 border-b border-gray-100 mb-1">
-                        Auto Fill Options
+                        {t('erp.fill.options')}
                     </div>
 
                     <button
@@ -7067,7 +7033,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                         onClick={() => performFill('copy')}
                     >
                         <Copy size={14} className="text-gray-400" />
-                        <span>Copy Cells</span>
+                        <span>{t('erp.fill.copy')}</span>
                     </button>
 
                     <button
@@ -7075,7 +7041,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                         onClick={() => performFill('series')}
                     >
                         <ListOrdered size={14} className="text-gray-400" />
-                        <span>Fill Series</span>
+                        <span>{t('erp.fill.series')}</span>
                     </button>
 
                     <div className="h-px bg-gray-100 my-1"></div>
@@ -7085,7 +7051,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                         onClick={() => performFill('select_only')}
                     >
                         <X size={14} />
-                        <span>Cancel</span>
+                        <span>{t('common.cancel')}</span>
                     </button>
                 </div>
             </div>
@@ -7214,7 +7180,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
                     if (count > 0) {
                         setRecords(newRecords);
-                        addToast(`Cleared ${count} cells`, 'success');
+                        addToast(t('erp.toast.cleared_cells').replace('{count}', String(count)), 'success');
                     }
                 }
                 return;
@@ -7235,8 +7201,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                         <Database size={18} />
                     </div>
                     <div>
-                        <h1 className="font-extrabold text-lg text-gray-900 tracking-tight leading-none">Super Table</h1>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5 tracking-wider">Dynamic Schema Engine</p>
+                        <h1 className="font-extrabold text-lg text-gray-900 tracking-tight leading-none">{t('erp.title')}</h1>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5 tracking-wider">{t('erp.subtitle')}</p>
                     </div>
                 </div>
 
@@ -7246,34 +7212,34 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                         onClick={() => setActiveTab('product_center')}
                         className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'product_center' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
-                        <Package size={14} /> Product Configuration Center
+                        <Package size={14} /> {t('erp.tab.product_center')}
                     </button>
                     <div className="w-px bg-gray-200 mx-1 my-1"></div>
                     <button
                         onClick={() => setActiveTab('data')}
                         className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'data' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
-                        <TableIcon size={14} /> Data Manager
+                        <TableIcon size={14} /> {t('erp.tab.data')}
                     </button>
                     <div className="w-px bg-gray-200 mx-1 my-1"></div>
                     <button
                         onClick={() => setActiveTab('library')}
                         className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'library' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
-                        <Folder size={14} /> Form Library
+                        <Folder size={14} /> {t('erp.tab.library')}
                     </button>
                     <button
                         onClick={() => setActiveTab('builder')}
                         className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'builder' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
-                        <Settings2 size={14} /> Schema Builder
+                        <Settings2 size={14} /> {t('erp.tab.builder')}
                     </button>
                     <div className="w-px bg-gray-200 mx-1 my-1"></div>
                     <button
                         onClick={() => setActiveTab('guide')}
                         className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'guide' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
-                        <BookOpen size={14} /> Logic Guide
+                        <BookOpen size={14} /> {t('erp.tab.guide')}
                     </button>
                 </div>
 
@@ -7295,15 +7261,15 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                             {/* 1. New Left Sidebar Toolbox (Sleek) */}
                             <div className="w-16 lg:w-56 bg-white border-r border-gray-200 flex flex-col shrink-0 z-20">
                                 <div className="p-5 pb-2 border-b border-gray-50 bg-white">
-                                    <h3 className="text-xs font-bold text-slate-800 hidden lg:block">Components</h3>
-                                    <p className="text-[10px] text-slate-400 mt-0.5 hidden lg:block">Drag or click to add</p>
+                                    <h3 className="text-xs font-bold text-slate-800 hidden lg:block">{t('erp.toolbox')}</h3>
+                                    <p className="text-[10px] text-slate-400 mt-0.5 hidden lg:block">{t('erp.add_field')}</p>
                                     <LayoutTemplate size={20} className="lg:hidden mx-auto text-slate-400" />
                                 </div>
 
                                 <div className="flex-1 overflow-y-auto p-3 space-y-6 custom-scrollbar">
                                     {/* Group: Inputs */}
                                     <div className="space-y-1">
-                                        <h4 className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2 hidden lg:block">Basic Inputs</h4>
+                                        <h4 className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2 hidden lg:block">{t('erp.basic_inputs')}</h4>
                                         <ToolboxItem type="text" label="Text Input" icon={Type} onClick={addField} colorClass="text-blue-500 group-hover:text-blue-600" />
                                         <ToolboxItem type="number" label="Number" icon={Hash} onClick={addField} colorClass="text-emerald-500 group-hover:text-emerald-600" />
                                         <ToolboxItem type="date" label="Date Picker" icon={Calendar} onClick={addField} colorClass="text-orange-500 group-hover:text-orange-600" />
@@ -7311,7 +7277,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
                                     {/* Group: Choices */}
                                     <div className="space-y-1">
-                                        <h4 className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2 hidden lg:block">Selection</h4>
+                                        <h4 className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2 hidden lg:block">{t('erp.selection')}</h4>
                                         <ToolboxItem type="select" label="Dropdown" icon={List} onClick={addField} colorClass="text-purple-500 group-hover:text-purple-600" />
                                         <ToolboxItem type="radio" label="Radio Group" icon={CircleIcon} onClick={addField} colorClass="text-pink-500 group-hover:text-pink-600" />
                                         <ToolboxItem type="checkbox" label="Checkbox" icon={CheckSquare} onClick={addField} colorClass="text-teal-500 group-hover:text-teal-600" />
@@ -7319,7 +7285,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
                                     {/* Group: Layout */}
                                     <div className="space-y-1">
-                                        <h4 className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2 hidden lg:block">Structure</h4>
+                                        <h4 className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2 hidden lg:block">{t('erp.structure')}</h4>
                                         <ToolboxItem type="divider" label="Divider Line" icon={Minus} onClick={addField} colorClass="text-slate-500 group-hover:text-slate-700" />
                                         <ToolboxItem type="notice" label="Warning / Notice" icon={Bell} onClick={addField} colorClass="text-amber-500 group-hover:text-amber-600" />
                                         <ToolboxItem type="spacer" label="Empty Space" icon={MoveVertical} onClick={addField} colorClass="text-slate-400 group-hover:text-slate-600" />
@@ -7327,7 +7293,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
                                     {/* Group: Advanced & Layout */}
                                     <div className="space-y-1">
-                                        <h4 className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2 hidden lg:block">Advanced & Layout</h4>
+                                        <h4 className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2 hidden lg:block">{t('erp.advanced_layout')}</h4>
                                         <ToolboxItem type="richtext" label="Rich Text" icon={FileText} onClick={addField} colorClass="text-violet-500 group-hover:text-violet-600" />
                                         <ToolboxItem type="file" label="File Upload" icon={Upload} onClick={addField} colorClass="text-sky-500 group-hover:text-sky-600" />
                                         <ToolboxItem type="signature" label="Signature" icon={PenTool} onClick={addField} colorClass="text-gray-500 group-hover:text-gray-700" />
@@ -7341,7 +7307,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                     {/* Group: AI Assistant */}
                                     <div className="space-y-1 pt-4 border-t border-gray-100">
                                         <h4 className="px-3 text-[10px] font-extrabold text-purple-500 uppercase tracking-wider mb-2 hidden lg:flex items-center gap-1">
-                                            <Sparkles size={10} /> AI Assistant
+                                            <Sparkles size={10} /> {t('erp.ai_assistant')}
                                         </h4>
                                         <button
                                             onClick={() => setAiBuilderModal({ isOpen: true, mode: 'generate', prompt: '', isLoading: false })}
@@ -7351,8 +7317,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                 <Sparkles size={14} />
                                             </div>
                                             <div className="hidden lg:block">
-                                                <span className="text-xs font-bold text-purple-700">AI Generate</span>
-                                                <p className="text-[10px] text-purple-400">From description</p>
+                                                <span className="text-xs font-bold text-purple-700">{t('erp.ai_generate')}</span>
+                                                <p className="text-[10px] text-purple-400">{t('erp.ai_generate_desc')}</p>
                                             </div>
                                         </button>
                                         <button
@@ -7364,8 +7330,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                 <FunctionSquare size={14} />
                                             </div>
                                             <div className="hidden lg:block">
-                                                <span className="text-xs font-bold text-emerald-700">AI Logic</span>
-                                                <p className="text-[10px] text-emerald-400">Configure rules</p>
+                                                <span className="text-xs font-bold text-emerald-700">{t('erp.ai_logic')}</span>
+                                                <p className="text-[10px] text-emerald-400">{t('erp.ai_logic_desc')}</p>
                                             </div>
                                         </button>
                                     </div>
@@ -7374,20 +7340,20 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 {/* Sidebar Footer */}
                                 <div className="p-4 border-t border-gray-100 bg-gray-50/50 hidden lg:block">
                                     <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-center">
-                                        <p className="text-[10px] text-indigo-800 font-medium mb-1">Manage Forms</p>
+                                        <p className="text-[10px] text-indigo-800 font-medium mb-1">{t('erp.manage_forms')}</p>
                                         {activeFormId ? (
                                             <>
                                                 <button
                                                     onClick={() => setSaveFormOpen(true)}
                                                     className="text-[10px] bg-white border border-indigo-200 text-indigo-600 font-bold px-3 py-1.5 rounded-full hover:bg-indigo-50 transition-colors w-full shadow-sm mb-2"
                                                 >
-                                                    Save as New...
+                                                    {t('erp.save_as_new')}...
                                                 </button>
                                                 <button
                                                     onClick={handleUpdateForm}
                                                     className="text-[10px] bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-full hover:bg-indigo-700 transition-colors w-full shadow-sm mb-2"
                                                 >
-                                                    Update Template
+                                                    {t('erp.update_template')}
                                                 </button>
                                             </>
                                         ) : (
@@ -7514,7 +7480,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                     setIsDraggingFromToolbox(false);
                                                 }}
                                             >
-                                                {isDraggingFromToolbox ? 'Drop component here' : 'End of Form'}
+                                                {isDraggingFromToolbox ? t('erp.drop_component') : t('erp.end_of_form')}
                                             </div>
 
                                         </div>
@@ -7538,9 +7504,9 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                     <button
                                         onClick={() => setShowPreview(false)}
                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-white/80 backdrop-blur border border-slate-200 shadow-sm rounded-full text-xs font-bold text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all group"
-                                        title="Close Preview"
+                                        title={t('erp.close_preview')}
                                     >
-                                        <span>Hide</span>
+                                        <span>{t('erp.hide')}</span>
                                         <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
                                     </button>
                                 </div>
@@ -7568,7 +7534,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                             <div className="w-64 border-r border-gray-200 flex flex-col bg-slate-50/50 shrink-0">
                                 <div className="p-4 border-b border-gray-100 flex items-center justify-between relative">
                                     <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                        <Database size={14} /> Databases
+                                        <Database size={14} /> {t('erp.my_data')}
                                     </h3>
                                     <div className="flex items-center gap-1">
                                         {/* Sort Menu */}
@@ -7584,24 +7550,24 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                 <>
                                                     <div className="fixed inset-0 z-30" onClick={() => setDatasetSortMenuOpen(false)}></div>
                                                     <div className="absolute right-0 top-full mt-2 w-40 bg-white border border-gray-200 rounded-lg shadow-xl z-40 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
-                                                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase">Sort By</div>
+                                                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase">{t('erp.sort_by')}</div>
                                                         <button onClick={() => handleSortDatasets('name_asc')} className="w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2">
-                                                            <ArrowDownAZ size={12} /> Name (A-Z)
+                                                            <ArrowDownAZ size={12} /> {t('erp.sort.name_asc')}
                                                         </button>
                                                         <button onClick={() => handleSortDatasets('name_desc')} className="w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2">
-                                                            <ArrowUpAZ size={12} /> Name (Z-A)
+                                                            <ArrowUpAZ size={12} /> {t('erp.sort.name_desc')}
                                                         </button>
                                                         <button onClick={() => handleSortDatasets('date_new')} className="w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2">
-                                                            <Calendar size={12} /> Date (Newest)
+                                                            <Calendar size={12} /> {t('erp.sort.date_new')}
                                                         </button>
                                                         <button onClick={() => handleSortDatasets('date_old')} className="w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2">
-                                                            <Clock size={12} /> Date (Oldest)
+                                                            <Clock size={12} /> {t('erp.sort.date_old')}
                                                         </button>
                                                     </div>
                                                 </>
                                             )}
                                         </div>
-                                        <button onClick={handleAddDatasetGroup} className="p-1 text-slate-400 hover:text-indigo-600 rounded transition-colors" title="New Folder">
+                                        <button onClick={handleAddDatasetGroup} className="p-1 text-slate-400 hover:text-indigo-600 rounded transition-colors" title={t('erp.new_folder')}>
                                             <Plus size={14} />
                                         </button>
                                     </div>
@@ -7610,7 +7576,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                     {savedDatasets.length === 0 && datasetGroups.length === 0 && (
                                         <div className="text-center p-8 text-slate-400">
                                             <Database size={24} className="mx-auto mb-2 opacity-50" />
-                                            <p className="text-[10px]">No saved datasets</p>
+                                            <p className="text-[10px]">{t('erp.no_data')}</p>
                                         </div>
                                     )}
 
@@ -7676,14 +7642,14 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                 <button
                                                                     onClick={(e) => { e.stopPropagation(); setRenameDialog({ isOpen: true, id: ds.id, name: ds.name, type: 'dataset' }); }}
                                                                     className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
-                                                                    title="Rename"
+                                                                    title={t('erp.rename')}
                                                                 >
                                                                     <Edit3 size={12} />
                                                                 </button>
                                                                 <button
                                                                     onClick={(e) => handleDeleteDataset(e, ds.id, ds.name)}
                                                                     className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                                                                    title="Delete"
+                                                                    title={t('erp.delete')}
                                                                 >
                                                                     <Trash2 size={12} />
                                                                 </button>
@@ -7788,11 +7754,11 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                     <div className="fixed inset-0 z-10" onClick={() => setTemplateSelectorOpen(false)}></div>
                                                     <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                                                         <div className="p-2 border-b border-gray-100 bg-gray-50">
-                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-2">Select Template</span>
+                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-2">{t('erp.select_template')}</span>
                                                         </div>
                                                         <div className="max-h-60 overflow-y-auto p-1">
                                                             {savedForms.length === 0 ? (
-                                                                <div className="text-xs text-gray-400 p-3 text-center italic">No saved templates</div>
+                                                                <div className="text-xs text-gray-400 p-3 text-center italic">{t('erp.no_saved_templates')}</div>
                                                             ) : (
                                                                 savedForms.map(form => (
                                                                     <div
@@ -7816,7 +7782,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                 onClick={() => { setActiveTab('library'); setTemplateSelectorOpen(false); }}
                                                                 className="w-full text-xs font-bold text-indigo-600 hover:underline text-center"
                                                             >
-                                                                Manage Library
+                                                                {t('erp.manage_library')}
                                                             </button>
                                                         </div>
                                                     </div>
@@ -7834,7 +7800,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                                     <input
                                                         className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-50 transition-all"
-                                                        placeholder="Search..."
+                                                        placeholder={t('app.search_placeholder')}
                                                         value={globalSearch}
                                                         onChange={(e) => setGlobalSearch(e.target.value)}
                                                     />
@@ -7845,12 +7811,12 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                     <button
                                                         onClick={() => setShowFilters(!showFilters)}
                                                         className={`p-1.5 rounded-md transition-colors ${showFilters || hasActiveFilters ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}
-                                                        title="Toggle Filters"
+                                                        title={t('erp.toggle_filters')}
                                                     >
                                                         <Filter size={16} className={hasActiveFilters ? "fill-indigo-600" : ""} />
                                                     </button>
                                                     <div className="w-px h-4 bg-gray-200 mx-1"></div>
-                                                    <button onClick={handleGenerateMock} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Mock Data">
+                                                    <button onClick={handleGenerateMock} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title={t('erp.mock_data')}>
                                                         <RefreshCw size={16} />
                                                     </button>
 
@@ -7859,7 +7825,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                         <button
                                                             onClick={() => setColumnsMenuOpen(!columnsMenuOpen)}
                                                             className={`p-1.5 rounded-md transition-colors ${columnsMenuOpen ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
-                                                            title="Toggle Columns"
+                                                            title={t('erp.toggle_columns')}
                                                         >
                                                             <Columns size={16} />
                                                         </button>
@@ -7869,8 +7835,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                 <div className="fixed inset-0 z-40" onClick={() => setColumnsMenuOpen(false)}></div>
                                                                 <div className="relative z-50 flex flex-col max-h-80">
                                                                     <div className="p-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center ">
-                                                                        <span className="text-xs font-bold text-gray-500 uppercase">Columns</span>
-                                                                        <button onClick={() => setHiddenColumnIds([])} className="text-[10px] font-bold text-indigo-600 hover:underline">Reset</button>
+                                                                        <span className="text-xs font-bold text-gray-500 uppercase">{t('erp.columns_title')}</span>
+                                                                        <button onClick={() => setHiddenColumnIds([])} className="text-[10px] font-bold text-indigo-600 hover:underline">{t('erp.reset')}</button>
                                                                     </div>
                                                                     <div className="overflow-y-auto p-2 space-y-1 custom-scrollbar">
                                                                         {schema.filter((f: any) => !['divider', 'notice', 'spacer'].includes(f.type)).map((f: any) => (
@@ -7898,10 +7864,10 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                             </div>
                                                         )}
                                                     </div>
-                                                    <button onClick={() => dataImportInputRef.current?.click()} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Import CSV/Excel">
+                                                    <button onClick={() => dataImportInputRef.current?.click()} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title={t('erp.import_tooltip')}>
                                                         <Download size={16} />
                                                     </button>
-                                                    <button onClick={handleExport} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Export CSV/Excel">
+                                                    <button onClick={handleExport} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title={t('erp.export_tooltip')}>
                                                         <Upload size={16} />
                                                     </button>
                                                     <input type="file" className="hidden" ref={dataImportInputRef} accept=".xlsx, .xls, .csv" onChange={handleDataImport} />
@@ -7924,7 +7890,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                 }}
                                                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs font-bold shadow-sm hover:shadow hover:-translate-y-0.5 active:translate-y-0"
                                             >
-                                                <Save size={14} /> {hasActiveFilters ? 'Save Options' : (activeDatasetId ? 'Save' : 'Save As')}
+                                                <Save size={14} /> {hasActiveFilters ? t('erp.save_options') : (activeDatasetId ? t('erp.save_short') : t('erp.save_as'))}
                                             </button>
                                         )}
                                     </div>
@@ -7945,8 +7911,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                 <SlidersHorizontal size={16} />
                                                             </div>
                                                             <div className="flex flex-col">
-                                                                <span className="text-sm font-bold text-slate-800 leading-none">筛选配置</span>
-                                                                <span className="text-[10px] text-slate-400 font-medium">Filter Rules</span>
+                                                                <span className="text-sm font-bold text-slate-800 leading-none">{t('erp.filter_config')}</span>
+                                                                <span className="text-[10px] text-slate-400 font-medium">{t('erp.filter_rules')}</span>
                                                             </div>
                                                         </div>
 
@@ -7956,13 +7922,13 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                     onClick={() => setRootFilterMode('AND')}
                                                                     className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${rootFilterMode === 'AND' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                                                                 >
-                                                                    满足所有组 (AND)
+                                                                    {t('erp.match_all_groups')}
                                                                 </button>
                                                                 <button
                                                                     onClick={() => setRootFilterMode('OR')}
                                                                     className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${rootFilterMode === 'OR' ? 'bg-white text-amber-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                                                                 >
-                                                                    满足任一组 (OR)
+                                                                    {t('erp.match_any_groups')}
                                                                 </button>
                                                             </div>
                                                         )}
@@ -8014,7 +7980,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                 setPendingFilter({ ...pendingFilter, fieldId: e.target.value, operator: defaultOp });
                                                             }}
                                                         >
-                                                            <option value="">选择字段...</option>
+                                                            <option value="">{t('erp.select_field')}</option>
                                                             {allDataFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
                                                         </select>
                                                     </div>
@@ -8026,7 +7992,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                             value={pendingFilter.operator}
                                                             onChange={(e) => setPendingFilter({ ...pendingFilter, operator: e.target.value })}
                                                         >
-                                                            {!pendingFilter.fieldId && <option>条件...</option>}
+                                                            {!pendingFilter.fieldId && <option>{t('erp.condition')}</option>}
                                                             {pendingFilter.fieldId && getOperatorsForType(schema.find(f => f.id === pendingFilter.fieldId)?.type || 'text').map(op => (
                                                                 <option key={op.val} value={op.val}>{op.label}</option>
                                                             ))}
@@ -8045,7 +8011,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                         value={pendingFilter.value}
                                                                         onChange={(e) => setPendingFilter({ ...pendingFilter, value: e.target.value })}
                                                                     >
-                                                                        <option value="">请选择...</option>
+                                                                        <option value="">{t('erp.please_select')}</option>
                                                                         {schema.find(f => f.id === pendingFilter.fieldId)?.options?.map((opt: string) => (
                                                                             <option key={opt} value={opt}>{opt}</option>
                                                                         ))}
@@ -8059,7 +8025,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                             disabled={!pendingFilter.fieldId}
                                                                             type={schema.find(f => f.id === pendingFilter.fieldId)?.type === 'date' ? 'date' : 'text'}
                                                                             className={`w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-white transition-all ${!pendingFilter.fieldId ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
-                                                                            placeholder="请输入值..."
+                                                                            placeholder={t('erp.enter_value')}
                                                                             value={pendingFilter.value}
                                                                             onChange={(e) => setPendingFilter({ ...pendingFilter, value: e.target.value })}
                                                                             onKeyDown={(e) => e.key === 'Enter' && handleAddPendingFilter()}
@@ -8071,7 +8037,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                             <input
                                                                                 type={schema.find(f => f.id === pendingFilter.fieldId)?.type === 'date' ? 'date' : 'text'}
                                                                                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 bg-white transition-all"
-                                                                                placeholder="Max / End"
+                                                                                placeholder={t('erp.max_end')}
                                                                                 value={pendingFilter.value2 || ''}
                                                                                 onChange={(e) => setPendingFilter({ ...pendingFilter, value2: e.target.value })}
                                                                                 onKeyDown={(e) => e.key === 'Enter' && handleAddPendingFilter()}
@@ -8298,7 +8264,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                         setSelectedCell({ rowId: filteredRecords[0]._id, fieldId: gridColumns[0].id });
                                                                     }
                                                                 }}
-                                                                title="Select All"
+                                                                title={t('erp.select_all')}
                                                             >
                                                                 <div className="flex items-center justify-center">
                                                                     <Grid size={14} className="text-gray-400 group-hover:text-indigo-500" />
@@ -8893,9 +8859,9 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 <div className="flex justify-between items-center mb-8">
                                     <div>
                                         <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
-                                            <Folder size={28} className="text-indigo-600" /> Form Library
+                                            <Folder size={28} className="text-indigo-600" /> {t('erp.tab.library')}
                                         </h2>
-                                        <p className="text-sm text-gray-500 mt-2">Manage your collection of saved form templates and schemas.</p>
+                                        <p className="text-sm text-gray-500 mt-2">{t('erp.library_desc')}</p>
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <input
@@ -8909,13 +8875,13 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                             onClick={() => fileInputRef.current?.click()}
                                             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg text-sm font-bold hover:shadow-lg transition-all shadow-md"
                                         >
-                                            <Sparkles size={16} /> AI Import
+                                            <Sparkles size={16} /> {t('erp.ai_import')}
                                         </button>
                                         <button
                                             onClick={() => setActiveTab('builder')}
                                             className="flex items-center gap-2 px-4 py-2 bg-white text-indigo-600 border border-indigo-200 rounded-lg text-sm font-bold hover:bg-indigo-50 hover:border-indigo-300 transition-all shadow-sm"
                                         >
-                                            <ArrowRight size={16} /> Back to Builder
+                                            <ArrowRight size={16} /> {t('erp.back_to_builder')}
                                         </button>
                                     </div>
                                 </div>
@@ -8929,15 +8895,15 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                             setActiveFormId(null);
                                             setCurrentFormName('New Form');
                                             setActiveTab('builder');
-                                            addToast('Created new blank form', 'info');
+                                            addToast(t('erp.toast.created_blank'), 'info');
                                         }}
                                         className="bg-white p-6 rounded-2xl border-2 border-dashed border-gray-200 hover:border-indigo-400 hover:bg-indigo-50/10 cursor-pointer transition-all group flex flex-col items-center justify-center text-center h-48 shadow-sm hover:shadow-md"
                                     >
                                         <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform text-indigo-600">
                                             <Plus size={24} />
                                         </div>
-                                        <h4 className="font-bold text-gray-700">Create New Form</h4>
-                                        <p className="text-xs text-gray-400 mt-2">Start from a blank canvas</p>
+                                        <h4 className="font-bold text-gray-700">{t('erp.create_new_form')}</h4>
+                                        <p className="text-xs text-gray-400 mt-2">{t('erp.start_blank')}</p>
                                     </div>
 
                                     {savedForms.map(form => (
@@ -8946,14 +8912,14 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); setRenameDialog({ isOpen: true, id: form.id, name: form.name, type: 'form' }); }}
                                                     className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                                    title="Rename Template"
+                                                    title={t('erp.rename_template')}
                                                 >
                                                     <Edit3 size={16} />
                                                 </button>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handleDeleteForm(form.id); }}
                                                     className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                                    title="Delete Template"
+                                                    title={t('erp.delete_template')}
                                                 >
                                                     <Trash2 size={16} />
                                                 </button>
@@ -8971,13 +8937,13 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                 </div>
                                             </div>
 
-                                            <p className="text-sm text-gray-500 line-clamp-2 mb-auto flex-1">{form.description || 'No description provided.'}</p>
+                                            <p className="text-sm text-gray-500 line-clamp-2 mb-auto flex-1">{form.description || t('erp.no_desc')}</p>
 
                                             <button
                                                 onClick={() => handleLoadForm(form.id)}
                                                 className="w-full py-2.5 mt-4 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-100 flex items-center justify-center gap-2 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-transparent"
                                             >
-                                                Modify Template <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
+                                                {t('erp.modify_template')} <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
                                             </button>
                                         </div>
                                     ))}
@@ -9233,7 +9199,9 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 {aiBuilderModal.mode === 'logic' && schema.length > 0 && (
                                     <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 rounded-lg">
                                         <p className="text-xs text-emerald-700 font-medium">
-                                            Current form has {schema.length} fields: {schema.slice(0, 5).map(f => f.label || f.id).join(', ')}{schema.length > 5 ? '...' : ''}
+                                            {t('erp.ai.current_fields')
+                                                .replace('{count}', String(schema.length))
+                                                .replace('{fields}', schema.slice(0, 5).map(f => f.label || f.id).join(', ') + (schema.length > 5 ? '...' : ''))}
                                         </p>
                                     </div>
                                 )}
@@ -9245,7 +9213,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         className="px-4 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                                         disabled={aiBuilderModal.isLoading}
                                     >
-                                        Cancel
+                                        {t('common.cancel')}
                                     </button>
                                     <button
                                         onClick={handleAIGenerate}
@@ -9258,12 +9226,12 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         {aiBuilderModal.isLoading ? (
                                             <>
                                                 <RefreshCw size={16} className="animate-spin" />
-                                                Processing...
+                                                {t('erp.ai.processing')}
                                             </>
                                         ) : (
                                             <>
                                                 <Sparkles size={16} />
-                                                {aiBuilderModal.mode === 'generate' ? 'Generate Form' : 'Apply Logic'}
+                                                {aiBuilderModal.mode === 'generate' ? t('erp.ai.generate_form') : t('erp.ai.apply_logic')}
                                             </>
                                         )}
                                     </button>
@@ -9403,18 +9371,20 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
                         <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200 border border-gray-100">
                             <div className="mb-4">
-                                <h3 className="text-lg font-bold text-gray-800">Rename {renameDialog.type === 'form' ? 'Template' : 'Dataset'}</h3>
+                                <h3 className="text-lg font-bold text-gray-800">
+                                    {renameDialog.type === 'form' ? t('erp.rename_dialog.title_form') : t('erp.rename_dialog.title_dataset')}
+                                </h3>
                                 <p className="text-xs text-gray-500 mt-1">
-                                    Enter a new name for this {renameDialog.type === 'form' ? 'form template' : 'dataset'}.
+                                    {renameDialog.type === 'form' ? t('erp.rename_dialog.desc_form') : t('erp.rename_dialog.desc_dataset')}
                                 </p>
                             </div>
                             <div className="mb-6 space-y-3">
-                                <label className="text-xs font-bold text-gray-500 uppercase">New Name</label>
+                                <label className="text-xs font-bold text-gray-500 uppercase">{t('erp.rename_dialog.new_name')}</label>
                                 <input
                                     autoFocus
                                     value={renameDialog.name}
                                     onChange={(e) => setRenameDialog(prev => ({ ...prev, name: e.target.value }))}
-                                    placeholder="Dataset Name"
+                                    placeholder={renameDialog.type === 'form' ? t('erp.name') : t('erp.datasets')}
                                     className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
                                     onKeyDown={(e) => e.key === 'Enter' && handleRenameSubmit()}
                                 />
@@ -9424,13 +9394,13 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                     onClick={() => setRenameDialog(prev => ({ ...prev, isOpen: false }))}
                                     className="px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
                                 >
-                                    Cancel
+                                    {t('common.cancel')}
                                 </button>
                                 <button
                                     onClick={handleRenameSubmit}
                                     className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm"
                                 >
-                                    Rename
+                                    {t('erp.rename')}
                                 </button>
                             </div>
                         </div>
@@ -9459,8 +9429,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         <Database size={16} />
                                     </div>
                                     <div className="flex-1">
-                                        <div className="font-bold text-gray-800">Move to Root</div>
-                                        <div className="text-[10px] text-gray-400 font-normal">Keep datasets, only delete folder</div>
+                                        <div className="font-bold text-gray-800">{t('erp.delete_group.move_root')}</div>
+                                        <div className="text-[10px] text-gray-400 font-normal">{t('erp.delete_group.move_root_desc')}</div>
                                     </div>
                                 </button>
                                 <button
@@ -9471,15 +9441,15 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         <Trash2 size={16} />
                                     </div>
                                     <div className="flex-1">
-                                        <div className="font-bold text-red-700">Delete Everything</div>
-                                        <div className="text-[10px] text-red-400 font-normal">Delete folder AND all its datasets</div>
+                                        <div className="font-bold text-red-700">{t('erp.delete_group.delete_all')}</div>
+                                        <div className="text-[10px] text-red-400 font-normal">{t('erp.delete_group.delete_all_desc')}</div>
                                     </div>
                                 </button>
                                 <button
                                     onClick={() => setDeleteGroupDialog({ isOpen: false, groupId: '', groupName: '' })}
                                     className="w-full px-4 py-2 text-sm font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors mt-1"
                                 >
-                                    Cancel
+                                    {t('common.cancel')}
                                 </button>
                             </div>
                         </div>
@@ -9496,8 +9466,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <h3 className="text-lg font-black tracking-tight">完善导出信息</h3>
-                                    <p className="text-indigo-100 text-xs font-medium mt-1 opacity-80">请为以下自定义变量选择具体值</p>
+                                    <h3 className="text-lg font-black tracking-tight">{t('erp.export_dialog.title')}</h3>
                                 </div>
                                 <div className="p-2.5 bg-white/10 rounded-xl">
                                     <FileText className="text-white" size={22} />
@@ -9512,7 +9481,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 <div key={rule.id} className="space-y-2">
                                     <label className="text-xs font-extrabold text-slate-500 uppercase tracking-widest pl-1 flex items-center gap-2">
                                         <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                                        项目名称 Project
+                                        {t('erp.export_dialog.project')} Project
                                     </label>
                                     <select
                                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
@@ -9534,7 +9503,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 <div key={rule.id} className="space-y-2">
                                     <label className="text-xs font-extrabold text-slate-500 uppercase tracking-widest pl-1 flex items-center gap-2">
                                         <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                                        人员名称 Personnel
+                                        {t('erp.export_dialog.personnel')} Personnel
                                     </label>
                                     <select
                                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
@@ -9605,13 +9574,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                             })}
                         </div>
 
-                        {/* Real-time Filename Preview - Light Background */}
-                        <div className="mx-6 mb-6 bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl p-4 border border-slate-200">
-                            <span className="text-[10px] uppercase font-bold text-slate-500 mb-2 block tracking-widest">预计文件名 Preview</span>
-                            <div className="font-mono text-sm text-indigo-700 font-medium break-all">
-                                {generateFilename(exportNamingDialog.variableOverrides, exportNamingDialog.exportParams?.quantityMultiplier || 1)}.xlsx
-                            </div>
-                        </div>
+
 
                         {/* Actions */}
                         <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
@@ -9619,7 +9582,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 onClick={() => setExportNamingDialog({ open: false, variableOverrides: {}, exportParams: null })}
                                 className="px-6 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors"
                             >
-                                取消
+                                {t('common.cancel')}
                             </button>
                             <button
                                 onClick={() => {
@@ -9638,7 +9601,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 }}
                                 className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center gap-2"
                             >
-                                <Download size={14} /> 确定导出
+                                <Download size={14} /> {t('erp.export_dialog.confirm')}
                             </button>
                         </div>
                     </div>

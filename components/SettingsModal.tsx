@@ -129,10 +129,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, c
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `gen_pm_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            const filename = `gen_pm_backup_${new Date().toISOString().slice(0, 10)}.json`.replace(/[\\/:*?"<>|]/g, '_');
+            link.download = filename;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            // Delay URL revocation to ensure download starts
+            setTimeout(() => URL.revokeObjectURL(url), 100);
             addToast(t('settings.export_success'), 'success');
         } catch (e) {
             addToast(t('settings.export_fail'), 'error');

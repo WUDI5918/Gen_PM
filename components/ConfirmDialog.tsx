@@ -19,7 +19,11 @@ interface ConfirmDialogProps {
   onClose: () => void;
 }
 
+import { useLanguage } from '../contexts/LanguageContext';
+
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ isOpen, options, onClose }) => {
+  const { t } = useLanguage();
+
   if (!isOpen || !options) return null;
 
   const isDanger = options.type === 'danger';
@@ -50,7 +54,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ isOpen, options, o
                 }}
                 className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-sm transition-colors"
               >
-                {options.cancelText || 'Cancel'}
+                {options.cancelText || t('common.cancel')}
               </button>
             )}
             <button
@@ -59,11 +63,11 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ isOpen, options, o
                 onClose();
               }}
               className={`flex-1 px-4 py-2.5 text-white rounded-xl font-bold text-sm shadow-lg transition-all transform active:scale-95 ${isDanger
-                  ? 'bg-red-500 hover:bg-red-600 shadow-red-500/30'
-                  : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/30'
+                ? 'bg-red-500 hover:bg-red-600 shadow-red-500/30'
+                : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/30'
                 }`}
             >
-              {options.confirmText || 'Confirm'}
+              {options.confirmText || t('common.confirm')}
             </button>
           </div>
         </div>
