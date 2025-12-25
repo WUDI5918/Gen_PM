@@ -11,10 +11,27 @@ interface GenPMDB extends DBSchema {
     key: string;
     value: any;
   };
+  // ERP Stores
+  erp_datasets: {
+    key: string;
+    value: any;
+  };
+  erp_products: {
+    key: string;
+    value: any;
+  };
+  erp_templates: {
+    key: string;
+    value: any;
+  };
+  erp_state: {
+    key: string;
+    value: any;
+  };
 }
 
 const DB_NAME = 'gen-pm-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Increment version for new stores
 
 let dbPromise: Promise<IDBPDatabase<GenPMDB>>;
 
@@ -27,6 +44,19 @@ const getDB = () => {
         }
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings');
+        }
+        // --- ERP Stores ---
+        if (!db.objectStoreNames.contains('erp_datasets')) {
+          db.createObjectStore('erp_datasets', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('erp_products')) {
+          db.createObjectStore('erp_products', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('erp_templates')) {
+          db.createObjectStore('erp_templates', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('erp_state')) {
+          db.createObjectStore('erp_state');
         }
       },
     });
@@ -164,11 +194,54 @@ export const db = {
     return result;
   },
 
+  // --- ERP Data Managers ---
+  async getERPDatasets() {
+    return (await getDB()).getAll('erp_datasets');
+  },
+  async saveERPDataset(dataset: any) {
+    return (await getDB()).put('erp_datasets', dataset);
+  },
+  async deleteERPDataset(id: string) {
+    return (await getDB()).delete('erp_datasets', id);
+  },
+
+  async getERPProducts() {
+    return (await getDB()).getAll('erp_products');
+  },
+  async saveERPProduct(product: any) {
+    return (await getDB()).put('erp_products', product);
+  },
+  async deleteERPProduct(id: string) {
+    return (await getDB()).delete('erp_products', id);
+  },
+
+  async getERPTemplates() {
+    return (await getDB()).getAll('erp_templates');
+  },
+  async saveERPTemplate(template: any) {
+    return (await getDB()).put('erp_templates', template);
+  },
+  async deleteERPTemplate(id: string) {
+    return (await getDB()).delete('erp_templates', id);
+  },
+
+  // ERP Global State (Records, Schema, etc.)
+  async getERPState(key: string) {
+    return (await getDB()).get('erp_state', key);
+  },
+  async saveERPState(key: string, value: any) {
+    return (await getDB()).put('erp_state', value, key);
+  },
+
   // --- Utilities ---
   async clearAll() {
     const database = await getDB();
     await database.clear('projects');
     await database.clear('settings');
+    if (database.objectStoreNames.contains('erp_datasets')) await database.clear('erp_datasets');
+    if (database.objectStoreNames.contains('erp_products')) await database.clear('erp_products');
+    if (database.objectStoreNames.contains('erp_templates')) await database.clear('erp_templates');
+    if (database.objectStoreNames.contains('erp_state')) await database.clear('erp_state');
   },
 
   async exportData() {

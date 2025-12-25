@@ -17,6 +17,7 @@ import { read, utils, writeFile } from 'xlsx';
 import { generateFormSchemaFromData, generateFormFromDescription, generateFormLogic } from '../services/geminiService';
 import { useToast } from '../contexts/ToastContext';
 import { ConfirmDialog } from './ConfirmDialog';
+import { db } from '../services/db';
 
 // --- Configuration Constants ---
 const InitialSchema = [
@@ -2472,7 +2473,21 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const resizingColumnRef = useRef<{ id: string, startX: number, startWidth: number } | null>(null);
 
     // Sorting State
-    const [sortConfig, setSortConfig] = useState<{ fieldId: string; direction: 'asc' | 'desc' }[]>([]);
+    const [sortConfig, setSortConfig] = useState<{ fieldId: string; direction: 'asc' | 'desc' }[]>(() => loadFromStorage('erp_sort_config', []));
+
+    // Persist column settings
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_hidden_columns', JSON.stringify(hiddenColumnIds));
+    }, [hiddenColumnIds]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_column_widths', JSON.stringify(columnWidths));
+    }, [columnWidths]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_sort_config', JSON.stringify(sortConfig));
+    }, [sortConfig]);
+
 
     // Auto-fill State
     const [isDraggingFill, setIsDraggingFill] = useState(false);
@@ -2512,6 +2527,16 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
     const [pendingFilter, setPendingFilter] = useState({ fieldId: '', operator: '', value: '', value2: '' });
 
+    // Persist filter state
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_filter_groups', JSON.stringify(filterGroups));
+    }, [filterGroups]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_root_filter_mode', JSON.stringify(rootFilterMode));
+    }, [rootFilterMode]);
+
+
     const [savedViews, setSavedViews] = useState<{ name: string, filterGroups: any[], rootFilterMode: 'AND' | 'OR', datasetId?: string | null, configRules?: any[] }[]>(() => loadFromStorage('erp_saved_views_v2', [
         {
             name: '示例视图 (Example)',
@@ -2528,6 +2553,17 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
     // Rule Presets State
     const [savedRulePresets, setSavedRulePresets] = useState<{ id: string, name: string, rules: any[], datasetId?: string }[]>(() => loadFromStorage('erp_rule_presets', []));
+
+    // Persist savedViews to localStorage  
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_saved_views_v2', JSON.stringify(savedViews));
+    }, [savedViews]);
+
+    // Persist savedDatasets to localStorage as backup (primary storage is IndexedDB)
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_saved_datasets', JSON.stringify(savedDatasets));
+    }, [savedDatasets]);
+
 
     // Product Center State
     const [products, setProducts] = useState<{
@@ -2593,7 +2629,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         if (typeof window !== 'undefined') window.localStorage.setItem('erp_preview_overrides', JSON.stringify(previewOverrides));
     }, [previewOverrides]);
 
-    const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+    const [selectedProductId, setSelectedProductId] = useState<string | null>(() => loadFromStorage('erp_selected_product_id', null));
     const [activeRuleTab, setActiveRuleTab] = useState<number>(0);
     const [editingRuleTab, setEditingRuleTab] = useState<{ index: number, value: string } | null>(null);
     const [orderQuantity, setOrderQuantity] = useState<number>(1);
@@ -2695,12 +2731,115 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     }, [savedRulePresets]);
 
     useEffect(() => {
-        if (typeof window !== 'undefined') window.localStorage.setItem('erp_active_tab', activeTab);
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_active_tab', JSON.stringify(activeTab));
     }, [activeTab]);
 
+    // --- IndexedDB Persistence & Migration ---
+    const [isDBInitialized, setIsDBInitialized] = useState(false);
+
     useEffect(() => {
-        if (typeof window !== 'undefined') window.localStorage.setItem('erp_product_sub_tab', productSubTab);
+        const initERPData = async () => {
+            try {
+                // 1. Workspace State (Records & Schema)
+                const storedRecords = await db.getERPState('current_records');
+                if (storedRecords) setRecords(storedRecords);
+
+                const storedSchema = await db.getERPState('current_schema');
+                if (storedSchema) setSchema(storedSchema);
+
+                // 2. Templates (Forms)
+                const storedTemplates = await db.getERPTemplates();
+                if (storedTemplates.length > 0) {
+                    setSavedForms(storedTemplates);
+                } else {
+                    // Migration
+                    const lsForms = loadFromStorage<any[]>('erp_saved_forms', []);
+                    if (lsForms.length > 0) {
+                        setSavedForms(lsForms);
+                        lsForms.forEach(f => db.saveERPTemplate(f));
+                    }
+                }
+
+                // 3. Products
+                const storedProducts = await db.getERPProducts();
+                if (storedProducts.length > 0) {
+                    setProducts(storedProducts);
+                } else {
+                    // Migration
+                    const lsProducts = loadFromStorage<any[]>('erp_products', []);
+                    if (lsProducts.length > 0) {
+                        setProducts(lsProducts);
+                        lsProducts.forEach(p => db.saveERPProduct(p));
+                    }
+                }
+
+                // 4. Datasets
+                const storedDatasets = await db.getERPDatasets();
+                if (storedDatasets.length > 0) {
+                    setSavedDatasets(storedDatasets);
+                } else {
+                    // Migration
+                    const lsDatasets = loadFromStorage<any[]>('erp_saved_datasets', []);
+                    if (lsDatasets.length > 0) {
+                        setSavedDatasets(lsDatasets);
+                        lsDatasets.forEach(d => db.saveERPDataset(d));
+                    }
+                }
+
+                setIsDBInitialized(true);
+            } catch (error) {
+                console.error("Failed to initialize ERP data from DB", error);
+                addToast("Data restore failed. Check console.", 'error');
+            }
+        };
+
+        initERPData();
+    }, []);
+
+    // Auto-save Workspace State
+    useEffect(() => {
+        if (isDBInitialized) {
+            db.saveERPState('current_records', records);
+        }
+    }, [records, isDBInitialized]);
+
+    useEffect(() => {
+        if (isDBInitialized) {
+            db.saveERPState('current_schema', schema);
+        }
+    }, [schema, isDBInitialized]);
+
+    // Auto-save Lists logic handled in handlers or below for ensuring consistency
+    // For arrays that are frequently updated, we can use effects to sync.
+    // However, for large arrays (Datasets), saving the whole array is bad if we store individual items.
+    // db.ts uses 'put' for individual items.
+    // We should update the Handlers to save to DB.
+
+
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_product_sub_tab', JSON.stringify(productSubTab));
     }, [productSubTab]);
+
+    // Persist critical UI state for interface restoration after refresh
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_active_dataset_id', JSON.stringify(activeDatasetId));
+    }, [activeDatasetId]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_active_form_id', JSON.stringify(activeFormId));
+    }, [activeFormId]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && selectedProductId !== null) {
+            window.localStorage.setItem('erp_selected_product_id', JSON.stringify(selectedProductId));
+        }
+    }, [selectedProductId]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_sub_view', JSON.stringify(subView));
+    }, [subView]);
+
 
     // Group Handlers
     const handleAddDatasetGroup = () => {
@@ -2712,14 +2851,26 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set(loadFromStorage('erp_collapsed_groups', [])));
     const [deleteGroupDialog, setDeleteGroupDialog] = useState({ isOpen: false, groupId: '', groupName: '' });
 
+    // Persist collapsedGroups
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_collapsed_groups', JSON.stringify([...collapsedGroups]));
+    }, [collapsedGroups]);
+
+
     const executeDeleteGroup = (action: 'delete_all' | 'move_to_root') => {
         const { groupId } = deleteGroupDialog;
         if (action === 'delete_all') {
             const datasetsToDelete = savedDatasets.filter(d => d.groupId === groupId);
             if (datasetsToDelete.some(d => d.id === activeDatasetId)) setActiveDatasetId(null);
             setSavedDatasets(prev => prev.filter(d => d.groupId !== groupId));
+            // DB Sync
+            datasetsToDelete.forEach(d => db.deleteERPDataset(d.id));
         } else {
             setSavedDatasets(prev => prev.map(d => d.groupId === groupId ? { ...d, groupId: undefined } : d));
+            // DB Sync
+            savedDatasets.filter(d => d.groupId === groupId).forEach(d => {
+                db.saveERPDataset({ ...d, groupId: undefined });
+            });
         }
         setDatasetGroups(prev => prev.filter(g => g.id !== groupId));
         setDeleteGroupDialog({ isOpen: false, groupId: '', groupName: '' });
@@ -2727,7 +2878,12 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     };
 
     const handleMoveDataset = (datasetId: string, targetGroupId?: string) => {
-        setSavedDatasets(prev => prev.map(d => d.id === datasetId ? { ...d, groupId: targetGroupId } : d));
+        setSavedDatasets(prev => {
+            const output = prev.map(d => d.id === datasetId ? { ...d, groupId: targetGroupId } : d);
+            const movedDataset = output.find(d => d.id === datasetId);
+            if (movedDataset) db.saveERPDataset(movedDataset);
+            return output;
+        });
         addToast('Dataset moved', 'success');
     };
 
@@ -2836,6 +2992,17 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const [formDesc, setFormDesc] = useState('');
     const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
     const [currentFormName, setCurrentFormName] = useState(() => loadFromStorage('erp_current_form_name', 'Custom Form'));
+
+    // Persist savedForms to localStorage as backup
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_saved_forms', JSON.stringify(savedForms));
+    }, [savedForms]);
+
+    // Persist currentFormName
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_current_form_name', JSON.stringify(currentFormName));
+    }, [currentFormName]);
+
 
     // Drag from toolbox state
     const [isDraggingFromToolbox, setIsDraggingFromToolbox] = useState(false);
@@ -3021,17 +3188,21 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         const currentDataset = savedDatasets.find(d => d.id === activeDatasetId);
         if (!currentDataset) return;
 
+        // Update in State
+        const updatedDataset = {
+            ...currentDataset,
+            schema: [...schema],
+            records: [...records],
+            timestamp: Date.now(),
+            formId: activeFormId || undefined
+        };
+
         setSavedDatasets(prev => prev.map(d =>
-            d.id === activeDatasetId
-                ? {
-                    ...d,
-                    schema: [...schema],
-                    records: [...records],
-                    timestamp: Date.now(),
-                    formId: activeFormId || undefined
-                }
-                : d
+            d.id === activeDatasetId ? updatedDataset : d
         ));
+
+        // Persist to DB
+        db.saveERPDataset(updatedDataset);
 
         // Mark data as clean
         setLastSavedSnapshot(JSON.stringify({ records: [...records], schema: [...schema] }));
@@ -3052,17 +3223,22 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
             const recordsToSave = (saveFilteredOnly && hasActiveFilters) ? [...filteredRecords] : [...records];
             const newId = Date.now().toString();
 
+            const newDataset = {
+                id: newId,
+                name: name,
+                timestamp: Date.now(),
+                schema: [...schema],
+                records: recordsToSave,
+                formId: activeFormId || undefined
+            };
+
             setSavedDatasets(prev => {
                 const filtered = prev.filter(d => d.name !== name);
-                return [{
-                    id: newId,
-                    name: name,
-                    timestamp: Date.now(),
-                    schema: [...schema],
-                    records: recordsToSave,
-                    formId: activeFormId || undefined
-                }, ...filtered];
+                return [newDataset, ...filtered];
             });
+
+            // Persist to DB
+            db.saveERPDataset(newDataset);
 
             // Update current app state to reflect the saved dataset
             setRecords(recordsToSave);
@@ -3110,6 +3286,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
             () => {
                 setSavedDatasets(prev => prev.filter(d => d.id !== id));
                 if (id === activeDatasetId) setActiveDatasetId(null);
+                db.deleteERPDataset(id);
                 addToast(`Dataset "${name}" deleted`, 'success');
             },
             'danger',
@@ -3135,7 +3312,12 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 setCurrentFormName(newName);
             }
 
-            setSavedForms(prev => prev.map(f => f.id === renameDialog.id ? { ...f, name: newName } : f));
+            setSavedForms(prev => {
+                const output = prev.map(f => f.id === renameDialog.id ? { ...f, name: newName } : f);
+                const updatedForm = output.find(f => f.id === renameDialog.id);
+                if (updatedForm) db.saveERPTemplate(updatedForm);
+                return output;
+            });
             addToast('Form template renamed successfully', 'success');
         } else {
             const exists = savedDatasets.some(d => d.name === newName && d.id !== renameDialog.id);
@@ -3144,7 +3326,12 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 return;
             }
 
-            setSavedDatasets(prev => prev.map(d => d.id === renameDialog.id ? { ...d, name: newName } : d));
+            setSavedDatasets(prev => {
+                const output = prev.map(d => d.id === renameDialog.id ? { ...d, name: newName } : d);
+                const updatedDataset = output.find(d => d.id === renameDialog.id);
+                if (updatedDataset) db.saveERPDataset(updatedDataset);
+                return output;
+            });
             addToast('Dataset renamed successfully', 'success');
         }
 
@@ -4063,11 +4250,17 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     // --- Form Library Actions ---
     const handleUpdateForm = () => {
         if (!activeFormId) return;
-        setSavedForms(prev => prev.map(f =>
-            f.id === activeFormId
-                ? { ...f, schema: [...schema], timestamp: Date.now() }
-                : f
-        ));
+        // Create updated list and find the updated item to save to DB
+        setSavedForms(prev => {
+            const updated = prev.map(f =>
+                f.id === activeFormId
+                    ? { ...f, schema: [...schema], timestamp: Date.now() }
+                    : f
+            );
+            const updatedItem = updated.find(f => f.id === activeFormId);
+            if (updatedItem) db.saveERPTemplate(updatedItem);
+            return updated;
+        });
         addToast('Template updated successfully', 'success');
     };
 
@@ -4084,6 +4277,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
             timestamp: Date.now()
         };
         setSavedForms([newForm, ...savedForms]);
+        db.saveERPTemplate(newForm);
         setSaveFormOpen(false);
         setFormName('');
         setFormDesc('');
@@ -4118,6 +4312,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
             'Are you sure you want to delete this form template?',
             () => {
                 setSavedForms(prev => prev.filter(f => f.id !== formId));
+                db.deleteERPTemplate(formId);
                 addToast('Form template deleted', 'info');
             },
             'danger',
@@ -4341,7 +4536,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
             setProducts(prev => {
                 const updated = [...prev, newProduct];
-                // Force save to local storage immediately to mitigate async state issues
+                // Persist to DB
+                db.saveERPProduct(newProduct);
                 if (typeof window !== 'undefined') window.localStorage.setItem('erp_products', JSON.stringify(updated));
                 return updated;
             });
@@ -5711,6 +5907,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                         `确定要删除产品 "${p.name}" 吗？此操作无法撤销。`,
                                                         () => {
                                                             setProducts(products.filter(item => item.id !== p.id));
+                                                            db.deleteERPProduct(p.id);
                                                             addToast(`Product "${p.name}" deleted`, 'success');
                                                         },
                                                         'danger',
