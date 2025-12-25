@@ -30,6 +30,7 @@ const translations: Record<Language, Record<string, string>> = {
     'common.save_changes': 'Save Changes',
     'common.confirm': 'Confirm',
     'common.attention': 'Attention',
+    'common.error': 'Error',
     // App
     'app.title': 'Gen-Project Manager',
     'app.desc': 'AI-Powered Project Management',
@@ -930,6 +931,7 @@ const translations: Record<Language, Record<string, string>> = {
     'common.save_changes': '保存更改',
     'common.confirm': '确认',
     'common.attention': '注意',
+    'common.error': '错误',
     // App
     'app.title': 'Gen-项目管理',
     'app.desc': 'AI 驱动的项目管理工具',

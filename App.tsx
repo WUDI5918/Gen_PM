@@ -176,9 +176,13 @@ const AppContent: React.FC = () => {
                 setProjects(migratedProjects);
             } else if (showLoading) {
                 // Initialize with Default Project if completely empty (only on initial load)
+                // DISABLED: User requested to start with empty data on new server.
+                /*
                 const defaultProject = createDefaultProject(true, (loadedTeam && loadedTeam.length > 0) ? loadedTeam : INITIAL_TEAM);
                 await db.saveProject(defaultProject);
                 setProjects([defaultProject]);
+                */
+                setProjects([]);
             }
 
             if (loadedTeam) setTeamMembers(loadedTeam);
@@ -377,18 +381,21 @@ const AppContent: React.FC = () => {
     };
 
     const handleUpdateProject = async (updatedProject: Project) => {
-        // Check if another project with the same name already exists (excluding the current project)
-        const duplicateProject = projects.find(p =>
-            p.id !== updatedProject.id &&
-            String(p.info.name || '').toLowerCase() === String(updatedProject.info.name || '').toLowerCase()
-        );
-
-        if (duplicateProject) {
-            addToast(
-                `${t('common.error')}: ${t('app.project_name_exists')}`,
-                'error'
+        // Check if name has changed before checking for duplicates
+        const originalProject = projects.find(p => p.id === updatedProject.id);
+        if (originalProject && originalProject.info.name !== updatedProject.info.name) {
+            const duplicateProject = projects.find(p =>
+                p.id !== updatedProject.id &&
+                String(p.info.name || '').toLowerCase() === String(updatedProject.info.name || '').toLowerCase()
             );
-            return;
+
+            if (duplicateProject) {
+                addToast(
+                    `${t('common.error')}: ${t('app.project_name_exists')}`,
+                    'error'
+                );
+                return;
+            }
         }
 
         setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));

@@ -5161,34 +5161,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                     className="flex-shrink-0 bg-white border-r border-slate-200 flex flex-col h-full overflow-y-auto custom-scrollbar z-10 transition-none"
                 >
                     <div className="p-4 space-y-3 flex flex-col h-full overflow-hidden">
-                        {/* Header: Fixed */}
-                        <div className="px-2 mb-2 flex-shrink-0">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h3 className="text-xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-                                        <Sparkles className="text-indigo-600" size={20} />
-                                        {t('erp.tabs.define_product')}
-                                    </h3>
-                                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-0.5 opacity-80">{t('erp.product.studio')}</p>
-                                </div>
-                                <button
-                                    onClick={() => triggerConfirm(
-                                        t('erp.product.reset_title'),
-                                        t('erp.product.reset_desc'),
-                                        () => {
-                                            setConfigState({ datasetId: '', viewNames: [], name: '', description: '', image: '', imageFit: 'cover', configRules: [] });
-                                            addToast(t('erp.product.reset_toast'), 'info');
-                                        },
-                                        'danger',
-                                        t('erp.product.reset_button')
-                                    )}
-                                    className="p-2 hover:bg-slate-100 text-slate-400 rounded-xl transition-all"
-                                    title="Reset Config"
-                                >
-                                    <RefreshCw size={14} />
-                                </button>
-                            </div>
-                        </div>
+
 
                         <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4">
                             {/* Section 1: Data Source (Collapsible) */}
@@ -5720,7 +5693,6 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-100 outline-none transition-all hover:border-slate-300 placeholder:font-normal"
                                                     value={configState.name}
                                                     onChange={e => setConfigState({ ...configState, name: e.target.value })}
-                                                    placeholder={t('erp.product.placeholder_name')}
                                                 />
                                             </div>
 
@@ -5730,7 +5702,6 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 focus:ring-2 focus:ring-indigo-100 outline-none transition-all resize-none h-20 hover:border-slate-300 placeholder:font-normal"
                                                     value={configState.description}
                                                     onChange={e => setConfigState({ ...configState, description: e.target.value })}
-                                                    placeholder={t('erp.product.placeholder_desc')}
                                                 />
                                             </div>
 
@@ -5782,7 +5753,6 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                         <input
                                                             value={configState.image}
                                                             onChange={e => setConfigState({ ...configState, image: e.target.value })}
-                                                            placeholder={t('erp.product.placeholder_img_url')}
                                                             className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-mono text-slate-500 outline-none focus:ring-1 focus:ring-indigo-200"
                                                         />
                                                         <label className="text-[9px] text-indigo-500 font-bold cursor-pointer hover:underline flex items-center gap-1 px-2 py-1.5 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors">
@@ -5852,9 +5822,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                     <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-slate-100 group-hover:bg-indigo-300"></div>
                 </div>
 
-                {/* Right: Live Preview */}
-                <div className="flex-1 bg-slate-50/50 p-8 overflow-hidden flex flex-col">
-                    <div className="flex items-center justify-between mb-6 shrink-0">
+                <div className="flex-1 bg-slate-50/50 p-2 overflow-hidden flex flex-col">
+                    <div className="flex items-center justify-between mb-2 shrink-0">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400">
                                 <Eye size={16} />
