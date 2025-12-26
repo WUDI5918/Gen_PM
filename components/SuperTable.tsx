@@ -2578,6 +2578,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         name: string;
         description: string;
         image: string;
+        imageFit?: 'cover' | 'contain' | 'fill';
         datasetId: string;
         viewNames: string[];
         timestamp: number;
@@ -6038,14 +6039,70 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
                             {/* Left: Image */}
                             <div className="lg:col-span-5">
-                                <div className="aspect-square rounded-3xl overflow-hidden relative group">
+                                <div
+                                    className="aspect-square rounded-3xl overflow-hidden relative group cursor-pointer"
+                                    onDoubleClick={() => {
+                                        const input = document.getElementById(`prod-img-${product.id}`) as HTMLInputElement;
+                                        if (input) input.click();
+                                    }}
+                                >
                                     {product.image ? (
-                                        <img src={product.image} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt={product.name} />
+                                        <img
+                                            src={product.image}
+                                            className={`w-full h-full object-${product.imageFit || 'cover'} transition-transform duration-1000 group-hover:scale-105`}
+                                            alt={product.name}
+                                        />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-slate-100 bg-slate-50/50">
                                             <Box size={80} className="" />
                                         </div>
                                     )}
+
+                                    {/* Image Fit Controls */}
+                                    <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-all z-20">
+                                        <div className="bg-white/90 backdrop-blur rounded-lg shadow-sm p-1 flex gap-1" onClick={e => e.stopPropagation()}>
+                                            {(['cover', 'contain', 'fill'] as const).map(mode => (
+                                                <button
+                                                    key={mode}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, imageFit: mode } : p));
+                                                        db.saveERPProduct({ ...product, imageFit: mode });
+                                                    }}
+                                                    className={`px-2 py-1 rounded text-[10px] uppercase font-bold transition-all ${(product.imageFit || 'cover') === mode
+                                                            ? 'bg-indigo-100 text-indigo-700'
+                                                            : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+                                                        }`}
+                                                >
+                                                    {mode}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                        <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-bold text-slate-700 shadow-sm">
+                                            Double click to change
+                                        </div>
+                                    </div>
+                                    <input
+                                        type="file"
+                                        id={`prod-img-${product.id}`}
+                                        className="hidden"
+                                        accept="image/*"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onload = (ev) => {
+                                                    const newImage = ev.target?.result as string;
+                                                    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, image: newImage } : p));
+                                                    db.saveERPProduct({ ...product, image: newImage });
+                                                    addToast('Product image updated', 'success');
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                    />
                                 </div>
                             </div>
 
