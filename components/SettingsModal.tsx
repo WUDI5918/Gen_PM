@@ -177,7 +177,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, c
 
     const handleSaveDatabase = () => {
         saveSupabaseConfig(supabaseUrl, supabaseKey);
-        addToast('Database configuration saved. Reloading...', 'success');
+        addToast(t('settings.db_saved_reloading'), 'success');
         setTimeout(() => {
             window.location.reload();
         }, 1000);
@@ -187,11 +187,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, c
         setIsSyncing(true);
         try {
             await syncService.sync();
-            addToast('Data synced successfully (LWW)', 'success');
+            addToast(t('settings.sync_success'), 'success');
             window.location.reload(); // Reload to show new data
         } catch (e) {
             console.error(e);
-            addToast('Sync failed', 'error');
+            addToast(t('settings.sync_fail'), 'error');
         } finally {
             setIsSyncing(false);
         }
@@ -290,7 +290,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, c
                                                 onClick={() => setDensity(d)}
                                                 className={`px-3 py-2 rounded-lg border text-xs font-bold capitalize transition-all ${density === d ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
                                             >
-                                                {d}
+                                                {t(`settings.appearance_${d}` as any)}
                                             </button>
                                         ))}
                                     </div>
@@ -426,12 +426,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, c
                                 <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-sm text-indigo-800 leading-relaxed flex gap-3">
                                     <Cloud size={20} className="shrink-0 mt-0.5 text-indigo-600" />
                                     <div>
-                                        Configure Supabase connection to sync your data to the cloud.
+                                        {t('settings.db_configure_desc')}
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Supabase URL</label>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('settings.db_url')}</label>
                                     <input
                                         type="text"
                                         placeholder="https://your-project.supabase.co"
@@ -442,7 +442,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, c
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Supabase Anon Key</label>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('settings.db_key')}</label>
                                     <input
                                         type="password"
                                         placeholder="your-anon-key"
@@ -457,19 +457,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, c
                                         onClick={handleSaveDatabase}
                                         className="flex-1 bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-sm flex items-center justify-center gap-2"
                                     >
-                                        <Save size={16} /> Save Config
+                                        <Save size={16} /> {t('settings.db_save')}
                                     </button>
                                 </div>
 
                                 <div className="pt-4 border-t border-gray-100">
-                                    <h3 className="text-sm font-bold text-gray-900 mb-4">Sync Actions</h3>
+                                    <h3 className="text-sm font-bold text-gray-900 mb-4">{t('settings.sync_actions')}</h3>
                                     <div className="grid grid-cols-1 gap-3">
                                         <button
                                             onClick={handleSync}
                                             disabled={isSyncing || !supabaseUrl || !supabaseKey}
                                             className="px-4 py-3 bg-white border border-gray-200 text-indigo-600 font-bold rounded-xl hover:bg-indigo-50 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
                                         >
-                                            <Upload size={16} /> Sync Data (LWW)
+                                            <Upload size={16} /> {t('settings.sync_btn')}
                                         </button>
                                     </div>
                                 </div>
@@ -493,7 +493,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, c
                                                 <Download size={24} />
                                             </div>
                                             <span className="text-sm font-bold text-gray-700">{t('settings.export')}</span>
-                                            <span className="text-[10px] text-gray-400">JSON Format</span>
+                                            <span className="text-[10px] text-gray-400">{t('settings.export_json_format')}</span>
                                         </button>
 
                                         <button
@@ -504,7 +504,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, c
                                                 <Upload size={24} />
                                             </div>
                                             <span className="text-sm font-bold text-gray-700">{t('settings.import')}</span>
-                                            <span className="text-[10px] text-gray-400">.json file</span>
+                                            <span className="text-[10px] text-gray-400">{t('settings.import_json_file')}</span>
                                         </button>
                                         <input
                                             type="file"

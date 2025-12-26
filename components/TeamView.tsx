@@ -195,7 +195,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ teamMembers, projects, onUpd
                                                 {member.avatar}
                                             </div>
                                             <div>
-                                                <h3 className="font-bold text-gray-800 text-lg">{member.name}</h3>
+                                                <h3 className="font-bold text-gray-800 text-lg">{member.name === 'Unassigned' ? t('team.unassigned') : member.name}</h3>
                                                 <div className="flex items-center gap-2 text-xs text-gray-500">
                                                     <span className="bg-gray-100 px-2 py-0.5 rounded text-gray-600 font-medium">{member.role}</span>
                                                     {member.department && <span className="text-gray-400">• {member.department}</span>}
@@ -272,18 +272,18 @@ export const TeamView: React.FC<TeamViewProps> = ({ teamMembers, projects, onUpd
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1">{t('team.name_placeholder').split(' (')[0]}</label>
-                                    <input className="w-full text-sm border rounded-lg p-2.5 outline-none focus:border-indigo-500" value={editForm.name || ''} onChange={e => setEditForm({ ...editForm, name: e.target.value })} placeholder="John Doe" />
+                                    <input className="w-full text-sm border rounded-lg p-2.5 outline-none focus:border-indigo-500" value={editForm.name || ''} onChange={e => setEditForm({ ...editForm, name: e.target.value })} placeholder={t('team.name_placeholder').split(' (')[0]} />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1">{t('team.role_placeholder').split(' (')[0]}</label>
-                                    <input className="w-full text-sm border rounded-lg p-2.5 outline-none focus:border-indigo-500" value={editForm.role || ''} onChange={e => setEditForm({ ...editForm, role: e.target.value })} placeholder="Developer" />
+                                    <input className="w-full text-sm border rounded-lg p-2.5 outline-none focus:border-indigo-500" value={editForm.role || ''} onChange={e => setEditForm({ ...editForm, role: e.target.value })} placeholder={t('team.role_placeholder_text')} />
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1">{t('team.department')}</label>
-                                    <input className="w-full text-sm border rounded-lg p-2.5 outline-none focus:border-indigo-500" value={editForm.department || ''} onChange={e => setEditForm({ ...editForm, department: e.target.value })} placeholder="Engineering" />
+                                    <input className="w-full text-sm border rounded-lg p-2.5 outline-none focus:border-indigo-500" value={editForm.department || ''} onChange={e => setEditForm({ ...editForm, department: e.target.value })} placeholder={t('team.dept_placeholder')} />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1">{t('team.email')}</label>
@@ -297,7 +297,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ teamMembers, projects, onUpd
                                     className="w-full text-sm border rounded-lg p-2.5 outline-none focus:border-indigo-500"
                                     value={editForm.skills?.join(', ') || ''}
                                     onChange={e => setEditForm({ ...editForm, skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                                    placeholder="React, Design, SQL"
+                                    placeholder={t('team.skills_placeholder')}
                                 />
                             </div>
                         </div>

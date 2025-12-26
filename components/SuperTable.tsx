@@ -2554,7 +2554,9 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     ]));
 
     // Dataset Library State
-    const [savedDatasets, setSavedDatasets] = useState<{ id: string, name: string, groupId?: string, timestamp: number, schema: any[], records: any[], formId?: string }[]>(() => loadFromStorage('erp_saved_datasets', []));
+    const [savedDatasets, setSavedDatasets] = useState<{ id: string, name: string, groupId?: string, timestamp: number, schema: any[], records: any[], formId?: string }[]>(() => []);
+
+    // Legacy load helper for migration (moved to init)
     const [activeDatasetId, setActiveDatasetId] = useState<string | null>(() => loadFromStorage('erp_active_dataset_id', null));
     const [activeFormId, setActiveFormId] = useState<string | null>(() => loadFromStorage('erp_active_form_id', 'form_default'));
 
@@ -2567,9 +2569,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     }, [savedViews]);
 
     // Persist savedDatasets to localStorage as backup (primary storage is IndexedDB)
-    useEffect(() => {
-        if (typeof window !== 'undefined') window.localStorage.setItem('erp_saved_datasets', JSON.stringify(savedDatasets));
-    }, [savedDatasets]);
+    // Removed legacy localStorage sync for datasets to prevent quota errors
 
 
     // Product Center State
@@ -2597,7 +2597,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
             cascadeGroups?: { sourceField: string, targetField: string, sourceRowId?: string, mappings?: { sourceValue: string, targetValue: string }[] }[];
             description?: string; // Added description field
         }[];
-    }[]>(() => loadFromStorage('erp_products', []));
+    }[]>(() => []);
 
     const [productOrders, setProductOrders] = useState<{
         id: string;
@@ -2730,9 +2730,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         if (typeof window !== 'undefined') window.localStorage.setItem('erp_dataset_groups', JSON.stringify(datasetGroups));
     }, [datasetGroups]);
 
-    useEffect(() => {
-        if (typeof window !== 'undefined') window.localStorage.setItem('erp_products', JSON.stringify(products));
-    }, [products]);
+    // Removed erp_products localStorage sync to fix QuotaExceededError
+    // Data is now persisted solely via IndexedDB (db.ts)
 
     useEffect(() => {
         if (typeof window !== 'undefined') window.localStorage.setItem('erp_product_orders', JSON.stringify(productOrders));
@@ -2782,6 +2781,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                     if (lsProducts.length > 0) {
                         setProducts(lsProducts);
                         lsProducts.forEach(p => db.saveERPProduct(p));
+                        // Clear legacy storage to free up space
+                        localStorage.removeItem('erp_products');
                     }
                 }
 
@@ -2795,6 +2796,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                     if (lsDatasets.length > 0) {
                         setSavedDatasets(lsDatasets);
                         lsDatasets.forEach(d => db.saveERPDataset(d));
+                        // Clear legacy storage to free up space
+                        localStorage.removeItem('erp_saved_datasets');
                     }
                 }
 
@@ -4583,7 +4586,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 const updated = [...prev, newProduct];
                 // Persist to DB
                 db.saveERPProduct(newProduct);
-                if (typeof window !== 'undefined') window.localStorage.setItem('erp_products', JSON.stringify(updated));
+                // Removed redundant localStorage setItem
                 return updated;
             });
 
@@ -5733,10 +5736,10 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{t('erp.product.label_fit')}</span>
                                                             <div className="flex gap-1">
                                                                 {[
-                                                                    { value: 'cover', label: t('erp.product.fit_cover'), icon: 'Fill' },
-                                                                    { value: 'contain', label: t('erp.product.fit_contain'), icon: 'Fit' },
-                                                                    { value: 'fill', label: t('erp.product.fit_fill'), icon: 'Stretch' },
-                                                                    { value: 'tile', label: t('erp.product.fit_tile'), icon: 'Tile' },
+                                                                    { value: 'cover', label: t('erp.fit_cover'), icon: 'Fill' },
+                                                                    { value: 'contain', label: t('erp.fit_contain'), icon: 'Fit' },
+                                                                    { value: 'fill', label: t('erp.fit_fill'), icon: 'Stretch' },
+                                                                    { value: 'tile', label: t('erp.fit_tile'), icon: 'Tile' },
                                                                 ].map(opt => (
                                                                     <button
                                                                         key={opt.value}
@@ -5833,7 +5836,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                             <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400">
                                 <Eye size={16} />
                             </div>
-                            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Live BOM Preview</h3>
+                            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">{t('erp.live_bom_preview')}</h3>
                         </div>
                         <div className="flex items-center gap-3">
                             {/* Column Toggle Menu */}
@@ -5841,16 +5844,16 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 <div className="relative group/cols z-30">
                                     <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm">
                                         <Columns size={14} />
-                                        <span>Columns</span>
+                                        <span>{t('erp.label_columns')}</span>
                                     </button>
                                     <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 p-2 opacity-0 invisible group-hover/cols:opacity-100 group-hover/cols:visible transition-all transform origin-top-right">
                                         <div className="mb-2 px-2 py-1 border-b border-gray-50 flex justify-between items-center">
-                                            <span className="text-[10px] font-bold uppercase text-gray-400">Toggle Fields</span>
+                                            <span className="text-[10px] font-bold uppercase text-gray-400">{t('erp.label_toggle_fields')}</span>
                                             <button
                                                 onClick={() => setProductConfigHiddenFields([])}
                                                 className="text-[10px] font-bold text-indigo-500 hover:text-indigo-600"
                                             >
-                                                Reset
+                                                {t('erp.label_reset')}
                                             </button>
                                         </div>
                                         <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-0.5">
@@ -5878,7 +5881,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                             {configState.datasetId && (
                                 <span className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all ${configState.viewNames.length > 0 ? 'text-indigo-600 bg-indigo-50 border-indigo-100' : 'text-slate-500 bg-slate-100 border-slate-200'}`}>
                                     {configState.viewNames.length > 0
-                                        ? `Active Filters: ${configState.viewNames.join(' + ')}`
+                                        ? t('erp.label_active_filters').replace('{filters}', configState.viewNames.join(' + '))
                                         : t('erp.showing_full_dataset')}
                                 </span>
                             )}
@@ -5895,7 +5898,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 <div className="w-20 h-20 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center mb-4">
                                     <TableIcon size={32} />
                                 </div>
-                                <p className="font-medium text-sm">Select a Data Source to preview BOM</p>
+                                <p className="font-medium text-sm">{t('erp.select_data_source_preview')}</p>
                             </div>
                         )}
                     </div>
