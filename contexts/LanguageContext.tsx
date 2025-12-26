@@ -47,6 +47,7 @@ const translations: Record<Language, Record<string, string>> = {
     'app.view.finance': 'Finance',
     'app.view.issues': 'Issue Tracker',
     'app.view.risks': 'Risks',
+    'app.view.super_table': 'Super Table',
     'app.export': 'Export CSV',
     'app.team': 'Team',
     'app.ai_generate': 'AI Generate',
@@ -910,6 +911,15 @@ const translations: Record<Language, Record<string, string>> = {
     'erp.rule.tab_title_ph': 'Uses description by default...',
     'erp.rule.save_edit': 'Save Changes',
     'erp.rule.apply_stack': 'Apply to Stack',
+    // AI Import
+    'erp.ai.import_title': 'AI Import',
+    'erp.ai.import_desc': 'Generating form from spreadsheet',
+    'erp.ai.progress': 'Progress',
+    'erp.ai.step1': 'Reading file',
+    'erp.ai.step2': 'Extracting structure',
+    'erp.ai.step3': 'AI analyzing patterns',
+    'erp.ai.step4': 'Generating components',
+    'erp.ai.analyzing': 'AI is analyzing data patterns...',
   },
   zh: {
     // Common
@@ -948,6 +958,7 @@ const translations: Record<Language, Record<string, string>> = {
     'app.view.finance': '财务',
     'app.view.issues': '问题跟踪',
     'app.view.risks': '风险',
+    'app.view.super_table': '超级数据表',
     'app.export': '导出 CSV',
     'app.team': '团队管理',
     'app.ai_generate': 'AI 生成',
@@ -1812,6 +1823,15 @@ const translations: Record<Language, Record<string, string>> = {
     'erp.rule.tab_title_ph': '默认使用说明文字...',
     'erp.rule.save_edit': '保存规则修改',
     'erp.rule.apply_stack': '应用到当前规则栈',
+    // AI Import
+    'erp.ai.import_title': 'AI 导入',
+    'erp.ai.import_desc': '正在根据表格生成表单',
+    'erp.ai.progress': '进度',
+    'erp.ai.step1': '读取文件',
+    'erp.ai.step2': '解析结构',
+    'erp.ai.step3': 'AI 分析模式',
+    'erp.ai.step4': '生成组件',
+    'erp.ai.analyzing': 'AI 正在分析数据模式...',
   }
 };
 

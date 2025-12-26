@@ -863,7 +863,7 @@ const AppContent: React.FC = () => {
                     <SidebarItem id="calendar" icon={CalendarDays} label={t('app.view.calendar')} />
                     <SidebarItem id="team" icon={Users} label={t('app.team')} />
                     <SidebarItem id="issues" icon={AlertCircle} label={t('app.view.issues')} />
-                    <SidebarItem id="erp" icon={Database} label="Super Table" />
+                    <SidebarItem id="erp" icon={Database} label={t('app.view.super_table')} />
                 </nav>
 
                 <div className="p-3 mt-auto border-t border-gray-100 bg-white flex flex-col gap-2">

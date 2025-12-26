@@ -3585,7 +3585,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         const file = e.target.files?.[0];
         if (!file) return;
 
-        setImportProgress({ isOpen: true, step: 1, message: 'Reading file...' });
+        setImportProgress({ isOpen: true, step: 1, message: t('erp.ai.step1') + '...' });
 
         try {
             const buffer = await file.arrayBuffer();
@@ -3595,7 +3595,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
             if (data.length < 2) throw new Error("File is empty or missing headers");
 
-            setImportProgress({ isOpen: true, step: 2, message: 'Extracting table structure...' });
+            setImportProgress({ isOpen: true, step: 2, message: t('erp.ai.step2') + '...' });
 
             const headers = data[0] as string[];
             const rows = data.slice(1);
@@ -3615,7 +3615,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 throw new Error("Please configure your AI API Key in Settings first.");
             }
 
-            setImportProgress({ isOpen: true, step: 3, message: 'AI is analyzing data patterns...' });
+            setImportProgress({ isOpen: true, step: 3, message: t('erp.ai.analyzing') });
 
             const schema = await generateFormSchemaFromData(headers, semanticRows, {
                 provider: config.provider || 'gemini',
@@ -3624,7 +3624,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 model: config.model
             });
 
-            setImportProgress({ isOpen: true, step: 4, message: 'Generating form components...' });
+            setImportProgress({ isOpen: true, step: 4, message: t('erp.ai.step4') + '...' });
 
             // Small delay to show final step
             await new Promise(r => setTimeout(r, 500));
@@ -9000,15 +9000,15 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                 <Sparkles size={24} className="text-white animate-pulse" />
                                             </div>
                                             <div>
-                                                <h3 className="text-lg font-bold text-gray-900">AI Import</h3>
-                                                <p className="text-xs text-gray-500">Generating form from spreadsheet</p>
+                                                <h3 className="text-lg font-bold text-gray-900">{t('erp.ai.import_title')}</h3>
+                                                <p className="text-xs text-gray-500">{t('erp.ai.import_desc')}</p>
                                             </div>
                                         </div>
 
                                         {/* Progress Bar */}
                                         <div className="mb-6">
                                             <div className="flex justify-between text-xs font-bold text-gray-500 mb-2">
-                                                <span>Progress</span>
+                                                <span>{t('erp.ai.progress')}</span>
                                                 <span>{Math.round((importProgress.step / 4) * 100)}%</span>
                                             </div>
                                             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -9022,10 +9022,10 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         {/* Steps */}
                                         <div className="space-y-3">
                                             {[
-                                                { num: 1, label: 'Reading file' },
-                                                { num: 2, label: 'Extracting structure' },
-                                                { num: 3, label: 'AI analyzing patterns' },
-                                                { num: 4, label: 'Generating components' }
+                                                { num: 1, label: t('erp.ai.step1') },
+                                                { num: 2, label: t('erp.ai.step2') },
+                                                { num: 3, label: t('erp.ai.step3') },
+                                                { num: 4, label: t('erp.ai.step4') }
                                             ].map(s => (
                                                 <div key={s.num} className={`flex items-center gap-3 p-3 rounded-lg transition-all ${importProgress.step >= s.num ? 'bg-indigo-50' : 'bg-gray-50'}`}>
                                                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${importProgress.step > s.num ? 'bg-green-500 text-white' :
