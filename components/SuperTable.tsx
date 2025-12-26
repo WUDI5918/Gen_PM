@@ -9534,7 +9534,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 <div key={rule.id} className="space-y-2">
                                     <label className="text-xs font-extrabold text-slate-500 uppercase tracking-widest pl-1 flex items-center gap-2">
                                         <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                                        {t('erp.export_dialog.project')} Project
+                                        {t('erp.export_dialog.project')}
                                     </label>
                                     <select
                                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
@@ -9556,7 +9556,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 <div key={rule.id} className="space-y-2">
                                     <label className="text-xs font-extrabold text-slate-500 uppercase tracking-widest pl-1 flex items-center gap-2">
                                         <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                                        {t('erp.export_dialog.personnel')} Personnel
+                                        {t('erp.export_dialog.personnel')}
                                     </label>
                                     <select
                                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
@@ -9638,7 +9638,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                     <Eye size={16} />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Preview Result</div>
+                                    <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">{t('erp.preview_result')}</div>
                                     <div className="font-mono text-sm font-bold text-slate-700 break-all whitespace-normal leading-relaxed">
                                         {generateFilename(exportNamingDialog.variableOverrides, exportNamingDialog.exportParams?.quantityMultiplier)}.xlsx
                                     </div>
