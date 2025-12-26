@@ -4570,7 +4570,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 name: configState.name,
                 description: configState.description || '',
                 image: configState.image || '',
-                imageFit: configState.imageFit || 'cover',
+                imageFit: (['cover', 'contain', 'fill'].includes(configState.imageFit as any) ? configState.imageFit : 'cover') as 'cover' | 'contain' | 'fill',
                 datasetId: configState.datasetId,
                 viewNames: configState.viewNames,
                 configRules: configState.configRules || [],
@@ -5879,7 +5879,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 <span className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all ${configState.viewNames.length > 0 ? 'text-indigo-600 bg-indigo-50 border-indigo-100' : 'text-slate-500 bg-slate-100 border-slate-200'}`}>
                                     {configState.viewNames.length > 0
                                         ? `Active Filters: ${configState.viewNames.join(' + ')}`
-                                        : 'Full Dataset (Raw)'}
+                                        : t('erp.showing_full_dataset')}
                                 </span>
                             )}
                         </div>
@@ -5915,15 +5915,15 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 {/* Header */}
                 <div className="px-6 py-4 flex justify-between items-end bg-white border-b border-gray-100 sticky top-0 z-10">
                     <div>
-                        <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Product Library</h2>
-                        <p className="text-xs text-slate-500 mt-0.5 font-medium uppercase tracking-wider">Catalog of Configured BOMs</p>
+                        <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">{t('erp.product_library_title')}</h2>
+                        <p className="text-xs text-slate-500 mt-0.5 font-medium uppercase tracking-wider">{t('erp.product_library_subtitle')}</p>
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="relative group">
                             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                             <input
                                 className="pl-9 pr-4 py-2 bg-slate-50 border-none rounded-full text-xs font-bold text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none w-48 focus:w-64"
-                                placeholder="Search products..."
+                                placeholder={t('erp.search_products')}
                             />
                         </div>
                         <div className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-[10px] font-bold">
@@ -5979,11 +5979,11 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         <div className="flex items-center gap-3">
                                             <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold uppercase tracking-tight">
                                                 <Layers size={10} />
-                                                <span>{p.configRules?.length || 0} Rules</span>
+                                                <span>{p.configRules?.length || 0} {t('erp.card_rules')}</span>
                                             </div>
                                             <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold uppercase tracking-tight">
                                                 <Filter size={10} />
-                                                <span>{p.viewNames?.length || 0} Views</span>
+                                                <span>{p.viewNames?.length || 0} {t('erp.card_views')}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -6023,7 +6023,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                         className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-indigo-600 hover:bg-slate-50 px-3 py-2 rounded-lg transition-all"
                     >
                         <ChevronLeft size={16} />
-                        <span>Back to Library</span>
+                        <span>{t('erp.back_to_library')}</span>
                     </button>
                     <div className="flex items-center gap-2">
                         <span className="px-2 py-1 bg-green-50 text-green-600 border border-green-100 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
@@ -6070,18 +6070,18 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                         db.saveERPProduct({ ...product, imageFit: mode });
                                                     }}
                                                     className={`px-2 py-1 rounded text-[10px] uppercase font-bold transition-all ${(product.imageFit || 'cover') === mode
-                                                            ? 'bg-indigo-100 text-indigo-700'
-                                                            : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+                                                        ? 'bg-indigo-100 text-indigo-700'
+                                                        : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
                                                         }`}
                                                 >
-                                                    {mode}
+                                                    {mode === 'cover' ? t('erp.fit_cover') : mode === 'contain' ? t('erp.fit_contain') : t('erp.fit_fill')}
                                                 </button>
                                             ))}
                                         </div>
                                     </div>
                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
                                         <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-bold text-slate-700 shadow-sm">
-                                            Double click to change
+                                            {t('erp.double_click_change')}
                                         </div>
                                     </div>
                                     <input
@@ -6110,11 +6110,11 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                             <div className="lg:col-span-7 flex flex-col justify-center">
                                 <h1 className="text-4xl font-black text-slate-900 mb-4 tracking-tight leading-tight">{product.name}</h1>
                                 <p className="text-lg text-slate-500 mb-8 leading-relaxed font-medium max-w-2xl">
-                                    {product.description || 'No description provided for this product configuration.'}
+                                    {product.description || t('erp.product_no_desc')}
                                 </p>
 
                                 <div className="mb-8 max-w-lg">
-                                    <div className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-widest">Source Dataset</div>
+                                    <div className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-widest">{t('erp.source_dataset')}</div>
                                     <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
                                         <Database size={16} className="text-indigo-500" />
                                         {savedDatasets.find(d => d.id === product.datasetId)?.name || 'Unknown'}
@@ -6127,14 +6127,14 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         onClick={() => setProductDisplayTab('views')}
                                         className={`pb-3 text-sm font-bold transition-all relative ${productDisplayTab === 'views' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
                                     >
-                                        Configuration View
+                                        {t('erp.config_view')}
                                         {productDisplayTab === 'views' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
                                     </button>
                                     <button
                                         onClick={() => setProductDisplayTab('rules')}
                                         className={`pb-3 text-sm font-bold transition-all relative ${productDisplayTab === 'rules' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
                                     >
-                                        Configuration Rules
+                                        {t('erp.config_rules')}
                                         {productDisplayTab === 'rules' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
                                         <span className="ml-2 text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">{(product as any).configRules?.length || 0}</span>
                                     </button>
@@ -6169,8 +6169,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                             </div>
                                         ) : (
                                             <div className="p-4 bg-slate-50 rounded-lg text-center border border-dashed border-slate-200">
-                                                <div className="font-bold text-slate-400 text-xs mb-1">No Custom Views</div>
-                                                <div className="text-[10px] text-slate-400">Showing Full Dataset</div>
+                                                <div className="font-bold text-slate-400 text-xs mb-1">{t('erp.no_custom_views')}</div>
+                                                <div className="text-[10px] text-slate-400">{t('erp.showing_full_dataset')}</div>
                                             </div>
                                         )}
                                     </div>
