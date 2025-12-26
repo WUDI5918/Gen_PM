@@ -11,7 +11,7 @@ import {
     ToggleLeft, FileText, PenTool, Star, CreditCard, Clock, Link,
     ListOrdered, Folder, Sidebar, FormInput, BookOpen, Lightbulb, FunctionSquare, Calculator, Regex, Sparkles,
     ArrowDownUp, ArrowDownAZ, ArrowUpAZ, ArrowUp,
-    Package, Box, Settings, ChevronLeft, ShoppingCart, MousePointerClick, Tag, Bot
+    Package, Box, Settings, ChevronLeft, ShoppingCart, MousePointerClick, Tag, Bot, Loader2
 } from 'lucide-react';
 import { read, utils, writeFile, write } from 'xlsx';
 import JSZip from 'jszip';
@@ -2683,6 +2683,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         if (typeof window !== 'undefined') window.localStorage.setItem('erp_preview_overrides', JSON.stringify(previewOverrides));
     }, [previewOverrides]);
 
+
+    // Persist selectedProductId to maintain current view state on reload
     const [selectedProductId, setSelectedProductId] = useState<string | null>(() => loadFromStorage('erp_selected_product_id', null));
     const [activeRuleTab, setActiveRuleTab] = useState<number>(0);
     const [activeViewNames, setActiveViewNames] = useState<string[]>([]); // Multi-select for active views
@@ -2903,8 +2905,9 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         if (typeof window !== 'undefined') window.localStorage.setItem('erp_active_form_id', JSON.stringify(activeFormId));
     }, [activeFormId]);
 
+
     useEffect(() => {
-        if (typeof window !== 'undefined' && selectedProductId !== null) {
+        if (typeof window !== 'undefined') {
             window.localStorage.setItem('erp_selected_product_id', JSON.stringify(selectedProductId));
         }
     }, [selectedProductId]);
@@ -6013,6 +6016,18 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const renderProductLibrary = () => {
         if (selectedProductId) {
             return renderProductDetail(selectedProductId);
+        }
+
+        // Show loading state while IndexedDB data is loading
+        if (!isDBInitialized) {
+            return (
+                <div className="h-full flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-3">
+                        <Loader2 size={32} className="animate-spin text-indigo-500" />
+                        <span className="text-sm text-slate-500">{t('app.loading') || 'Loading...'}</span>
+                    </div>
+                </div>
+            );
         }
 
         return (
