@@ -7191,55 +7191,73 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     return (
         <div className="flex flex-col h-full bg-slate-50 font-sans text-slate-900">
 
-            {/* Top Header */}
-            <header className="bg-white border-b border-gray-200 px-6 h-16 flex items-center justify-between shrink-0 z-30">
-                <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center text-white shadow-md">
-                        <Database size={18} />
-                    </div>
-                    <div>
-                        <h1 className="font-extrabold text-lg text-gray-900 tracking-tight leading-none">{t('erp.title')}</h1>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5 tracking-wider">{t('erp.subtitle')}</p>
+            {/* Top Navigation Bar */}
+            <header className="bg-white border-b border-gray-200 shrink-0 flex flex-col z-40 relative">
+                {/* Top Row: Title & Actions */}
+                <div className="px-6 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="p-2 bg-indigo-600 rounded-lg shadow-lg shadow-indigo-200">
+                            <Database className="text-white" size={24} />
+                        </div>
+                        <div>
+                            <h1 className="font-extrabold text-lg text-gray-900 tracking-tight leading-none">{t('erp.title')}</h1>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5 tracking-wider">{t('erp.subtitle')}</p>
+                        </div>
                     </div>
                 </div>
 
-                {/* Mode Switcher */}
-                <div className="bg-slate-100 p-1 rounded-lg border border-slate-200 flex">
+                {/* Bottom Row: Navigation Tabs */}
+                <div className="px-6 flex items-center gap-2 overflow-x-auto custom-scrollbar hide-scrollbar">
                     <button
                         onClick={() => setActiveTab('product_center')}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'product_center' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'product_center'
+                            ? 'border-indigo-600 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
                     >
-                        <Package size={14} /> {t('erp.tab.product_center')}
+                        <Package size={16} /> {t('erp.tab.product_center')}
                     </button>
-                    <div className="w-px bg-gray-200 mx-1 my-1"></div>
+
                     <button
                         onClick={() => setActiveTab('data')}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'data' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'data'
+                            ? 'border-indigo-600 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
                     >
-                        <TableIcon size={14} /> {t('erp.tab.data')}
+                        <TableIcon size={16} /> {t('erp.tab.data')}
                     </button>
-                    <div className="w-px bg-gray-200 mx-1 my-1"></div>
+
                     <button
                         onClick={() => setActiveTab('library')}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'library' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'library'
+                            ? 'border-indigo-600 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
                     >
-                        <Folder size={14} /> {t('erp.tab.library')}
+                        <Folder size={16} /> {t('erp.tab.library')}
                     </button>
+
                     <button
                         onClick={() => setActiveTab('builder')}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'builder' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'builder'
+                            ? 'border-indigo-600 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
                     >
-                        <Settings2 size={14} /> {t('erp.tab.builder')}
+                        <Settings2 size={16} /> {t('erp.tab.builder')}
                     </button>
-                    <div className="w-px bg-gray-200 mx-1 my-1"></div>
+
                     <button
                         onClick={() => setActiveTab('guide')}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'guide' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'guide'
+                            ? 'border-indigo-600 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
                     >
-                        <BookOpen size={14} /> {t('erp.tab.guide')}
+                        <BookOpen size={16} /> {t('erp.tab.guide')}
                     </button>
                 </div>
-
             </header>
 
             {/* Main Content Area */}

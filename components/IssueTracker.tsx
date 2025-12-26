@@ -155,31 +155,7 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
 
     return (
         <div className="flex flex-col h-full bg-gray-50/50 animate-in fade-in duration-300">
-            {/* Header */}
-            <div className="px-8 py-6 bg-white border-b border-gray-200 flex justify-between items-center sticky top-0 z-10">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">{t('issue.title')}</h1>
-                    <p className="text-sm text-gray-500 mt-1">{t('issue.subtitle')}</p>
-                </div>
-                <div className="flex gap-3">
-                    {onImportIssues && (
-                        <button
-                            onClick={() => setIsImportModalOpen(true)}
-                            className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors shadow-sm font-medium"
-                        >
-                            <Upload size={18} />
-                            {t('issue.import_data')}
-                        </button>
-                    )}
-                    <button
-                        onClick={() => { setEditingIssue(undefined); setIsModalOpen(true); }}
-                        className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium"
-                    >
-                        <Plus size={18} />
-                        {t('issue.report')}
-                    </button>
-                </div>
-            </div>
+
 
             {/* Filters */}
             <div className="px-8 py-4 bg-white border-b border-gray-200 flex gap-4 items-center">
@@ -216,6 +192,25 @@ export const IssueTracker: React.FC<IssueTrackerProps> = ({ projects, teamMember
                         <option key={p.id} value={String(p.info.name || '')}>{String(p.info.name || 'Untitled')}</option>
                     ))}
                 </select>
+
+                <div className="flex gap-3 ml-auto">
+                    {onImportIssues && (
+                        <button
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors shadow-sm font-medium"
+                        >
+                            <Upload size={18} />
+                            {t('issue.import_data')}
+                        </button>
+                    )}
+                    <button
+                        onClick={() => { setEditingIssue(undefined); setIsModalOpen(true); }}
+                        className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium"
+                    >
+                        <Plus size={18} />
+                        {t('issue.report')}
+                    </button>
+                </div>
             </div>
 
             {/* Table */}
