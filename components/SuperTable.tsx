@@ -2578,7 +2578,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         name: string;
         description: string;
         image: string;
-        imageFit?: 'cover' | 'contain' | 'fill';
+        imageFit?: 'cover' | 'contain' | 'fill' | 'tile';
         datasetId: string;
         viewNames: string[];
         timestamp: number;
@@ -2653,6 +2653,11 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const [namingVariables, setNamingVariables] = useState<NamingVariable[]>(() => loadFromStorage('erp_naming_variables', []));
     const [namingCounter, setNamingCounter] = useState(() => loadFromStorage('erp_naming_counter', 1));
     const [namingInteractiveMode, setNamingInteractiveMode] = useState<boolean>(() => loadFromStorage('erp_naming_interactive', false));
+    const [allowImageEdit, setAllowImageEdit] = useState<boolean>(() => loadFromStorage('erp_allow_image_edit', false));
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('erp_allow_image_edit', JSON.stringify(allowImageEdit));
+    }, [allowImageEdit]);
 
     // UI state for Export Naming Dialog
     const [exportNamingDialog, setExportNamingDialog] = useState<{
@@ -4573,7 +4578,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 name: configState.name,
                 description: configState.description || '',
                 image: configState.image || '',
-                imageFit: (['cover', 'contain', 'fill'].includes(configState.imageFit as any) ? configState.imageFit : 'cover') as 'cover' | 'contain' | 'fill',
+                imageFit: (['cover', 'contain', 'fill', 'tile'].includes(configState.imageFit as any) ? configState.imageFit : 'cover') as any,
                 datasetId: configState.datasetId,
                 viewNames: configState.viewNames,
                 configRules: configState.configRules || [],
@@ -5756,6 +5761,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                         </div>
                                                     )}
 
+
                                                     {/* Upload Controls */}
                                                     <div className="flex items-center gap-3">
                                                         <input
@@ -6043,10 +6049,12 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                             {/* Left: Image */}
                             <div className="lg:col-span-5">
                                 <div
-                                    className="aspect-square rounded-3xl overflow-hidden relative group cursor-pointer"
+                                    className={`aspect-square rounded-3xl overflow-hidden relative group transition-all ${allowImageEdit ? 'cursor-pointer' : 'cursor-default'}`}
                                     onDoubleClick={() => {
-                                        const input = document.getElementById(`prod-img-${product.id}`) as HTMLInputElement;
-                                        if (input) input.click();
+                                        if (allowImageEdit) {
+                                            const input = document.getElementById(`prod-img-${product.id}`) as HTMLInputElement;
+                                            if (input) input.click();
+                                        }
                                     }}
                                 >
                                     {product.image ? (
@@ -6061,32 +6069,36 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         </div>
                                     )}
 
-                                    {/* Image Fit Controls */}
-                                    <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-all z-20">
-                                        <div className="bg-white/90 backdrop-blur rounded-lg shadow-sm p-1 flex gap-1" onClick={e => e.stopPropagation()}>
-                                            {(['cover', 'contain', 'fill'] as const).map(mode => (
-                                                <button
-                                                    key={mode}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, imageFit: mode } : p));
-                                                        db.saveERPProduct({ ...product, imageFit: mode });
-                                                    }}
-                                                    className={`px-2 py-1 rounded text-[10px] uppercase font-bold transition-all ${(product.imageFit || 'cover') === mode
-                                                        ? 'bg-indigo-100 text-indigo-700'
-                                                        : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
-                                                        }`}
-                                                >
-                                                    {mode === 'cover' ? t('erp.fit_cover') : mode === 'contain' ? t('erp.fit_contain') : t('erp.fit_fill')}
-                                                </button>
-                                            ))}
+                                    {/* Image Fit Controls - Only show if editing enabled */}
+                                    {allowImageEdit && (
+                                        <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-all z-20">
+                                            <div className="bg-white/90 backdrop-blur rounded-lg shadow-sm p-1 flex gap-1" onClick={e => e.stopPropagation()}>
+                                                {(['cover', 'contain', 'fill'] as const).map(mode => (
+                                                    <button
+                                                        key={mode}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setProducts(prev => prev.map(p => p.id === product.id ? { ...p, imageFit: mode } : p));
+                                                            db.saveERPProduct({ ...product, imageFit: mode });
+                                                        }}
+                                                        className={`px-2 py-1 rounded text-[10px] uppercase font-bold transition-all ${(product.imageFit || 'cover') === mode
+                                                            ? 'bg-indigo-100 text-indigo-700'
+                                                            : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+                                                            }`}
+                                                    >
+                                                        {mode === 'cover' ? t('erp.fit_cover') : mode === 'contain' ? t('erp.fit_contain') : t('erp.fit_fill')}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                        <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-bold text-slate-700 shadow-sm">
-                                            {t('erp.double_click_change')}
+                                    )}
+                                    {allowImageEdit && (
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                            <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-bold text-slate-700 shadow-sm">
+                                                {t('erp.double_click_change')}
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                     <input
                                         type="file"
                                         id={`prod-img-${product.id}`}
@@ -6557,6 +6569,24 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const renderProductSettings = () => (
         <div className="p-12 max-w-5xl mx-auto animate-in fade-in duration-500 pb-32">
 
+            {/* General Settings */}
+            <div className="mb-12">
+                <h4 className="text-sm font-black text-indigo-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
+                    <Settings size={14} /> {t('settings.general') || 'GENERAL'}
+                </h4>
+                <div className="p-6 bg-white rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+                    <div>
+                        <h5 className="font-bold text-slate-900 mb-1">{t('erp.product.allow_image_edit')}</h5>
+                        <p className="text-xs text-slate-500">Enable double-click to upload images in Product Detail view and configure image fitting</p>
+                    </div>
+                    <div
+                        onClick={() => setAllowImageEdit(!allowImageEdit)}
+                        className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${allowImageEdit ? 'bg-indigo-500' : 'bg-slate-200'}`}
+                    >
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transition-transform ${allowImageEdit ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </div>
+                </div>
+            </div>
 
             <div className="grid grid-cols-1 gap-12">
                 {/* Data Management Section */}
@@ -6641,7 +6671,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                     onClick={() => setIsCreatingVariable(true)}
                                     className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 uppercase tracking-wider flex items-center gap-1 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 transition-colors"
                                 >
-                                    <Plus size={12} /> New List Variable
+                                    <Plus size={12} /> {t('erp.naming.new_variable')}
                                 </button>
                             ) : (
                                 <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right-4 duration-300">
