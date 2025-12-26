@@ -6330,7 +6330,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                     </div>
                                 )}
 
-                                <div className="flex items-center gap-6 w-fit">
+                                <div className="flex items-center gap-3 w-fit">
                                     {/* Quantity Controls */}
                                     <div className="flex items-center gap-3 pl-2">
                                         <div className="flex items-center gap-1 bg-slate-50 rounded-lg p-1">
@@ -6343,7 +6343,6 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                             />
                                             <button onClick={() => setOrderQuantity(orderQuantity + 1)} className="w-8 h-8 rounded-md hover:bg-white hover:shadow-sm text-slate-500 flex items-center justify-center transition-all font-bold"><Plus size={14} /></button>
                                         </div>
-                                        <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">{t('erp.config.quantity')}</span>
                                     </div>
 
                                     {/* Place Order Button */}
@@ -6363,7 +6362,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
                                             addToast(t('erp.toast.order_placed'), 'success');
                                         }}
-                                        className="h-[48px] px-8 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl font-bold hover:bg-indigo-100 hover:border-indigo-200 transition-all active:scale-95 flex items-center gap-2"
+                                        className="h-[48px] px-8 text-indigo-600 font-bold transition-all active:scale-95 flex items-center gap-2"
                                     >
                                         <ShoppingCart size={18} /> {t('erp.config.place_order')}
                                     </button>
@@ -6679,12 +6678,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 <span className="text-[10px] uppercase font-bold text-slate-500 mb-2 block tracking-widest">{t('erp.naming.realtime_preview')}</span>
                                 <div className="font-mono text-lg text-indigo-700 font-medium truncate">
                                     {namingRules.length > 0 ? namingRules.map(r => {
-                                        if (r.type === 'project') return '[ProjectName]';
-                                        if (r.type === 'personnel') return '[User]';
-                                        if (r.type === 'date') return '2025-10-24';
-                                        if (r.type === 'quantity') return '100';
-                                        if (r.type === 'variable') return `[${r.label}]`;
-                                        return r.value;
+                                        if (r.type === 'separator') return r.value === '__' ? ' ' : r.value;
+                                        return `[${r.label || r.value}]`;
                                     }).join('') : 'Empty_Rule_Set'}.xlsx
                                 </div>
                             </div>
