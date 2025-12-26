@@ -2638,6 +2638,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
     const [selectedProductId, setSelectedProductId] = useState<string | null>(() => loadFromStorage('erp_selected_product_id', null));
     const [activeRuleTab, setActiveRuleTab] = useState<number>(0);
+    const [activeViewNames, setActiveViewNames] = useState<string[]>([]); // Multi-select for active views
     const [editingRuleTab, setEditingRuleTab] = useState<{ index: number, value: string } | null>(null);
     const [orderQuantity, setOrderQuantity] = useState<number>(1);
 
@@ -2709,6 +2710,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         if (selectedProductId) {
             setActiveRuleTab(0);
             const product = products.find(p => p.id === selectedProductId);
+            // Initialize with all configured views when product is selected
+            setActiveViewNames(product?.viewNames || []);
             if (product && product.defaultOverrides) {
                 setPreviewOverrides(product.defaultOverrides);
             } else {
@@ -6062,10 +6065,36 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                     </div>
                                     <div>
                                         <div className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-widest">Configuration View</div>
-                                        <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                                            <Filter size={16} className="text-indigo-500" />
-                                            {product.viewNames?.join(', ') || 'Full Dataset'}
-                                        </div>
+                                        {(product.viewNames?.length || 0) > 0 ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {product.viewNames?.map((vName) => {
+                                                    const isSelected = activeViewNames.includes(vName);
+                                                    return (
+                                                        <button
+                                                            key={vName}
+                                                            onClick={() => {
+                                                                setActiveViewNames(prev =>
+                                                                    isSelected
+                                                                        ? prev.filter(n => n !== vName)
+                                                                        : [...prev, vName]
+                                                                );
+                                                            }}
+                                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border ${isSelected
+                                                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                                                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
+                                                                }`}
+                                                        >
+                                                            {vName}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                                <Filter size={16} className="text-indigo-500" />
+                                                Full Dataset
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -6157,8 +6186,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                         {rule.ruleType === 'mapping' ? (
                                                             <div className="space-y-4">
                                                                 {/* Rule Summary Header */}
-                                                                <div className="p-3 bg-gradient-to-br from-indigo-50 to-slate-50 rounded-lg border border-indigo-100">
-                                                                    <div className="flex flex-wrap items-center gap-2 text-xs mb-2">
+                                                                <div>
+                                                                    <div className="flex flex-wrap items-center gap-2 text-xs">
                                                                         <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">级联映射</span>
                                                                         {rule.syncMode && (
                                                                             <span className="text-[8px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full">🔗 同步模式</span>
@@ -6168,18 +6197,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                         </span>
                                                                     </div>
 
-                                                                    {/* Quick Summary of All Groups */}
-                                                                    <div className="text-[10px] text-slate-500 flex flex-wrap gap-2">
-                                                                        {rule.cascadeGroups?.map((cg: any, idx: number) => (
-                                                                            <span key={idx} className="bg-white px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1">
-                                                                                <span className="text-indigo-500 font-bold">#{idx + 1}</span>
-                                                                                <span className="text-slate-600">{cg.sourceField}</span>
-                                                                                <ArrowRight size={8} className="text-slate-300" />
-                                                                                <span className="text-slate-600">{cg.targetField}</span>
-                                                                                {cg.sourceRowId && <span className="text-amber-500">📍</span>}
-                                                                            </span>
-                                                                        ))}
-                                                                    </div>
+
                                                                 </div>
 
                                                                 {/* Cascade Groups Display - Main Content */}
@@ -6348,7 +6366,10 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                             </div>
                             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[300px]">
                                 <div className="overflow-auto max-h-[600px] custom-scrollbar">
-                                    {renderBOMTable(product.datasetId, product.viewNames || [], [], (product as any).configRules || [], orderQuantity)}
+                                    {(() => {
+                                        // Use the user-selected active views for filtering
+                                        return renderBOMTable(product.datasetId, activeViewNames, [], (product as any).configRules || [], orderQuantity);
+                                    })()}
                                 </div>
                             </div>
                         </div>
