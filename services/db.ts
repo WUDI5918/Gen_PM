@@ -249,7 +249,33 @@ export const db = {
     const projects = await database.getAll('projects');
     const team = await database.get('settings', 'team');
     const user = await database.get('settings', 'user');
-    // Also include density from LS if exists
+    const tags = await database.get('settings', 'tags');
+
+    // ERP Data
+    let erpDatasets: any[] = [];
+    if (database.objectStoreNames.contains('erp_datasets')) {
+      erpDatasets = await database.getAll('erp_datasets');
+    }
+
+    let erpProducts: any[] = [];
+    if (database.objectStoreNames.contains('erp_products')) {
+      erpProducts = await database.getAll('erp_products');
+    }
+
+    let erpTemplates: any[] = [];
+    if (database.objectStoreNames.contains('erp_templates')) {
+      erpTemplates = await database.getAll('erp_templates');
+    }
+
+    // ERP State (Key-Value Store)
+    let erpStateData: { key: IDBValidKey; value: any }[] = [];
+    if (database.objectStoreNames.contains('erp_state')) {
+      const keys = await database.getAllKeys('erp_state');
+      const values = await database.getAll('erp_state');
+      erpStateData = keys.map((k, i) => ({ key: k, value: values[i] }));
+    }
+
+    // LocalStorage Data
     const density = localStorage.getItem('gen_pm_density');
     const aiConfig = localStorage.getItem('project_ai_config');
 
@@ -257,28 +283,68 @@ export const db = {
       projects,
       team,
       user,
+      tags,
+      erpDatasets,
+      erpProducts,
+      erpTemplates,
+      erpState: erpStateData,
       density,
       aiConfig: aiConfig ? JSON.parse(aiConfig) : undefined,
       timestamp: Date.now(),
-      version: 1
+      version: 2
     };
   },
 
   async importData(data: any) {
     const database = await getDB();
 
+    // 1. Projects
     if (Array.isArray(data.projects)) {
       const tx = database.transaction('projects', 'readwrite');
-      await tx.store.clear(); // Clear existing to replace
+      await tx.store.clear();
       for (const p of data.projects) {
         await tx.store.put(p);
       }
       await tx.done;
     }
 
+    // 2. Settings (Team, User, Tags)
     if (data.team) await database.put('settings', data.team, 'team');
     if (data.user) await database.put('settings', data.user, 'user');
+    if (data.tags) await database.put('settings', data.tags, 'tags');
 
+    // 3. ERP Data
+    if (Array.isArray(data.erpDatasets) && database.objectStoreNames.contains('erp_datasets')) {
+      const tx = database.transaction('erp_datasets', 'readwrite');
+      await tx.store.clear();
+      for (const item of data.erpDatasets) await tx.store.put(item);
+      await tx.done;
+    }
+
+    if (Array.isArray(data.erpProducts) && database.objectStoreNames.contains('erp_products')) {
+      const tx = database.transaction('erp_products', 'readwrite');
+      await tx.store.clear();
+      for (const item of data.erpProducts) await tx.store.put(item);
+      await tx.done;
+    }
+
+    if (Array.isArray(data.erpTemplates) && database.objectStoreNames.contains('erp_templates')) {
+      const tx = database.transaction('erp_templates', 'readwrite');
+      await tx.store.clear();
+      for (const item of data.erpTemplates) await tx.store.put(item);
+      await tx.done;
+    }
+
+    if (Array.isArray(data.erpState) && database.objectStoreNames.contains('erp_state')) {
+      const tx = database.transaction('erp_state', 'readwrite');
+      await tx.store.clear();
+      for (const item of data.erpState) {
+        await tx.store.put(item.value, item.key);
+      }
+      await tx.done;
+    }
+
+    // 4. LocalStorage
     if (data.density) localStorage.setItem('gen_pm_density', data.density);
     if (data.aiConfig) localStorage.setItem('project_ai_config', JSON.stringify(data.aiConfig));
   }
