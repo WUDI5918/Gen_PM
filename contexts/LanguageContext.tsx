@@ -329,6 +329,7 @@ const translations: Record<Language, Record<string, string>> = {
     'notif.mark_read': 'Mark all read',
     'notif.empty': 'No new notifications',
     // Settings
+    'settings.general': 'General Settings',
     'settings.profile': 'User Profile',
     'settings.appearance': 'Appearance & Density',
     'settings.language': 'Interface Language',
@@ -837,6 +838,7 @@ const translations: Record<Language, Record<string, string>> = {
     'erp.fit_fill': 'FILL',
     'erp.fit_tile': 'TILE',
     'erp.product.allow_image_edit': 'Allow Image Editing',
+    'erp.product.allow_image_edit_desc': 'Enable double-click to upload images in Product Detail view and configure image fitting',
     'erp.double_click_change': 'Double click to change',
     'erp.ai.processing': 'Processing...',
     'erp.ai.generate_form': 'Generate Form',
@@ -1279,6 +1281,7 @@ const translations: Record<Language, Record<string, string>> = {
     'notif.mark_read': '全部已读',
     'notif.empty': '暂无新通知',
     // Settings
+    'settings.general': '通用设置',
     'settings.profile': '个人资料',
     'settings.appearance': '外观与密度',
     'settings.language': '界面语言',
@@ -1798,6 +1801,7 @@ const translations: Record<Language, Record<string, string>> = {
     'erp.toast.restore_failed': '数据恢复失败。请检查控制台。',
     'erp.toast.data_cleared': '所有数据已清除',
     'erp.product.allow_image_edit': '允许编辑图片',
+    'erp.product.allow_image_edit_desc': '启用后，在产品详情页双击图片可上传新图片，并可配置图片填充方式',
     'erp.naming.interactive_mode': '导出时完善命名',
     'erp.naming.new_variable': '新建列表变量',
     'erp.naming.variable_name': '变量名称',

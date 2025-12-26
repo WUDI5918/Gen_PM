@@ -6577,7 +6577,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 <div className="p-6 bg-white rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
                     <div>
                         <h5 className="font-bold text-slate-900 mb-1">{t('erp.product.allow_image_edit')}</h5>
-                        <p className="text-xs text-slate-500">Enable double-click to upload images in Product Detail view and configure image fitting</p>
+                        <p className="text-xs text-slate-500">{t('erp.product.allow_image_edit_desc')}</p>
                     </div>
                     <div
                         onClick={() => setAllowImageEdit(!allowImageEdit)}
@@ -7044,18 +7044,18 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                     <div className="flex items-center gap-6">
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={() => { setProductSubTab('config'); setSelectedProductId(null); }}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all border ${productSubTab === 'config' ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-white border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
-                            >
-                                <Box size={14} className={productSubTab === 'config' ? 'text-indigo-600' : 'text-slate-400'} />
-                                <span>{t('erp.tabs.define_product')}</span>
-                            </button>
-                            <button
                                 onClick={() => { setProductSubTab('library'); setSelectedProductId(null); }}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all border ${productSubTab === 'library' ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-white border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
                             >
                                 <List size={14} className={productSubTab === 'library' ? 'text-indigo-600' : 'text-slate-400'} />
                                 <span>{t('erp.tabs.product_library')}</span>
+                            </button>
+                            <button
+                                onClick={() => { setProductSubTab('config'); setSelectedProductId(null); }}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all border ${productSubTab === 'config' ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-white border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
+                            >
+                                <Box size={14} className={productSubTab === 'config' ? 'text-indigo-600' : 'text-slate-400'} />
+                                <span>{t('erp.tabs.define_product')}</span>
                             </button>
                             <button
                                 onClick={() => { setProductSubTab('settings'); setSelectedProductId(null); }}
