@@ -6374,9 +6374,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                         <div className="mt-16">
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-xl font-bold text-slate-900">{t('erp.config.bom_arch')}</h3>
-                                <button className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors">
-                                    <Download size={14} /> {t('erp.export_csv')}
-                                </button>
+
                             </div>
                             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[300px]">
                                 <div className="overflow-auto max-h-[600px] custom-scrollbar">
