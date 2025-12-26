@@ -2639,6 +2639,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const [selectedProductId, setSelectedProductId] = useState<string | null>(() => loadFromStorage('erp_selected_product_id', null));
     const [activeRuleTab, setActiveRuleTab] = useState<number>(0);
     const [activeViewNames, setActiveViewNames] = useState<string[]>([]); // Multi-select for active views
+    const [productDisplayTab, setProductDisplayTab] = useState<'views' | 'rules'>('views'); // Top-level tab for product details
     const [editingRuleTab, setEditingRuleTab] = useState<{ index: number, value: string } | null>(null);
     const [orderQuantity, setOrderQuantity] = useState<number>(1);
 
@@ -6055,16 +6056,36 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                     {product.description || 'No description provided for this product configuration.'}
                                 </p>
 
-                                <div className="grid grid-cols-2 gap-8 mb-10 max-w-lg">
-                                    <div>
-                                        <div className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-widest">Source Dataset</div>
-                                        <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                                            <Database size={16} className="text-indigo-500" />
-                                            {savedDatasets.find(d => d.id === product.datasetId)?.name || 'Unknown'}
-                                        </div>
+                                <div className="mb-8 max-w-lg">
+                                    <div className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-widest">Source Dataset</div>
+                                    <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                        <Database size={16} className="text-indigo-500" />
+                                        {savedDatasets.find(d => d.id === product.datasetId)?.name || 'Unknown'}
                                     </div>
-                                    <div>
-                                        <div className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-widest">Configuration View</div>
+                                </div>
+
+                                {/* Main Config Tabs */}
+                                <div className="flex items-center gap-8 mb-6 border-b border-slate-100 max-w-lg">
+                                    <button
+                                        onClick={() => setProductDisplayTab('views')}
+                                        className={`pb-3 text-sm font-bold transition-all relative ${productDisplayTab === 'views' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                    >
+                                        Configuration View
+                                        {productDisplayTab === 'views' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
+                                    </button>
+                                    <button
+                                        onClick={() => setProductDisplayTab('rules')}
+                                        className={`pb-3 text-sm font-bold transition-all relative ${productDisplayTab === 'rules' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                    >
+                                        Configuration Rules
+                                        {productDisplayTab === 'rules' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />}
+                                        <span className="ml-2 text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">{(product as any).configRules?.length || 0}</span>
+                                    </button>
+                                </div>
+
+                                {/* Views Content */}
+                                {productDisplayTab === 'views' && (
+                                    <div className="mb-12 max-w-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
                                         {(product.viewNames?.length || 0) > 0 ? (
                                             <div className="flex flex-wrap gap-2">
                                                 {product.viewNames?.map((vName) => {
@@ -6080,7 +6101,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                 );
                                                             }}
                                                             className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border ${isSelected
-                                                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm'
                                                                 : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
                                                                 }`}
                                                         >
@@ -6090,23 +6111,17 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                 })}
                                             </div>
                                         ) : (
-                                            <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                                                <Filter size={16} className="text-indigo-500" />
-                                                Full Dataset
+                                            <div className="p-4 bg-slate-50 rounded-lg text-center border border-dashed border-slate-200">
+                                                <div className="font-bold text-slate-400 text-xs mb-1">No Custom Views</div>
+                                                <div className="text-[10px] text-slate-400">Showing Full Dataset</div>
                                             </div>
                                         )}
                                     </div>
-                                </div>
+                                )}
 
                                 {/* Unified Configuration Rules Display */}
-                                {(product as any).configRules?.length > 0 && (
-                                    <div className="mb-12 max-w-lg pl-6 border-l-4 border-indigo-500/20 hover:border-indigo-500 transition-colors duration-500">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-sm font-bold text-slate-900">Configuration Rules</span>
-                                                <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">{(product as any).configRules.length}</span>
-                                            </div>
-                                        </div>
+                                {productDisplayTab === 'rules' && (product as any).configRules?.length > 0 && (
+                                    <div className="mb-12 max-w-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
 
                                         {/* Minimalist Integrated Tabs */}
                                         {(product as any).configRules.length > 0 && (
