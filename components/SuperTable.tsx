@@ -14,6 +14,7 @@ import {
     Package, Box, Settings, ChevronLeft, ShoppingCart, MousePointerClick, Tag, Bot
 } from 'lucide-react';
 import { read, utils, writeFile, write } from 'xlsx';
+import JSZip from 'jszip';
 import { generateFormSchemaFromData, generateFormFromDescription, generateFormLogic } from '../services/geminiService';
 import { useToast } from '../contexts/ToastContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -207,8 +208,38 @@ const getOperatorsForType = (type: string) => {
 
 const safeRenderValue = (val: any) => {
     if (val === null || val === undefined) return '';
+    if (Array.isArray(val)) {
+        // Check if it's a file array (objects with 'name' property)
+        if (val.length > 0 && typeof val[0] === 'object' && val[0].name) {
+            return val.length === 1 ? val[0].name : `${val.length} 个文件`;
+        }
+        return val.join(', ');
+    }
     if (typeof val === 'object') return JSON.stringify(val);
     return val;
+};
+
+// Helper function to convert File to Base64
+const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = (error) => reject(error);
+    });
+};
+
+// Helper function to process files for upload (with Base64 content)
+const processFilesForUpload = async (files: File[]): Promise<{ name: string; size: string; type: string; data: string }[]> => {
+    const processedFiles = await Promise.all(
+        files.map(async (file) => ({
+            name: file.name,
+            size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+            type: file.type,
+            data: await fileToBase64(file)
+        }))
+    );
+    return processedFiles;
 };
 
 // --- Mock API Database for Simulation ---
@@ -960,6 +991,7 @@ const FieldEditor = ({
 // 3. Right Side Live Preview
 const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCancel, formName }: any) => {
     const { t } = useLanguage();
+    const { addToast } = useToast();
 
     // --- Logic Engine Execution (Debounced to avoid input interference) ---
     useEffect(() => {
@@ -1284,18 +1316,32 @@ const FormPreview = ({ schema, data, setData, errors, setErrors, onSubmit, onCan
                                             multiple
                                             disabled={isReadOnly}
                                             className="absolute inset-0 opacity-0 cursor-pointer"
-                                            onChange={(e) => {
+                                            onChange={async (e) => {
                                                 const files = Array.from(e.target.files || []);
-                                                const current = data[field.id] || [];
-                                                const newFiles = files.map((f: any) => ({ name: f.name, size: (f.size / 1024).toFixed(1) + ' KB', type: f.type }));
-                                                handleChange(field.id, [...current, ...newFiles]);
+                                                const validFiles: File[] = [];
+
+                                                for (const f of files) {
+                                                    if (f.size > 100 * 1024 * 1024) {
+                                                        addToast(`File ${f.name} exceeds 100MB limit`, 'error');
+                                                    } else {
+                                                        validFiles.push(f);
+                                                    }
+                                                }
+
+                                                if (validFiles.length > 0) {
+                                                    const current = data[field.id] || [];
+                                                    const newFiles = await processFilesForUpload(validFiles);
+                                                    handleChange(field.id, [...current, ...newFiles]);
+                                                }
+                                                // Clear input value to allow re-uploading same file if needed
+                                                e.target.value = '';
                                             }}
                                         />
                                         <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mb-3 group-hover:scale-110 group-hover:shadow-md transition-all">
                                             <Upload size={24} className="text-indigo-500" />
                                         </div>
-                                        <p className="text-sm font-bold text-slate-600 group-hover:text-indigo-600 transition-colors">Click or drag properties</p>
-                                        <p className="text-xs text-slate-400 mt-1">SVG, PNG, JPG or GIF (max. 10MB)</p>
+                                        <p className="text-sm font-bold text-slate-600 group-hover:text-indigo-600 transition-colors">Click or drag files</p>
+                                        <p className="text-xs text-slate-400 mt-1">Images, Docs, ZIP (max. 100MB)</p>
                                     </label>
 
                                     {/* File List */}
@@ -2466,8 +2512,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const [schema, setSchema] = useState<any[]>(() => loadFromStorage('erp_schema', InitialSchema));
     const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
 
-    // Data State
-    const [records, setRecords] = useState<any[]>(() => loadFromStorage('erp_records', []));
+    // Data State - Records are loaded from IndexedDB asynchronously in initERPData
+    const [records, setRecords] = useState<any[]>([]);
     const [previewData, setPreviewData] = useState<any>({});
     const [batchRows, setBatchRows] = useState<any[]>([]);
     const [editingCell, setEditingCell] = useState<{ rowId: any; fieldId: string } | null>(null);
@@ -2757,8 +2803,20 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         const initERPData = async () => {
             try {
                 // 1. Workspace State (Records & Schema)
-                const storedRecords = await db.getERPState('current_records');
-                if (storedRecords) setRecords(storedRecords);
+                // Load from IndexedDB first, with fallback to localStorage migration
+                const storedRecords = await db.getERPState('records');
+                if (storedRecords && Array.isArray(storedRecords)) {
+                    setRecords(storedRecords);
+                } else {
+                    // Migration from localStorage
+                    const lsRecords = loadFromStorage<any[]>('erp_records', []);
+                    if (lsRecords.length > 0) {
+                        setRecords(lsRecords);
+                        await db.saveERPState('records', lsRecords);
+                        // Clear legacy storage to free up space
+                        localStorage.removeItem('erp_records');
+                    }
+                }
 
                 const storedSchema = await db.getERPState('current_schema');
                 if (storedSchema) setSchema(storedSchema);
@@ -2816,12 +2874,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         initERPData();
     }, []);
 
-    // Auto-save Workspace State
-    useEffect(() => {
-        if (isDBInitialized) {
-            db.saveERPState('current_records', records);
-        }
-    }, [records, isDBInitialized]);
+    // Records auto-save is handled separately to use consistent 'records' key
 
     useEffect(() => {
         if (isDBInitialized) {
@@ -2991,9 +3044,9 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     // Track unsaved changes
     const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>(() => {
         // Create a snapshot of initial state to compare against
-        const initialRecords = loadFromStorage('erp_records', []);
+        // Records are loaded from IndexedDB async, so initial snapshot is empty array
         const initialSchema = loadFromStorage('erp_schema', InitialSchema);
-        return JSON.stringify({ records: initialRecords, schema: initialSchema });
+        return JSON.stringify({ records: [], schema: initialSchema });
     });
 
     // Compute isDirty by comparing current state with last saved snapshot
@@ -3028,10 +3081,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
     const [currentFormName, setCurrentFormName] = useState(() => loadFromStorage('erp_current_form_name', 'Custom Form'));
 
-    // Persist savedForms to localStorage as backup
-    useEffect(() => {
-        if (typeof window !== 'undefined') window.localStorage.setItem('erp_saved_forms', JSON.stringify(savedForms));
-    }, [savedForms]);
+    // Forms persistence moved to IndexedDB (see db.saveERPTemplate in handlers)
 
     // Persist currentFormName
     useEffect(() => {
@@ -3070,12 +3120,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         }
     }, [schema]);
 
-    // Persist records
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            window.localStorage.setItem('erp_records', JSON.stringify(records));
-        }
-    }, [records]);
+
+    // Records persistence moved to IndexedDB (see db.saveERPState below)
 
     // Persist filter groups
     useEffect(() => {
@@ -3094,12 +3140,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         }
     }, [savedViews, savedForms, rootFilterMode, hiddenColumnIds]);
 
-    // Persist saved datasets
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            window.localStorage.setItem('erp_saved_datasets', JSON.stringify(savedDatasets));
-        }
-    }, [savedDatasets]);
+
+    // Datasets persistence moved to IndexedDB (see db.saveERPDataset in handlers)
 
     // Persist show filters state
     useEffect(() => {
@@ -3680,12 +3722,11 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
     }, [schema]);
 
     useEffect(() => {
-        localStorage.setItem('erp_records', JSON.stringify(records));
+        // Save records to IndexedDB instead of localStorage to handle large file data
+        db.saveERPState('records', records);
     }, [records]);
 
-    useEffect(() => {
-        localStorage.setItem('erp_saved_forms', JSON.stringify(savedForms));
-    }, [savedForms]);
+    // savedForms persistence handled via IndexedDB
 
     useEffect(() => {
         localStorage.setItem('erp_saved_views', JSON.stringify(savedViews));
@@ -4808,7 +4849,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
         return isUUID(filename) ? `BOM_Export_${new Date().toISOString().slice(0, 10)}` : filename;
     };
 
-    const executeExport = (
+    const executeExport = async (
         datasetId: string,
         viewNames: string[],
         hiddenFields: string[],
@@ -4830,18 +4871,32 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                 return;
             }
 
+            // Collect all attachments from file fields
+            const attachments: { name: string; data: string }[] = [];
+            const fileFields = displayFields.filter((f: any) => f.type === 'file');
+
             const exportBytes = filteredRecords.map(r => {
                 const row: any = {};
-                displayFields.forEach((f, index) => {
+                displayFields.forEach((f: any, index: number) => {
                     const isMultiplierTarget = quantityMultiplier > 1 && index === displayFields.length - 1;
                     let val = r[f.id];
-                    if (isMultiplierTarget && !isNaN(Number(val))) {
+
+                    // Handle file fields specially
+                    if (f.type === 'file' && Array.isArray(val) && val.length > 0) {
+                        // Collect attachments for ZIP
+                        val.forEach((file: any) => {
+                            if (file.data && file.name) {
+                                attachments.push({ name: file.name, data: file.data });
+                            }
+                        });
+                        // For Excel, show file names only
+                        val = val.map((file: any) => file.name).join(', ');
+                    } else if (isMultiplierTarget && !isNaN(Number(val))) {
                         val = Number(val) * quantityMultiplier;
-                    }
-                    // Handle objects/arrays for CSV/Excel readability
-                    if (typeof val === 'object' && val !== null) {
+                    } else if (typeof val === 'object' && val !== null) {
                         val = JSON.stringify(val);
                     }
+
                     const headerName = f.label || f.name || f.id;
                     row[headerName] = val;
                 });
@@ -4853,10 +4908,51 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
             utils.book_append_sheet(wb, ws, "BOM Architecture");
             const filename = generateFilename(variableOverrides, quantityMultiplier).replace(/[\\/:*?"<>|]/g, '_') || 'BOM_Export';
 
-            // Use xlsx.writeFile for robust browser download with correct filename and MIME type
-            writeFile(wb, `${filename}.xlsx`);
+            // If there are attachments, create a ZIP file
+            if (attachments.length > 0) {
+                const zip = new JSZip();
+                const folder = zip.folder(filename);
 
-            addToast(t('erp.toast.export_success'), 'success');
+                if (folder) {
+                    // Add Excel file to ZIP
+                    const excelBuffer = write(wb, { bookType: 'xlsx', type: 'array' });
+                    folder.file(`${filename}.xlsx`, excelBuffer);
+
+                    // Add attachments to ZIP (remove duplicate filenames)
+                    const addedFiles = new Set<string>();
+                    attachments.forEach((att, idx) => {
+                        let uniqueName = att.name;
+                        if (addedFiles.has(uniqueName)) {
+                            const ext = uniqueName.lastIndexOf('.') > 0 ? uniqueName.slice(uniqueName.lastIndexOf('.')) : '';
+                            const base = uniqueName.slice(0, uniqueName.lastIndexOf('.') > 0 ? uniqueName.lastIndexOf('.') : uniqueName.length);
+                            uniqueName = `${base}_${idx}${ext}`;
+                        }
+                        addedFiles.add(uniqueName);
+
+                        // Convert base64 data URL to binary
+                        const base64Data = att.data.split(',')[1];
+                        if (base64Data) {
+                            folder.file(uniqueName, base64Data, { base64: true });
+                        }
+                    });
+
+                    // Generate and download ZIP
+                    const zipBlob = await zip.generateAsync({ type: 'blob' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(zipBlob);
+                    link.download = `${filename}.zip`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
+
+                    addToast(t('erp.toast.export_zip_success') || `Exported ZIP with ${attachments.length} attachments`, 'success');
+                }
+            } else {
+                // No attachments, just download Excel
+                writeFile(wb, `${filename}.xlsx`);
+                addToast(t('erp.toast.export_success'), 'success');
+            }
         } catch (error) {
             console.error('[Export Error]', error);
             addToast('Export failed: ' + (error as Error).message, 'error');
@@ -8734,6 +8830,56 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                                 className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
                                                                                             />
                                                                                         </div>
+                                                                                    ) : f.type === 'file' ? (
+                                                                                        <div className="p-2 bg-white border-2 border-indigo-500 rounded-lg shadow-lg z-20 min-w-[200px]">
+                                                                                            <label className="border-2 border-dashed border-slate-300 rounded-lg p-3 flex flex-col items-center justify-center text-slate-400 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 transition-all cursor-pointer">
+                                                                                                <input
+                                                                                                    type="file"
+                                                                                                    multiple
+                                                                                                    className="hidden"
+                                                                                                    onChange={async (e) => {
+                                                                                                        const files = Array.from(e.target.files || []);
+                                                                                                        const validFiles = files.filter(file => file.size <= 100 * 1024 * 1024);
+                                                                                                        if (validFiles.length > 0) {
+                                                                                                            const current = row[f.id] || [];
+                                                                                                            const newFiles = await processFilesForUpload(validFiles);
+                                                                                                            handleGridUpdate(row._id, f.id, [...current, ...newFiles]);
+                                                                                                        }
+                                                                                                        if (files.length !== validFiles.length) {
+                                                                                                            addToast(t('erp.file.size_exceeded') || 'Some files exceed 100MB limit', 'error');
+                                                                                                        }
+                                                                                                        e.target.value = '';
+                                                                                                    }}
+                                                                                                />
+                                                                                                <Upload size={18} className="text-indigo-500 mb-1" />
+                                                                                                <span className="text-xs font-medium">{t('erp.file.click_upload') || 'Click to upload'}</span>
+                                                                                            </label>
+                                                                                            {Array.isArray(row[f.id]) && row[f.id].length > 0 && (
+                                                                                                <div className="mt-2 space-y-1 max-h-24 overflow-y-auto">
+                                                                                                    {row[f.id].map((file: any, idx: number) => (
+                                                                                                        <div key={idx} className="flex items-center justify-between bg-slate-50 px-2 py-1 rounded text-xs">
+                                                                                                            <span className="truncate flex-1">{file.name}</span>
+                                                                                                            <button
+                                                                                                                onClick={() => {
+                                                                                                                    const newFiles = [...row[f.id]];
+                                                                                                                    newFiles.splice(idx, 1);
+                                                                                                                    handleGridUpdate(row._id, f.id, newFiles);
+                                                                                                                }}
+                                                                                                                className="ml-1 text-red-400 hover:text-red-600"
+                                                                                                            >
+                                                                                                                <X size={12} />
+                                                                                                            </button>
+                                                                                                        </div>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            )}
+                                                                                            <button
+                                                                                                onClick={() => setEditingCell(null)}
+                                                                                                className="w-full mt-2 px-2 py-1 text-xs font-bold text-white bg-indigo-600 rounded hover:bg-indigo-700"
+                                                                                            >
+                                                                                                {t('common.done') || 'Done'}
+                                                                                            </button>
+                                                                                        </div>
                                                                                     ) : (
                                                                                         <div className="relative w-full">
                                                                                             <input
@@ -8755,6 +8901,15 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                     <>
                                                                                         {f.type === 'checkbox' ? (
                                                                                             row[f.id] ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Yes</span> : <span className="text-gray-400 text-xs">No</span>
+                                                                                        ) : f.type === 'file' ? (
+                                                                                            Array.isArray(row[f.id]) && row[f.id].length > 0 ? (
+                                                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-600">
+                                                                                                    <FileText size={12} />
+                                                                                                    {row[f.id].length} {t('erp.file.files') || 'file(s)'}
+                                                                                                </span>
+                                                                                            ) : (
+                                                                                                <span className="text-gray-300 italic text-xs">{t('erp.file.no_files') || 'No files'}</span>
+                                                                                            )
                                                                                         ) : (
                                                                                             <span className={isReadOnly ? 'opacity-70' : ''}>
                                                                                                 {safeRenderValue(row[f.id]) || <span className="text-gray-300 italic">-</span>}
@@ -8879,6 +9034,44 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                                                                                 onChange={e => handleBatchUpdate(idx, f.id, e.target.checked)}
                                                                                                 className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
                                                                                             />
+                                                                                        </div>
+                                                                                    ) : f.type === 'file' ? (
+                                                                                        <div className="p-2">
+                                                                                            <label className="border-2 border-dashed border-slate-200 rounded-lg p-2 flex items-center gap-2 text-slate-400 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 transition-all cursor-pointer">
+                                                                                                <input
+                                                                                                    type="file"
+                                                                                                    multiple
+                                                                                                    className="hidden"
+                                                                                                    onChange={async (e) => {
+                                                                                                        const files = Array.from(e.target.files || []);
+                                                                                                        const validFiles = files.filter(file => file.size <= 100 * 1024 * 1024);
+                                                                                                        if (validFiles.length > 0) {
+                                                                                                            const current = row.data[f.id] || [];
+                                                                                                            const newFiles = await processFilesForUpload(validFiles);
+                                                                                                            handleBatchUpdate(idx, f.id, [...current, ...newFiles]);
+                                                                                                        }
+                                                                                                        if (files.length !== validFiles.length) {
+                                                                                                            addToast(t('erp.file.size_exceeded') || 'Some files exceed 100MB limit', 'error');
+                                                                                                        }
+                                                                                                        e.target.value = '';
+                                                                                                    }}
+                                                                                                />
+                                                                                                <Upload size={14} className="text-indigo-500 shrink-0" />
+                                                                                                <span className="text-xs font-medium truncate">
+                                                                                                    {Array.isArray(row.data[f.id]) && row.data[f.id].length > 0
+                                                                                                        ? `${row.data[f.id].length} ${t('erp.file.files_selected') || 'file(s)'}`
+                                                                                                        : t('erp.file.click_upload') || 'Click to upload'
+                                                                                                    }
+                                                                                                </span>
+                                                                                                {Array.isArray(row.data[f.id]) && row.data[f.id].length > 0 && (
+                                                                                                    <button
+                                                                                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleBatchUpdate(idx, f.id, []); }}
+                                                                                                        className="ml-auto text-red-400 hover:text-red-600 p-0.5"
+                                                                                                    >
+                                                                                                        <X size={12} />
+                                                                                                    </button>
+                                                                                                )}
+                                                                                            </label>
                                                                                         </div>
                                                                                     ) : (
                                                                                         <div className="relative w-full">
