@@ -6080,7 +6080,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         </div>
 
                                         {/* Minimalist Integrated Tabs */}
-                                        {(product as any).configRules.length > 1 && (
+                                        {(product as any).configRules.length > 0 && (
                                             <div className="flex items-center gap-6 border-b border-slate-100 mb-5 overflow-x-auto no-scrollbar">
                                                 {(product as any).configRules.map((r: any, idx: number) => {
                                                     const tabLabel = r.title || r.description?.substring(0, 10) || `Rule ${idx + 1}`;
@@ -6144,7 +6144,7 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                         {/* Clean Content Area */}
                                         <div>
                                             {(product as any).configRules.map((rule: any, i: number) => {
-                                                if ((product as any).configRules.length > 1 && activeRuleTab !== i) return null;
+                                                if (activeRuleTab !== i) return null;
                                                 return (
                                                     <div key={i} className="animate-in fade-in slide-in-from-bottom-1 duration-300">
                                                         {rule.description && (
