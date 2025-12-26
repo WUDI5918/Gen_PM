@@ -6952,13 +6952,8 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
             <div className="flex flex-col flex-1 overflow-hidden animate-in fade-in duration-300">
                 {/* Top Navigation Bar */}
                 <div className="bg-white border-b border-gray-100 flex items-center justify-between px-6 py-3 shrink-0 z-20">
+                    <div></div>
                     <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-2 pr-6 border-r border-gray-100">
-                            <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600">
-                                <BoxSelect size={18} />
-                            </div>
-                            <span className="text-sm font-black text-slate-800 uppercase tracking-wide">Product Center</span>
-                        </div>
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => { setProductSubTab('config'); setSelectedProductId(null); }}
@@ -6982,11 +6977,13 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
                                 <span>{t('erp.tabs.settings')}</span>
                             </button>
                         </div>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('erp.engine_active')}</span>
+                        <div className="w-px h-4 bg-gray-200"></div>
+
+                        <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('erp.engine_active')}</span>
+                        </div>
                     </div>
                 </div>
 
@@ -7193,20 +7190,6 @@ export const SuperTable: React.FC<SuperTableProps> = ({ activeProjects = [], act
 
             {/* Top Navigation Bar */}
             <header className="bg-white border-b border-gray-200 shrink-0 flex flex-col z-40 relative">
-                {/* Top Row: Title & Actions */}
-                <div className="px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="p-2 bg-indigo-600 rounded-lg shadow-lg shadow-indigo-200">
-                            <Database className="text-white" size={24} />
-                        </div>
-                        <div>
-                            <h1 className="font-extrabold text-lg text-gray-900 tracking-tight leading-none">{t('erp.title')}</h1>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5 tracking-wider">{t('erp.subtitle')}</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Bottom Row: Navigation Tabs */}
                 <div className="px-6 flex items-center gap-2 overflow-x-auto custom-scrollbar hide-scrollbar">
                     <button
                         onClick={() => setActiveTab('product_center')}
